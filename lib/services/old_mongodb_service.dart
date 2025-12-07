@@ -26,7 +26,7 @@ class MongoDBService {
       logger.i('Insertion réussie, ID : ${result.id}');
     } catch (e) {
       logger.e('Erreur : $e');
-      throw e;
+      rethrow;
     }
   }
 

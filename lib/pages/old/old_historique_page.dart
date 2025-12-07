@@ -6,7 +6,7 @@ class HistoriquePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Historique')),
+      appBar: AppBar(title: const Text('HistoriquE')),
       body: const Center(child: Text('Contenu de la page Historique')),
     );
   }

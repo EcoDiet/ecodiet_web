@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'creer_compte_page.dart';
+import 'old_creer_compte_page.dart';
 
 class ProfilPage extends StatelessWidget {
   const ProfilPage({super.key});
@@ -22,7 +22,8 @@ class ProfilPage extends StatelessWidget {
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF6DA157),
                       foregroundColor: Colors.white,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     onPressed: () {},
@@ -36,13 +37,15 @@ class ProfilPage extends StatelessWidget {
                     style: OutlinedButton.styleFrom(
                       side: const BorderSide(color: Color(0xFF6DA157)),
                       foregroundColor: const Color(0xFF6DA157),
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(8)),
                       padding: const EdgeInsets.symmetric(vertical: 12),
                     ),
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const CreerComptePage()),
+                        MaterialPageRoute(
+                            builder: (context) => const CreerComptePage()),
                       );
                     },
                     child: const Text('Créer un compte'),

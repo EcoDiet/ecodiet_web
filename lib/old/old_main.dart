@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
-import 'pages/login_page.dart';
-import 'pages/create_account_page.dart';
-import 'pages/home_page.dart';
-import 'pages/recipe_infos_page.dart';
-import 'pages/profile_page.dart';
+import '../pages/old/old_profil_page.dart';
+import '../pages/old/old_creer_compte_page.dart';
+import '../pages/old/old_home_page.dart';
+import '../pages/old/old_historique_page.dart';
 
 final logger = Logger(
   level: Level.debug,
@@ -25,44 +24,28 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'EcoDiet',
       theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFF5ECD9), // #F5ECD9
+        scaffoldBackgroundColor: const Color(0xFFFBF4E4),
         colorScheme: const ColorScheme.light(
-          primary: Color(0xFF2F6B3F), // #2F6B3F (première couleur principale)
-          secondary: Color(0xFFF4A259), // #F4A259 (seconde couleur principale)
+          primary: Color(0xFFEA853D),
+          secondary: Color(0xFF6DA157),
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFF5ECD9),
-          iconTheme: IconThemeData(color: Color(0xFFF4A259)),
-          titleTextStyle: TextStyle(color: Color(0xFF1F2E1F), fontSize: 18),
-          elevation: 0,
+          backgroundColor: Color(0xFFFBF4E4),
+          iconTheme: IconThemeData(color: Color(0xFFEA853D)),
         ),
         inputDecorationTheme: InputDecorationTheme(
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFF63A96E)), // #63A96E
+            borderSide: const BorderSide(color: Color(0xFF6DA157)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFF63A96E), width: 2),
+            borderSide: const BorderSide(color: Color(0xFF6DA157), width: 2),
           ),
-          prefixIconColor: const Color(0xFFF4A259),
+          prefixIconColor: const Color(0xFFEA853D),
         ),
       ),
-      initialRoute: '/login',
-      routes: {
-        '/login': (context) => const LoginPage(),
-        '/create-account': (context) => const CreateAccountPage(),
-        '/home': (context) => const MyHomePage(),
-        '/profile': (context) => const ProfilePage(),
-        '/recipe': (context) {
-          final args = ModalRoute.of(context)!.settings.arguments
-              as Map<String, dynamic>?;
-          return RecipeInfosPage(
-            title: args?['title'] as String?,
-            description: args?['description'] as String?,
-          );
-        },
-      },
+      home: const MyHomePage(),
     );
   }
 }
@@ -82,10 +65,13 @@ class _MyHomePageState extends State<MyHomePage> {
     Widget page;
     switch (selectedIndex) {
       case 0:
-        page = const HomePage();
+        page = const HistoriquePage();
         break;
       case 1:
-        page = const ProfilePage();
+        page = const HomePage();
+        break;
+      case 2:
+        page = const ProfilPage();
         break;
       default:
         throw UnimplementedError('Page non trouvée');
@@ -99,6 +85,8 @@ class _MyHomePageState extends State<MyHomePage> {
         selectedItemColor: const Color(0xFFEA853D),
         unselectedItemColor: Colors.grey,
         items: const [
+          BottomNavigationBarItem(
+              icon: Icon(Icons.history), label: 'Historique'),
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
         ],

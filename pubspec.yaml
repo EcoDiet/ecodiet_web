@@ -22,5 +22,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - lib/img/logo_ecodiet_circle.png 
+    - lib/img/tmp_maquette/
 

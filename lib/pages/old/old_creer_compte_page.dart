@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:email_validator/email_validator.dart';
 import 'package:crypto/crypto.dart';
 import 'dart:convert';
-import '../services/mongodb_service.dart';
 
 class CreerComptePage extends StatefulWidget {
   const CreerComptePage({super.key});
@@ -37,7 +36,7 @@ class _CreerComptePageState extends State<CreerComptePage> {
           'password': _hashPassword(_passwordController.text),
           'created_at': DateTime.now(),
         };
-        await MongoDBService.insertUser(userData);
+        // await MongoDBService.insertUser(userData);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Compte créé avec succès !')),
@@ -72,10 +71,12 @@ class _CreerComptePageState extends State<CreerComptePage> {
                       controller: _pseudoController,
                       decoration: InputDecoration(
                         labelText: 'Pseudonyme',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Veuillez entrer un pseudonyme';
+                        if (value == null || value.isEmpty)
+                          return 'Veuillez entrer un pseudonyme';
                         return null;
                       },
                     ),
@@ -84,11 +85,14 @@ class _CreerComptePageState extends State<CreerComptePage> {
                       controller: _emailController,
                       decoration: InputDecoration(
                         labelText: 'Email',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Veuillez entrer un email';
-                        if (!EmailValidator.validate(value)) return 'Email invalide';
+                        if (value == null || value.isEmpty)
+                          return 'Veuillez entrer un email';
+                        if (!EmailValidator.validate(value))
+                          return 'Email invalide';
                         return null;
                       },
                     ),
@@ -98,17 +102,24 @@ class _CreerComptePageState extends State<CreerComptePage> {
                       obscureText: _obscurePassword,
                       decoration: InputDecoration(
                         labelText: 'Mot de passe',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                         suffixIcon: IconButton(
-                          icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
-                          onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                          icon: Icon(_obscurePassword
+                              ? Icons.visibility
+                              : Icons.visibility_off),
+                          onPressed: () => setState(
+                              () => _obscurePassword = !_obscurePassword),
                         ),
                       ),
                       validator: (value) {
-                        if (value == null || value.isEmpty) return 'Veuillez entrer un mot de passe';
+                        if (value == null || value.isEmpty)
+                          return 'Veuillez entrer un mot de passe';
                         if (value.length < 8) return '8 caractères minimum';
-                        if (!RegExp(r'(?=.*[A-Z])').hasMatch(value)) return 'Au moins une majuscule';
-                        if (!RegExp(r'(?=.*[0-9])').hasMatch(value)) return 'Au moins un chiffre';
+                        if (!RegExp(r'(?=.*[A-Z])').hasMatch(value))
+                          return 'Au moins une majuscule';
+                        if (!RegExp(r'(?=.*[0-9])').hasMatch(value))
+                          return 'Au moins un chiffre';
                         return null;
                       },
                     ),
@@ -118,14 +129,20 @@ class _CreerComptePageState extends State<CreerComptePage> {
                       obscureText: _obscureConfirmPassword,
                       decoration: InputDecoration(
                         labelText: 'Confirmer mot de passe',
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                        border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8)),
                         suffixIcon: IconButton(
-                          icon: Icon(_obscureConfirmPassword ? Icons.visibility : Icons.visibility_off),
-                          onPressed: () => setState(() => _obscureConfirmPassword = !_obscureConfirmPassword),
+                          icon: Icon(_obscureConfirmPassword
+                              ? Icons.visibility
+                              : Icons.visibility_off),
+                          onPressed: () => setState(() =>
+                              _obscureConfirmPassword =
+                                  !_obscureConfirmPassword),
                         ),
                       ),
                       validator: (value) {
-                        if (value != _passwordController.text) return 'Les mots de passe ne correspondent pas';
+                        if (value != _passwordController.text)
+                          return 'Les mots de passe ne correspondent pas';
                         return null;
                       },
                     ),
@@ -137,7 +154,8 @@ class _CreerComptePageState extends State<CreerComptePage> {
                           backgroundColor: const Color(0xFF6DA157),
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8)),
                         ),
                         onPressed: _submit,
                         child: const Text('Créer le compte'),
