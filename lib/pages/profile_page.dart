@@ -160,26 +160,16 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildHeader() {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1F2E1F)),
-            onPressed: () => Navigator.pop(context),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 16),
+      child: const Center(
+        child: Text(
+          'Profil',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1F2E1F),
           ),
-          const Expanded(
-            child: Text(
-              'Profil',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1F2E1F),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(width: 48), // Pour équilibrer
-        ],
+        ),
       ),
     );
   }
