@@ -5,6 +5,7 @@ import 'pages/create_account_page.dart';
 import 'pages/home_page.dart';
 import 'pages/recipe_infos_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/quiz_page.dart';
 
 final logger = Logger(
   level: Level.debug,
@@ -58,6 +59,15 @@ class MyApp extends StatelessWidget {
           final args = ModalRoute.of(context)!.settings.arguments
               as Map<String, dynamic>?;
           return RecipeInfosPage(
+            title: args?['title'] as String?,
+            description: args?['description'] as String?,
+          );
+        },
+        '/quiz': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>?;
+          return QuizPage(
+            id: args?['id'] as String?,
             title: args?['title'] as String?,
             description: args?['description'] as String?,
           );
