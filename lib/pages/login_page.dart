@@ -25,11 +25,14 @@ class _LoginPageState extends State<LoginPage> {
                 const SizedBox(height: 10),
 
                 // Sous-titre
-                const Text(
-                  'Login to your account',
-                  style: TextStyle(
-                    fontSize: 16,
-                    color: Colors.black54,
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Login to your account',
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: Colors.black54,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 20),
@@ -109,11 +112,13 @@ class _LoginPageState extends State<LoginPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     // Remplacez par vos propres icônes
-                    IconButton(onPressed: () {}, icon: const Icon(Icons.android, size: 30)), // Placeholder Google
+                    // IconButton(onPressed: () {}, icon: const Icon(Icons.android, size: 30)), // Placeholder Google
+                    Image.asset('lib/assets/icons/google-logo-bold-svgrepo-com.svg', height: 30),
                     const SizedBox(width: 20),
                     IconButton(onPressed: () {}, icon: const Icon(Icons.facebook, size: 30)),
                     const SizedBox(width: 20),
-                    IconButton(onPressed: () {}, icon: const Icon(Icons.flutter_dash, size: 30)), // Placeholder Twitter
+                    // IconButton(onPressed: () {}, icon: const Icon(Icons.flutter_dash, size: 30)), // Placeholder Twitter
+                    Image.asset('lib/assets/icons/twitter-x-seeklogo-2.svg', height: 30),
                   ],
                 ),
                 const SizedBox(height: 40),

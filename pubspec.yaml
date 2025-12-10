@@ -23,4 +23,6 @@ flutter:
   uses-material-design: true
   assets:
     - lib/assets/logo/EcoDiet-Logo.png
+    - lib/assets/icons/google-logo-bold-svgrepo-com.svg
+    - lib/assets/icons/twitter-x-seeklogo-2.svg
 
