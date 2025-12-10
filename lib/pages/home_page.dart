@@ -415,8 +415,15 @@ class _HomePageState extends State<HomePage> {
   Widget _buildQuizCard(Quiz quiz) {
     return GestureDetector(
       onTap: () {
-        // TODO: Navigation vers la page du quiz
-        // Navigator.pushNamed(context, '/quiz', arguments: {'id': quiz.id});
+        Navigator.pushNamed(
+          context,
+          '/quiz',
+          arguments: {
+            'id': quiz.id,
+            'title': quiz.title,
+            'description': quiz.description,
+          },
+        );
       },
       child: Container(
         decoration: BoxDecoration(
