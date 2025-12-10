@@ -6,11 +6,11 @@ class QuizPage extends StatelessWidget {
   final String? description;
 
   const QuizPage({
-    Key? key,
+    super.key,
     this.id,
     this.title,
     this.description,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {
