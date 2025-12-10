@@ -5,6 +5,8 @@ import 'pages/create_account_page.dart';
 import 'pages/home_page.dart';
 import 'pages/recipe_infos_page.dart';
 import 'pages/profile_page.dart';
+import 'pages/quiz_page.dart';
+import 'pages/folder_page.dart';
 
 final logger = Logger(
   level: Level.debug,
@@ -25,10 +27,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'EcoDiet',
       theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFF5ECD9), // #F5ECD9
+        scaffoldBackgroundColor: const Color(0xFFF5ECD9), 
         colorScheme: const ColorScheme.light(
-          primary: Color(0xFF2F6B3F), // #2F6B3F (première couleur principale)
-          secondary: Color(0xFFF4A259), // #F4A259 (seconde couleur principale)
+          primary: Color(0xFF2F6B3F), 
+          secondary: Color(0xFFF4A259), 
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFFF5ECD9),
@@ -39,7 +41,7 @@ class MyApp extends StatelessWidget {
         inputDecorationTheme: InputDecorationTheme(
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFF63A96E)), // #63A96E
+            borderSide: const BorderSide(color: Color(0xFF63A96E)), 
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -60,6 +62,24 @@ class MyApp extends StatelessWidget {
           return RecipeInfosPage(
             title: args?['title'] as String?,
             description: args?['description'] as String?,
+          );
+        },
+        '/quiz': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>?;
+          return QuizPage(
+            id: args?['id'] as String?,
+            title: args?['title'] as String?,
+            description: args?['description'] as String?,
+          );
+        },
+        '/folder': (context) {
+          final args = ModalRoute.of(context)!.settings.arguments
+              as Map<String, dynamic>?;
+          return FolderPage(
+            id: args?['id'] as String?,
+            label: args?['label'] as String?,
+            color: args?['color'] as Color?,
           );
         },
       },
