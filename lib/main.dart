@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:logger/logger.dart';
-import 'pages/test_login_page.dart';
+import 'pages/login_page.dart';
 import 'pages/create_account_page.dart';
 import 'pages/home_page.dart';
 import 'pages/recipe_infos_page.dart';
