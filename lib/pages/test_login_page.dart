@@ -21,7 +21,7 @@ class _LoginPageState extends State<LoginPage> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Image.asset('assets/logo/EcoDiet-Logo.png', height: 50),
+                Image.asset('lib/assets/logo/EcoDiet-Logo.png', height: 300),
                 const SizedBox(height: 10),
 
                 // Sous-titre
