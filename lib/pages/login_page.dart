@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -13,7 +14,7 @@ class _LoginPageState extends State<LoginPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0EAD6), // Couleur de fond beige de la maquette
+      backgroundColor: const Color(0xFFF5ECD9), // Couleur Sable de fond
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -22,7 +23,7 @@ class _LoginPageState extends State<LoginPage> {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Image.asset('lib/assets/logo/EcoDiet-Logo.png', height: 300),
-                const SizedBox(height: 10),
+                const SizedBox(height: 50),
 
                 // Sous-titre
                 const Align(
@@ -35,7 +36,7 @@ class _LoginPageState extends State<LoginPage> {
                     ),
                   ),
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 10),
 
                 // Champ Email
                 TextFormField(
@@ -93,13 +94,13 @@ class _LoginPageState extends State<LoginPage> {
                     Navigator.pushReplacementNamed(context, '/home');
                   },
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE91E63), // Couleur rose/magenta
+                    backgroundColor: const Color(0xFFF4A259), // Couleur Accent Orange
                     minimumSize: const Size(double.infinity, 50),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: const Text('Sign in', style: TextStyle(color: Colors.white)),
+                  child: const Text('Sign in', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
                 const SizedBox(height: 30),
 
@@ -111,14 +112,11 @@ class _LoginPageState extends State<LoginPage> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Remplacez par vos propres icônes
-                    // IconButton(onPressed: () {}, icon: const Icon(Icons.android, size: 30)), // Placeholder Google
-                    Image.asset('lib/assets/icons/google-logo-bold-svgrepo-com.svg', height: 30),
+                    IconButton(onPressed: () {}, icon: SvgPicture.asset('lib/assets/icons/google-logo-bold-svgrepo-com.svg', height: 30)),
                     const SizedBox(width: 20),
                     IconButton(onPressed: () {}, icon: const Icon(Icons.facebook, size: 30)),
                     const SizedBox(width: 20),
-                    // IconButton(onPressed: () {}, icon: const Icon(Icons.flutter_dash, size: 30)), // Placeholder Twitter
-                    Image.asset('lib/assets/icons/twitter-x-seeklogo-2.svg', height: 30),
+                    IconButton(onPressed: () {}, icon: SvgPicture.asset('lib/assets/icons/twitter-x-seeklogo-2.svg', height: 30)),
                   ],
                 ),
                 const SizedBox(height: 40),
@@ -134,7 +132,7 @@ class _LoginPageState extends State<LoginPage> {
                       },
                       child: const Text(
                         'Sign up',
-                        style: TextStyle(color: Color(0xFFE91E63), fontWeight: FontWeight.bold),
+                        style: TextStyle(color: Color(0xFFF4A259), fontWeight: FontWeight.bold),
                       ),
                     ),
                   ],
