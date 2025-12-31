@@ -121,7 +121,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 ElevatedButton(
                   onPressed: () {
                     // Logique de création de compte
-                    Navigator.pushReplacementNamed(context, '/home');
+                    Navigator.pop(context); // Retour à la page de connexion après la validation de l'inscription
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: const Color(0xFFF4A259), // Couleur Accent Orange

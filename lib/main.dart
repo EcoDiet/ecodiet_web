@@ -25,13 +25,13 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 1. Définir Inter comme base pour tout le texte
+    // Définir Inter comme base pour tout le texte
     final baseTextTheme = GoogleFonts.interTextTheme();
     
-    // 2. Définir Montserrat spécifiquement pour les titres
+    // Définir Montserrat spécifiquement pour les titres
     final titleTextTheme = GoogleFonts.montserratTextTheme();
 
-    // 3. Fusionner : Appliquer Montserrat aux styles de titres (Display, Headline, Title)
+    // Fusionner : Appliquer Montserrat aux styles de titres (Display, Headline, Title)
     final mainTextTheme = baseTextTheme.copyWith(
       displayLarge: titleTextTheme.displayLarge,
       displayMedium: titleTextTheme.displayMedium,
@@ -47,6 +47,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'EcoDiet',
       theme: ThemeData(
+        textTheme: mainTextTheme,
         scaffoldBackgroundColor: const Color(0xFFF5ECD9), 
         colorScheme: const ColorScheme.light(
           primary: Color(0xFF2F6B3F), 

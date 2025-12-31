@@ -4,27 +4,26 @@ publish_to: 'none'
 version: 0.0.1+1
 
 environment:
-  sdk: '>=2.19.4 <4.0.0'
+  sdk: '>=2.19.4 <4.0.0' 
 
 dependencies:
   flutter:
-    sdk: flutter
-  mongo_dart: ^0.10.5
-  logger: ^2.0.2 
-  email_validator: ^2.1.17
-  crypto: ^3.0.3
-  flutter_svg: ^2.0.5
-  google_fonts: ^6.3.3
+    sdk: flutter 
+  logger: ^2.0.2 # for logging
+  email_validator: ^2.1.17 # for email validation
+  crypto: ^3.0.3 # for hashing passwords
+  flutter_svg: ^2.0.5 # for SVG image support
+  google_fonts: ^6.3.3 # for custom fonts
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^2.0.0
+  flutter_lints: ^2.0.0 # for linting
 
 flutter:
   uses-material-design: true
   assets:
-    - lib/assets/logo/EcoDiet-Logo.png
-    - lib/assets/icons/google-logo-bold-svgrepo-com.svg
-    - lib/assets/icons/twitter-x-seeklogo-2.svg
+    - lib/assets/logo/EcoDiet-Logo.png # Logo de l'application
+    - lib/assets/icons/google-logo-bold-svgrepo-com.svg # Logo Google (login_page.dart)
+    - lib/assets/icons/twitter-x-seeklogo-2.svg # Logo Twitter (login_page.dart)
 
