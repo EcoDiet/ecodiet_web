@@ -191,7 +191,7 @@ class _QuizPageState extends State<QuizPage> {
     }
 
     if (index == questions[currentQuestionIndex].correctAnswerIndex) {
-      return Colors.green.withOpacity(0.2);
+      return const Color(0xFF2F6B3F).withOpacity(0.15);
     }
 
     if (index == selectedAnswerIndex) {
@@ -209,7 +209,7 @@ class _QuizPageState extends State<QuizPage> {
     }
 
     if (index == questions[currentQuestionIndex].correctAnswerIndex) {
-      return Colors.green;
+      return const Color(0xFF2F6B3F);
     }
 
     if (index == selectedAnswerIndex) {
@@ -467,7 +467,7 @@ class _QuizPageState extends State<QuizPage> {
             if (icon != null)
               Icon(
                 icon,
-                color: icon == Icons.check_circle ? Colors.green : Colors.red,
+                color: icon == Icons.check_circle ? const Color(0xFF2F6B3F) : Colors.red,
                 size: 24,
               ),
           ],
@@ -484,7 +484,7 @@ class _QuizPageState extends State<QuizPage> {
 
     if (percentage >= 80) {
       message = 'Excellent ! 🎉';
-      messageColor = Colors.green;
+      messageColor = const Color(0xFF63A96E);
       messageIcon = Icons.emoji_events;
     } else if (percentage >= 60) {
       message = 'Bien joué ! 👍';
@@ -496,7 +496,7 @@ class _QuizPageState extends State<QuizPage> {
       messageIcon = Icons.school;
     } else {
       message = 'Continue d\'apprendre ! 💪';
-      messageColor = Colors.orange;
+      messageColor = const Color(0xFFEA853D);
       messageIcon = Icons.fitness_center;
     }
 

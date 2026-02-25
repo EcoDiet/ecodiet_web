@@ -233,7 +233,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           icon: Icons.access_time,
           label: 'Temps',
           value: 'Durée (sec)',
-          color: const Color(0xFF87CEEB),
+          color: const Color(0xFF63A96E),
         ),
         const SizedBox(width: 12),
         _buildInfoCard(
@@ -247,7 +247,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           icon: Icons.trending_up,
           label: 'Difficultés',
           value: 'Durée (sec)',
-          color: const Color(0xFF87CEEB),
+          color: const Color(0xFF2F6B3F),
         ),
       ],
     );
@@ -388,7 +388,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           style: const TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF87CEEB),
+            color: Color(0xFF2F6B3F),
           ),
         ),
         const SizedBox(height: 4),

@@ -553,7 +553,7 @@ class _HomePageState extends State<HomePage> {
                           recipe.ingredients,
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.red[300],
+                            color: Colors.grey[500],
                           ),
                         ),
                       ],
