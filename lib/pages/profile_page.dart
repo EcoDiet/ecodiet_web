@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/responsive.dart';
 
 /// Modèle pour un dossier
 class Folder {
@@ -80,81 +81,135 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final desktop = isDesktop(context);
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            _buildHeader(),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: Column(
+              children: [
+                // Header (back button masqué sur desktop car navigation via rail)
+                if (!desktop) _buildHeader(),
 
-            // Contenu scrollable
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Photo de profil
-                    Center(
-                      child: Container(
-                        width: 80,
-                        height: 80,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          Icons.image,
-                          size: 40,
-                          color: Colors.grey[400],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Mes dossiers avec bouton +
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        _buildSectionHeader(Icons.folder, 'Mes dossiers'),
-                        GestureDetector(
-                          onTap: _showCreateFolderDialog,
-                          child: Container(
-                            padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFF4A259),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: const Icon(
-                              Icons.add,
-                              size: 20,
-                              color: Colors.white,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    ...folders.map((folder) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _buildFolderItem(folder),
-                        )),
-                    const SizedBox(height: 24),
-
-                    // Mes préférences
-                    _buildSectionHeader(Icons.tune, 'Mes préférences'),
-                    const SizedBox(height: 12),
-                    ...preferences.map((pref) => Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: _buildPreferenceItem(pref),
-                        )),
-                  ],
+                // Contenu scrollable
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.all(desktop ? 32 : 16),
+                    child: desktop
+                        ? _buildDesktopLayout()
+                        : _buildMobileLayout(),
+                  ),
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMobileLayout() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Center(child: _buildAvatar()),
+        const SizedBox(height: 24),
+        _buildFoldersSection(),
+        const SizedBox(height: 24),
+        _buildPreferencesSection(),
+      ],
+    );
+  }
+
+  Widget _buildDesktopLayout() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Avatar centré + titre
+        Center(
+          child: Column(
+            children: [
+              _buildAvatar(size: 100),
+              const SizedBox(height: 12),
+              const Text(
+                'Mon profil',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF1F2E1F),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 32),
+        // 2 colonnes : dossiers | préférences
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: _buildFoldersSection()),
+            const SizedBox(width: 32),
+            Expanded(child: _buildPreferencesSection()),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildAvatar({double size = 80}) {
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(size * 0.15),
+      ),
+      child: Icon(Icons.image, size: size * 0.5, color: Colors.grey[400]),
+    );
+  }
+
+  Widget _buildFoldersSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            _buildSectionHeader(Icons.folder, 'Mes dossiers'),
+            GestureDetector(
+              onTap: _showCreateFolderDialog,
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4A259),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(Icons.add, size: 20, color: Colors.white),
               ),
             ),
           ],
         ),
-      ),
+        const SizedBox(height: 12),
+        ...folders.map((folder) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildFolderItem(folder),
+            )),
+      ],
+    );
+  }
+
+  Widget _buildPreferencesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _buildSectionHeader(Icons.tune, 'Mes préférences'),
+        const SizedBox(height: 12),
+        ...preferences.map((pref) => Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: _buildPreferenceItem(pref),
+            )),
+      ],
     );
   }
 

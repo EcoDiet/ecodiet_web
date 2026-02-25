@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/responsive.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -12,12 +13,15 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
+    final desktop = isDesktop(context);
     return Scaffold(
       backgroundColor: const Color(0xFFF0EAD6), // Couleur de fond beige de la maquette
       body: SafeArea(
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxWidth: desktop ? 480 : double.infinity),
+            child: SingleChildScrollView(
+            padding: EdgeInsets.symmetric(horizontal: desktop ? 48.0 : 32.0),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -136,6 +140,7 @@ class _LoginPageState extends State<LoginPage> {
                 ),
               ],
             ),
+          ),
           ),
         ),
       ),

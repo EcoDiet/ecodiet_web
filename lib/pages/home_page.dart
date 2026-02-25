@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/responsive.dart';
 
 /// Modèle pour une recette
 class Recipe {
@@ -138,76 +139,102 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
+    final desktop = isDesktop(context);
+
     return Scaffold(
       body: SafeArea(
-        child: RefreshIndicator(
-          onRefresh: _loadData,
-          child: SingleChildScrollView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.all(16.0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header
-                _buildHeader(context),
-                const SizedBox(height: 24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1200),
+            child: RefreshIndicator(
+              onRefresh: _loadData,
+              child: SingleChildScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: EdgeInsets.all(desktop ? 32.0 : 16.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    _buildHeader(context, desktop),
+                    const SizedBox(height: 24),
 
-                // Section "Juste pour vous"
-                if (recommendedRecipes.isNotEmpty) ...[
-                  _buildSectionTitle('Juste pour vous'),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 220,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: recommendedRecipes.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 12),
-                          child: _buildRecipeCard(
-                            context,
-                            recommendedRecipes[index],
+                    // Section "Juste pour vous"
+                    if (recommendedRecipes.isNotEmpty) ...[
+                      _buildSectionTitle('Juste pour vous'),
+                      const SizedBox(height: 12),
+                      if (desktop)
+                        _buildRecipeGrid(context, recommendedRecipes)
+                      else
+                        SizedBox(
+                          height: 220,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: recommendedRecipes.length,
+                            itemBuilder: (context, index) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 12),
+                                child: _buildRecipeCard(
+                                  context,
+                                  recommendedRecipes[index],
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
+                        ),
+                      const SizedBox(height: 24),
+                    ],
 
-                // Section "Nos recettes"
-                if (allRecipes.isNotEmpty) ...[
-                  _buildSectionTitle('Nos recettes'),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 220,
-                    child: ListView.builder(
-                      scrollDirection: Axis.horizontal,
-                      itemCount: allRecipes.length,
-                      itemBuilder: (context, index) {
-                        return Padding(
-                          padding: const EdgeInsets.only(right: 12),
-                          child: _buildRecipeCard(
-                            context,
-                            allRecipes[index],
+                    // Section "Nos recettes"
+                    if (allRecipes.isNotEmpty) ...[
+                      _buildSectionTitle('Nos recettes'),
+                      const SizedBox(height: 12),
+                      if (desktop)
+                        _buildRecipeGrid(context, allRecipes)
+                      else
+                        SizedBox(
+                          height: 220,
+                          child: ListView.builder(
+                            scrollDirection: Axis.horizontal,
+                            itemCount: allRecipes.length,
+                            itemBuilder: (context, index) {
+                              return Padding(
+                                padding: const EdgeInsets.only(right: 12),
+                                child: _buildRecipeCard(
+                                  context,
+                                  allRecipes[index],
+                                ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                ],
+                        ),
+                      const SizedBox(height: 24),
+                    ],
 
-                // Section "Testez vos connaissances"
-                if (quizzes.isNotEmpty) ...[
-                  _buildSectionTitle('Testez vos connaissances'),
-                  const SizedBox(height: 12),
-                  ...quizzes.map((quiz) => Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildQuizCard(quiz),
-                      )),
-                ],
-              ],
+                    // Section "Testez vos connaissances"
+                    if (quizzes.isNotEmpty) ...[
+                      _buildSectionTitle('Testez vos connaissances'),
+                      const SizedBox(height: 12),
+                      if (desktop)
+                        GridView.count(
+                          crossAxisCount: 3,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                          childAspectRatio: 2.2,
+                          shrinkWrap: true,
+                          physics: const NeverScrollableScrollPhysics(),
+                          children: quizzes
+                              .map((quiz) => _buildQuizCard(quiz))
+                              .toList(),
+                        )
+                      else
+                        ...quizzes.map((quiz) => Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: _buildQuizCard(quiz),
+                            )),
+                    ],
+                  ],
+                ),
+              ),
             ),
           ),
         ),
@@ -215,22 +242,22 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildHeader(BuildContext context) {
+  Widget _buildHeader(BuildContext context, bool desktop) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        const Column(
+        Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Bonjour !',
               style: TextStyle(
-                fontSize: 24,
+                fontSize: desktop ? 32 : 24,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFF2F6B3F),
+                color: const Color(0xFF2F6B3F),
               ),
             ),
-            Text(
+            const Text(
               'Mangez sainement, naturellement',
               style: TextStyle(
                 fontSize: 14,
@@ -239,22 +266,41 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
-        GestureDetector(
-          onTap: () => Navigator.pushNamed(context, '/profile'),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(
-              Icons.person,
-              size: 28,
-              color: Colors.grey,
+        if (!desktop)
+          GestureDetector(
+            onTap: () => Navigator.pushNamed(context, '/profile'),
+            child: Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.grey[200],
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.person,
+                size: 28,
+                color: Colors.grey,
+              ),
             ),
           ),
-        ),
       ],
+    );
+  }
+
+  Widget _buildRecipeGrid(BuildContext context, List<Recipe> recipes) {
+    final width = MediaQuery.of(context).size.width;
+    final crossAxisCount = width >= 1100 ? 4 : width >= 850 ? 3 : 2;
+    return GridView.builder(
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 0.85,
+      ),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: recipes.length,
+      itemBuilder: (context, index) =>
+          _buildRecipeCard(context, recipes[index]),
     );
   }
 
@@ -270,6 +316,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildRecipeCard(BuildContext context, Recipe recipe) {
+    final desktop = isDesktop(context);
     return GestureDetector(
       onTap: () => Navigator.pushNamed(
         context,
@@ -281,7 +328,7 @@ class _HomePageState extends State<HomePage> {
         },
       ),
       child: Container(
-        width: 200,
+        width: desktop ? null : 200,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),

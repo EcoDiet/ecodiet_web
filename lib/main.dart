@@ -7,6 +7,7 @@ import 'pages/recipe_infos_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/quiz_page.dart';
 import 'pages/folder_page.dart';
+import 'utils/responsive.dart';
 
 final logger = Logger(
   level: Level.debug,
@@ -99,16 +100,49 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    Widget page;
-    switch (selectedIndex) {
-      case 0:
-        page = const HomePage();
-        break;
-      case 1:
-        page = const ProfilePage();
-        break;
-      default:
-        throw UnimplementedError('Page non trouvée');
+    Widget page = selectedIndex == 0 ? const HomePage() : const ProfilePage();
+
+    if (isDesktop(context)) {
+      return Scaffold(
+        body: Row(
+          children: [
+            NavigationRail(
+              backgroundColor: const Color(0xFFF5ECD9),
+              selectedIndex: selectedIndex,
+              onDestinationSelected: (index) =>
+                  setState(() => selectedIndex = index),
+              labelType: NavigationRailLabelType.all,
+              selectedIconTheme:
+                  const IconThemeData(color: Color(0xFFEA853D)),
+              selectedLabelTextStyle:
+                  const TextStyle(color: Color(0xFFEA853D)),
+              unselectedIconTheme:
+                  const IconThemeData(color: Colors.grey),
+              leading: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Image.asset(
+                  'lib/assets/logo/EcoDiet-Logo.png',
+                  height: 48,
+                ),
+              ),
+              destinations: const [
+                NavigationRailDestination(
+                  icon: Icon(Icons.home_outlined),
+                  selectedIcon: Icon(Icons.home),
+                  label: Text('Accueil'),
+                ),
+                NavigationRailDestination(
+                  icon: Icon(Icons.person_outline),
+                  selectedIcon: Icon(Icons.person),
+                  label: Text('Profil'),
+                ),
+              ],
+            ),
+            const VerticalDivider(thickness: 1, width: 1),
+            Expanded(child: page),
+          ],
+        ),
+      );
     }
 
     return Scaffold(
@@ -119,7 +153,7 @@ class _MyHomePageState extends State<MyHomePage> {
         selectedItemColor: const Color(0xFFEA853D),
         unselectedItemColor: Colors.grey,
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
           BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
         ],
       ),
