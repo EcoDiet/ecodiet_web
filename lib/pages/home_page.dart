@@ -51,10 +51,35 @@ class _HomePageState extends State<HomePage> {
   List<Quiz> quizzes = [];
   bool isLoading = true;
 
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+
+  List<Recipe> get _filteredRecommended => _searchQuery.isEmpty
+      ? recommendedRecipes
+      : recommendedRecipes
+          .where((r) =>
+              r.title.toLowerCase().contains(_searchQuery) ||
+              r.category.toLowerCase().contains(_searchQuery))
+          .toList();
+
+  List<Recipe> get _filteredAll => _searchQuery.isEmpty
+      ? allRecipes
+      : allRecipes
+          .where((r) =>
+              r.title.toLowerCase().contains(_searchQuery) ||
+              r.category.toLowerCase().contains(_searchQuery))
+          .toList();
+
   @override
   void initState() {
     super.initState();
     _loadData();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadData() async {
@@ -158,24 +183,43 @@ class _HomePageState extends State<HomePage> {
                     _buildHeader(context, desktop),
                     const SizedBox(height: 24),
 
+                    // Message "aucun résultat" si recherche active
+                    if (_searchQuery.isNotEmpty &&
+                        _filteredRecommended.isEmpty &&
+                        _filteredAll.isEmpty) ...[
+                      const SizedBox(height: 48),
+                      Center(
+                        child: Column(
+                          children: [
+                            Icon(Icons.search_off, size: 48, color: Colors.grey[300]),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Aucune recette trouvée pour "$_searchQuery"',
+                              style: TextStyle(color: Colors.grey[500], fontSize: 14),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+
                     // Section "Juste pour vous"
-                    if (recommendedRecipes.isNotEmpty) ...[
-                      _buildSectionTitle('Juste pour vous'),
+                    if (_filteredRecommended.isNotEmpty) ...[
+                      _buildSectionTitle('⭐ Juste pour vous'),
                       const SizedBox(height: 12),
                       if (desktop)
-                        _buildRecipeGrid(context, recommendedRecipes)
+                        _buildRecipeGrid(context, _filteredRecommended)
                       else
                         SizedBox(
                           height: 220,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
-                            itemCount: recommendedRecipes.length,
+                            itemCount: _filteredRecommended.length,
                             itemBuilder: (context, index) {
                               return Padding(
                                 padding: const EdgeInsets.only(right: 12),
                                 child: _buildRecipeCard(
                                   context,
-                                  recommendedRecipes[index],
+                                  _filteredRecommended[index],
                                 ),
                               );
                             },
@@ -185,23 +229,23 @@ class _HomePageState extends State<HomePage> {
                     ],
 
                     // Section "Nos recettes"
-                    if (allRecipes.isNotEmpty) ...[
-                      _buildSectionTitle('Nos recettes'),
+                    if (_filteredAll.isNotEmpty) ...[
+                      _buildSectionTitle('🍽️ Nos recettes'),
                       const SizedBox(height: 12),
                       if (desktop)
-                        _buildRecipeGrid(context, allRecipes)
+                        _buildRecipeGrid(context, _filteredAll)
                       else
                         SizedBox(
                           height: 220,
                           child: ListView.builder(
                             scrollDirection: Axis.horizontal,
-                            itemCount: allRecipes.length,
+                            itemCount: _filteredAll.length,
                             itemBuilder: (context, index) {
                               return Padding(
                                 padding: const EdgeInsets.only(right: 12),
                                 child: _buildRecipeCard(
                                   context,
-                                  allRecipes[index],
+                                  _filteredAll[index],
                                 ),
                               );
                             },
@@ -211,15 +255,15 @@ class _HomePageState extends State<HomePage> {
                     ],
 
                     // Section "Testez vos connaissances"
-                    if (quizzes.isNotEmpty) ...[
-                      _buildSectionTitle('Testez vos connaissances'),
+                    if (quizzes.isNotEmpty && _searchQuery.isEmpty) ...[
+                      _buildSectionTitle('🧠 Testez vos connaissances', showViewAll: false),
                       const SizedBox(height: 12),
                       if (desktop)
                         GridView.count(
                           crossAxisCount: 3,
                           crossAxisSpacing: 12,
                           mainAxisSpacing: 12,
-                          childAspectRatio: 2.2,
+                          childAspectRatio: 1.8,
                           shrinkWrap: true,
                           physics: const NeverScrollableScrollPhysics(),
                           children: quizzes
@@ -243,45 +287,101 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildHeader(BuildContext context, bool desktop) {
+    if (desktop) {
+      return Row(
+        children: [
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: const [
+              Text(
+                'Bonjour !',
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Color(0xFF2F6B3F),
+                ),
+              ),
+              Text(
+                'Mangez sainement, naturellement',
+                style: TextStyle(fontSize: 14, color: Colors.grey),
+              ),
+            ],
+          ),
+          const Spacer(),
+          // Barre de recherche desktop
+          Container(
+            width: 300,
+            height: 42,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(10),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) =>
+                  setState(() => _searchQuery = value.toLowerCase().trim()),
+              decoration: InputDecoration(
+                hintText: 'Rechercher une recette…',
+                hintStyle: TextStyle(fontSize: 13, color: Colors.grey[400]),
+                prefixIcon: Icon(Icons.search, size: 20, color: Colors.grey[400]),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(Icons.close, size: 16, color: Colors.grey[400]),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() => _searchQuery = '');
+                        },
+                      )
+                    : null,
+                border: InputBorder.none,
+                enabledBorder: InputBorder.none,
+                focusedBorder: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+          children: const [
             Text(
               'Bonjour !',
               style: TextStyle(
-                fontSize: desktop ? 32 : 24,
+                fontSize: 24,
                 fontWeight: FontWeight.bold,
-                color: const Color(0xFF2F6B3F),
+                color: Color(0xFF2F6B3F),
               ),
             ),
-            const Text(
+            Text(
               'Mangez sainement, naturellement',
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey,
-              ),
+              style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
           ],
         ),
-        if (!desktop)
-          GestureDetector(
-            onTap: () => Navigator.pushNamed(context, '/profile'),
-            child: Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.grey[200],
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(
-                Icons.person,
-                size: 28,
-                color: Colors.grey,
-              ),
+        GestureDetector(
+          onTap: () => Navigator.pushNamed(context, '/profile'),
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Colors.grey[200],
+              shape: BoxShape.circle,
             ),
+            child: const Icon(Icons.person, size: 28, color: Colors.grey),
           ),
+        ),
       ],
     );
   }
@@ -304,14 +404,31 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildSectionTitle(String title) {
-    return Text(
-      title,
-      style: const TextStyle(
-        fontSize: 18,
-        fontWeight: FontWeight.bold,
-        color: Color(0xFF1F2E1F),
-      ),
+  Widget _buildSectionTitle(String title, {bool showViewAll = true}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1F2E1F),
+          ),
+        ),
+        if (showViewAll)
+          GestureDetector(
+            onTap: () {},
+            child: const Text(
+              'Voir tout',
+              style: TextStyle(
+                fontSize: 13,
+                color: Color(0xFF2F6B3F),
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -345,13 +462,18 @@ class _HomePageState extends State<HomePage> {
           children: [
             // Image
             Container(
-              height: 100,
+              height: 110,
               decoration: BoxDecoration(
-                color: Colors.grey[100],
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(12),
                 ),
-                border: Border.all(color: const Color(0xFF87CEEB), width: 2),
+                gradient: recipe.imageUrl == null
+                    ? const LinearGradient(
+                        colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
                 image: recipe.imageUrl != null
                     ? DecorationImage(
                         image: NetworkImage(recipe.imageUrl!),
@@ -364,30 +486,34 @@ class _HomePageState extends State<HomePage> {
                   if (recipe.imageUrl == null)
                     Center(
                       child: Icon(
-                        Icons.image,
+                        Icons.eco,
                         size: 40,
-                        color: Colors.grey[400],
+                        color: Colors.white.withOpacity(0.6),
                       ),
                     ),
-                  Positioned(
-                    top: 8,
-                    left: 8,
-                    child: Text(
-                      'A',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
-                      ),
-                    ),
-                  ),
                   Positioned(
                     top: 8,
                     right: 8,
-                    child: Text(
-                      recipe.duration,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey[600],
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.35),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.timer_outlined, size: 11, color: Colors.white),
+                          const SizedBox(width: 3),
+                          Text(
+                            recipe.duration,
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w500,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ),
@@ -489,13 +615,19 @@ class _HomePageState extends State<HomePage> {
           children: [
             // Image
             Container(
-              height: 100,
+              height: 80,
               width: double.infinity,
               decoration: BoxDecoration(
-                color: Colors.grey[100],
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(12),
                 ),
+                gradient: quiz.imageUrl == null
+                    ? const LinearGradient(
+                        colors: [Color(0xFFF4A259), Color(0xFFEA853D)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      )
+                    : null,
                 image: quiz.imageUrl != null
                     ? DecorationImage(
                         image: NetworkImage(quiz.imageUrl!),
@@ -506,9 +638,9 @@ class _HomePageState extends State<HomePage> {
               child: quiz.imageUrl == null
                   ? Center(
                       child: Icon(
-                        Icons.image,
-                        size: 40,
-                        color: Colors.grey[400],
+                        Icons.quiz_outlined,
+                        size: 36,
+                        color: Colors.white.withOpacity(0.7),
                       ),
                     )
                   : null,
@@ -516,23 +648,45 @@ class _HomePageState extends State<HomePage> {
             // Contenu
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Column(
+              child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    quiz.title,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F2E1F),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          quiz.title,
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1F2E1F),
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          quiz.description,
+                          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Text(
-                    quiz.description,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: Colors.grey[600],
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFF4A259),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: const Text(
+                      'Jouer',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ],

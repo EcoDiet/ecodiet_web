@@ -98,6 +98,75 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   int selectedIndex = 0;
 
+  Widget _buildNavItem({
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+    required int index,
+  }) {
+    final isSelected = selectedIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => selectedIndex = index),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFFEA853D).withOpacity(0.15)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: isSelected
+              ? Border.all(color: const Color(0xFFEA853D).withOpacity(0.3))
+              : null,
+        ),
+        child: Row(
+          children: [
+            Icon(
+              isSelected ? selectedIcon : icon,
+              color: isSelected ? const Color(0xFFEA853D) : const Color(0xFF8FBF97),
+              size: 22,
+            ),
+            const SizedBox(width: 14),
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? const Color(0xFFEA853D) : const Color(0xFF8FBF97),
+                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildLogoutButton(BuildContext context) {
+    return GestureDetector(
+      onTap: () => Navigator.pushReplacementNamed(context, '/login'),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: const Row(
+          children: [
+            Icon(Icons.logout, color: Color(0xFF8FBF97), size: 20),
+            SizedBox(width: 14),
+            Text(
+              'Déconnexion',
+              style: TextStyle(
+                color: Color(0xFF8FBF97),
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     Widget page = selectedIndex == 0 ? const HomePage() : const ProfilePage();
@@ -106,39 +175,67 @@ class _MyHomePageState extends State<MyHomePage> {
       return Scaffold(
         body: Row(
           children: [
-            NavigationRail(
-              backgroundColor: const Color(0xFFF5ECD9),
-              selectedIndex: selectedIndex,
-              onDestinationSelected: (index) =>
-                  setState(() => selectedIndex = index),
-              labelType: NavigationRailLabelType.all,
-              selectedIconTheme:
-                  const IconThemeData(color: Color(0xFFEA853D)),
-              selectedLabelTextStyle:
-                  const TextStyle(color: Color(0xFFEA853D)),
-              unselectedIconTheme:
-                  const IconThemeData(color: Colors.grey),
-              leading: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                child: Image.asset(
-                  'lib/assets/logo/EcoDiet-Logo.png',
-                  height: 48,
-                ),
+            Container(
+              width: 220,
+              color: const Color(0xFF1F3A24),
+              child: Column(
+                children: [
+                  // Logo + titre
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 32, 20, 24),
+                    child: Column(
+                      children: [
+                        Image.asset(
+                          'lib/assets/logo/EcoDiet-Logo.png',
+                          height: 52,
+                        ),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'EcoDiet',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                        const Text(
+                          'Mangez naturellement',
+                          style: TextStyle(
+                            color: Color(0xFF8FBF97),
+                            fontSize: 11,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(color: Color(0xFF2F5435), height: 1),
+                  const SizedBox(height: 16),
+
+                  // Navigation items
+                  _buildNavItem(
+                    icon: Icons.home_outlined,
+                    selectedIcon: Icons.home,
+                    label: 'Accueil',
+                    index: 0,
+                  ),
+                  _buildNavItem(
+                    icon: Icons.person_outline,
+                    selectedIcon: Icons.person,
+                    label: 'Profil',
+                    index: 1,
+                  ),
+
+                  const Spacer(),
+
+                  // Déconnexion
+                  const Divider(color: Color(0xFF2F5435), height: 1),
+                  _buildLogoutButton(context),
+                  const SizedBox(height: 16),
+                ],
               ),
-              destinations: const [
-                NavigationRailDestination(
-                  icon: Icon(Icons.home_outlined),
-                  selectedIcon: Icon(Icons.home),
-                  label: Text('Accueil'),
-                ),
-                NavigationRailDestination(
-                  icon: Icon(Icons.person_outline),
-                  selectedIcon: Icon(Icons.person),
-                  label: Text('Profil'),
-                ),
-              ],
             ),
-            const VerticalDivider(thickness: 1, width: 1),
+            Container(width: 1, color: const Color(0xFFD8D0C0)),
             Expanded(child: page),
           ],
         ),
