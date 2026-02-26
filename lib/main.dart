@@ -61,8 +61,10 @@ class MyApp extends StatelessWidget {
           final args = ModalRoute.of(context)!.settings.arguments
               as Map<String, dynamic>?;
           return RecipeInfosPage(
+            id: args?['id'] as String?,
             title: args?['title'] as String?,
             description: args?['description'] as String?,
+            duration: args?['duration'] as String?,
           );
         },
         '/quiz': (context) {

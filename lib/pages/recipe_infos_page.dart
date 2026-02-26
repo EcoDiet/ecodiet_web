@@ -1,16 +1,19 @@
 import 'package:flutter/material.dart';
 import '../utils/responsive.dart';
+import '../services/favorites_service.dart';
 
 class RecipeInfosPage extends StatefulWidget {
   final String? id;
   final String? title;
   final String? description;
+  final String? duration;
 
   const RecipeInfosPage({
     Key? key,
     this.id,
     this.title,
     this.description,
+    this.duration,
   }) : super(key: key);
 
   @override
@@ -19,8 +22,8 @@ class RecipeInfosPage extends StatefulWidget {
 
 class _RecipeInfosPageState extends State<RecipeInfosPage> {
   // TODO: Charger les données complètes de la recette depuis l'API
-  bool isFavorite = false;
   bool isLoading = true;
+  late final FavoritesService _favoritesService;
 
   // Données de la recette (à remplacer par les vraies données)
   String? imageUrl;
@@ -34,7 +37,19 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   @override
   void initState() {
     super.initState();
+    _favoritesService = FavoritesService();
+    _favoritesService.addListener(_onFavoritesChanged);
     _loadRecipeDetails();
+  }
+
+  @override
+  void dispose() {
+    _favoritesService.removeListener(_onFavoritesChanged);
+    super.dispose();
+  }
+
+  void _onFavoritesChanged() {
+    setState(() {});
   }
 
   Future<void> _loadRecipeDetails() async {
@@ -67,11 +82,19 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   }
 
   void _toggleFavorite() {
-    setState(() {
-      isFavorite = !isFavorite;
-    });
+    if (widget.id == null) return;
+    _favoritesService.toggle(FavoriteRecipe(
+      id: widget.id!,
+      title: widget.title ?? '',
+      category: widget.description ?? '',
+      duration: widget.duration ?? '',
+      imageUrl: imageUrl,
+    ));
     // TODO: Sauvegarder dans la base de données
   }
+
+  bool get _isFavorite =>
+      widget.id != null && _favoritesService.isFavorite(widget.id!);
 
   void _addToFolder() {
     // TODO: Afficher un dialog pour choisir le dossier
@@ -522,11 +545,11 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
             child: ElevatedButton.icon(
               onPressed: _toggleFavorite,
               icon: Icon(
-                isFavorite ? Icons.favorite : Icons.favorite_border,
+                _isFavorite ? Icons.favorite : Icons.favorite_border,
                 size: 18,
               ),
               label: Text(
-                isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
+                _isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w500,
@@ -583,7 +606,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               ),
             ),
             child: Text(
-              isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
+              _isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
               style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w500,

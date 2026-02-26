@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/responsive.dart';
+import '../services/favorites_service.dart';
 
 /// Modèle pour une recette
 class Recipe {
@@ -76,12 +77,18 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadData();
+    FavoritesService().addListener(_onFavoritesChanged);
   }
 
   @override
   void dispose() {
+    FavoritesService().removeListener(_onFavoritesChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onFavoritesChanged() {
+    setState(() {});
   }
 
   Future<void> _loadData() async {
@@ -152,9 +159,13 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _toggleFavorite(Recipe recipe) {
-    setState(() {
-      recipe.isFavorite = !recipe.isFavorite;
-    });
+    FavoritesService().toggle(FavoriteRecipe(
+      id: recipe.id,
+      title: recipe.title,
+      category: recipe.category,
+      duration: recipe.duration,
+      imageUrl: recipe.imageUrl,
+    ));
     // TODO: Sauvegarder le statut favori dans la base de données
   }
 
@@ -446,6 +457,7 @@ class _HomePageState extends State<HomePage> {
           'id': recipe.id,
           'title': recipe.title,
           'description': recipe.category,
+          'duration': recipe.duration,
         },
       ),
       child: Container(
@@ -572,7 +584,7 @@ class _HomePageState extends State<HomePage> {
                         shape: BoxShape.circle,
                       ),
                       child: Icon(
-                        recipe.isFavorite
+                        FavoritesService().isFavorite(recipe.id)
                             ? Icons.favorite
                             : Icons.favorite_border,
                         size: 20,

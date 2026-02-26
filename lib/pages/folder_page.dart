@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/favorites_service.dart';
+import '../utils/responsive.dart';
 
 class FolderPage extends StatefulWidget {
   final String? id;
@@ -18,25 +20,39 @@ class FolderPage extends StatefulWidget {
 
 class _FolderPageState extends State<FolderPage> {
   bool isLoading = true;
-  List<FolderRecipe> recipes = [];
+  List<FavoriteRecipe> recipes = [];
 
   @override
   void initState() {
     super.initState();
     _loadFolderRecipes();
+    if (widget.id == 'favorites') {
+      FavoritesService().addListener(_onFavoritesChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    if (widget.id == 'favorites') {
+      FavoritesService().removeListener(_onFavoritesChanged);
+    }
+    super.dispose();
+  }
+
+  void _onFavoritesChanged() {
+    setState(() {
+      recipes = List.of(FavoritesService().favorites);
+    });
   }
 
   Future<void> _loadFolderRecipes() async {
     // TODO: Remplacer par l'appel API réel
-    // final recipes = await api.getFolderRecipes(widget.id);
     await Future.delayed(const Duration(milliseconds: 300));
 
     setState(() {
-      // Chaque dossier a ses propres recettes selon son id
-      // À remplacer par les vraies données de l'API
       switch (widget.id) {
         case 'favorites':
-          recipes = _getFavoritesRecipes();
+          recipes = List.of(FavoritesService().favorites);
           break;
         case '2':
           recipes = _getFolder2Recipes();
@@ -51,15 +67,9 @@ class _FolderPageState extends State<FolderPage> {
     });
   }
 
-  // Recettes favorites
-  List<FolderRecipe> _getFavoritesRecipes() {
-    return [];
-  }
-
-  // Recettes du dossier 2
-  List<FolderRecipe> _getFolder2Recipes() {
+  List<FavoriteRecipe> _getFolder2Recipes() {
     return [
-      FolderRecipe(
+      FavoriteRecipe(
         id: '3',
         title: 'Smoothie vert',
         category: 'Boisson',
@@ -69,19 +79,16 @@ class _FolderPageState extends State<FolderPage> {
     ];
   }
 
-  // Recettes du dossier 3 - vide pour l'exemple
-  List<FolderRecipe> _getFolder3Recipes() {
+  List<FavoriteRecipe> _getFolder3Recipes() {
     return [];
   }
 
-  void _removeFromFolder(FolderRecipe recipe) {
+  void _removeFromFolder(FavoriteRecipe recipe) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Retirer du dossier ?'),
-        content: Text(
-          'Voulez-vous retirer "${recipe.title}" de ce dossier ?',
-        ),
+        content: Text('Voulez-vous retirer "${recipe.title}" de ce dossier ?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -89,16 +96,17 @@ class _FolderPageState extends State<FolderPage> {
           ),
           TextButton(
             onPressed: () {
-              setState(() {
-                recipes.removeWhere((r) => r.id == recipe.id);
-              });
+              if (widget.id == 'favorites') {
+                FavoritesService().removeFavorite(recipe.id);
+              } else {
+                setState(() {
+                  recipes.removeWhere((r) => r.id == recipe.id);
+                });
+              }
               Navigator.pop(context);
               // TODO: Appeler l'API pour retirer la recette du dossier
             },
-            child: const Text(
-              'Retirer',
-              style: TextStyle(color: Colors.red),
-            ),
+            child: const Text('Retirer', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -107,49 +115,68 @@ class _FolderPageState extends State<FolderPage> {
 
   @override
   Widget build(BuildContext context) {
+    final desktop = isDesktop(context);
     final folderColor = widget.color ?? const Color(0xFFF4A259);
 
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            _buildHeader(folderColor),
-
-            // Contenu
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : recipes.isEmpty
-                      ? _buildEmptyState()
-                      : _buildRecipesList(),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 1000),
+            child: Column(
+              children: [
+                _buildHeader(folderColor, desktop),
+                Expanded(
+                  child: isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : recipes.isEmpty
+                          ? _buildEmptyState()
+                          : desktop
+                              ? _buildRecipesGrid()
+                              : _buildRecipesList(),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
-  Widget _buildHeader(Color folderColor) {
+  Widget _buildHeader(Color folderColor, bool desktop) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: desktop ? 24 : 8,
+        vertical: 12,
+      ),
       child: Row(
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1F2E1F)),
-            onPressed: () => Navigator.pop(context),
-          ),
+          if (desktop)
+            TextButton.icon(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.arrow_back, size: 20),
+              label: const Text('Retour'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF2F6B3F),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1F2E1F)),
+              onPressed: () => Navigator.pop(context),
+            ),
+          const SizedBox(width: 8),
           Container(
-            width: 36,
-            height: 36,
+            width: 40,
+            height: 40,
             decoration: BoxDecoration(
               color: folderColor,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: const Icon(
-              Icons.folder,
+            child: Icon(
+              widget.id == 'favorites' ? Icons.favorite : Icons.folder,
               color: Colors.white,
-              size: 20,
+              size: 22,
             ),
           ),
           const SizedBox(width: 12),
@@ -159,18 +186,15 @@ class _FolderPageState extends State<FolderPage> {
               children: [
                 Text(
                   widget.label ?? 'Dossier',
-                  style: const TextStyle(
-                    fontSize: 18,
+                  style: TextStyle(
+                    fontSize: desktop ? 22 : 18,
                     fontWeight: FontWeight.bold,
-                    color: Color(0xFF1F2E1F),
+                    color: const Color(0xFF1F2E1F),
                   ),
                 ),
                 Text(
                   '${recipes.length} recette(s)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
-                  ),
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
                 ),
               ],
             ),
@@ -185,26 +209,16 @@ class _FolderPageState extends State<FolderPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.folder_open,
-            size: 80,
-            color: Colors.grey[300],
-          ),
+          Icon(Icons.folder_open, size: 80, color: Colors.grey[300]),
           const SizedBox(height: 16),
           Text(
             'Aucune recette dans ce dossier',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey[600],
-            ),
+            style: TextStyle(fontSize: 16, color: Colors.grey[600]),
           ),
           const SizedBox(height: 8),
           Text(
             'Ajoutez des recettes depuis la page d\'une recette',
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[400],
-            ),
+            style: TextStyle(fontSize: 14, color: Colors.grey[400]),
             textAlign: TextAlign.center,
           ),
         ],
@@ -216,17 +230,28 @@ class _FolderPageState extends State<FolderPage> {
     return ListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: recipes.length,
-      itemBuilder: (context, index) {
-        final recipe = recipes[index];
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: _buildRecipeCard(recipe),
-        );
-      },
+      itemBuilder: (context, index) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: _buildRecipeCard(recipes[index]),
+      ),
     );
   }
 
-  Widget _buildRecipeCard(FolderRecipe recipe) {
+  Widget _buildRecipesGrid() {
+    return GridView.builder(
+      padding: const EdgeInsets.all(24),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        childAspectRatio: 3.5,
+      ),
+      itemCount: recipes.length,
+      itemBuilder: (context, index) => _buildRecipeCard(recipes[index]),
+    );
+  }
+
+  Widget _buildRecipeCard(FavoriteRecipe recipe) {
     return GestureDetector(
       onTap: () => Navigator.pushNamed(
         context,
@@ -235,6 +260,7 @@ class _FolderPageState extends State<FolderPage> {
           'id': recipe.id,
           'title': recipe.title,
           'description': recipe.category,
+          'duration': recipe.duration,
         },
       ),
       child: Container(
@@ -253,8 +279,7 @@ class _FolderPageState extends State<FolderPage> {
           children: [
             // Image
             Container(
-              width: 100,
-              height: 100,
+              width: 90,
               decoration: BoxDecoration(
                 color: Colors.grey[100],
                 borderRadius: const BorderRadius.horizontal(
@@ -269,54 +294,47 @@ class _FolderPageState extends State<FolderPage> {
               ),
               child: recipe.imageUrl == null
                   ? Center(
-                      child: Icon(
-                        Icons.image,
-                        size: 30,
-                        color: Colors.grey[400],
-                      ),
+                      child: Icon(Icons.eco,
+                          size: 28, color: Colors.grey[400]),
                     )
                   : null,
             ),
             // Contenu
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       recipe.title,
                       style: const TextStyle(
-                        fontSize: 16,
+                        fontSize: 15,
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF1F2E1F),
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      recipe.category,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF2F6B3F),
-                      ),
-                    ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Row(
                       children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 14,
-                          color: Colors.grey[500],
+                        Text(
+                          recipe.category,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF2F6B3F),
+                          ),
                         ),
-                        const SizedBox(width: 4),
+                        const SizedBox(width: 12),
+                        Icon(Icons.access_time,
+                            size: 13, color: Colors.grey[500]),
+                        const SizedBox(width: 3),
                         Text(
                           recipe.duration,
                           style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[500],
-                          ),
+                              fontSize: 12, color: Colors.grey[500]),
                         ),
                       ],
                     ),
@@ -324,12 +342,9 @@ class _FolderPageState extends State<FolderPage> {
                 ),
               ),
             ),
-            // Bouton supprimer
+            // Bouton retirer
             IconButton(
-              icon: Icon(
-                Icons.remove_circle_outline,
-                color: Colors.red[300],
-              ),
+              icon: Icon(Icons.remove_circle_outline, color: Colors.red[300]),
               onPressed: () => _removeFromFolder(recipe),
             ),
           ],
@@ -337,21 +352,4 @@ class _FolderPageState extends State<FolderPage> {
       ),
     );
   }
-}
-
-/// Modèle pour une recette dans un dossier
-class FolderRecipe {
-  final String id;
-  final String title;
-  final String category;
-  final String duration;
-  final String? imageUrl;
-
-  FolderRecipe({
-    required this.id,
-    required this.title,
-    required this.category,
-    required this.duration,
-    this.imageUrl,
-  });
 }

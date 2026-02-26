@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/responsive.dart';
+import '../services/favorites_service.dart';
 
 /// Modèle pour un dossier
 class Folder {
@@ -43,6 +44,17 @@ class _ProfilePageState extends State<ProfilePage> {
   void initState() {
     super.initState();
     _loadProfileData();
+    FavoritesService().addListener(_onFavoritesChanged);
+  }
+
+  @override
+  void dispose() {
+    FavoritesService().removeListener(_onFavoritesChanged);
+    super.dispose();
+  }
+
+  void _onFavoritesChanged() {
+    setState(() {});
   }
 
   Future<void> _loadProfileData() async {
@@ -405,7 +417,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 ),
                 Text(
-                  '🍴 ${folder.recipeCount} recette(s)',
+                  '🍴 ${folder.id == 'favorites' ? FavoritesService().count : folder.recipeCount} recette(s)',
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.grey[600],
