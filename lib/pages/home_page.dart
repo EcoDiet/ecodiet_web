@@ -191,13 +191,21 @@ class _HomePageState extends State<HomePage> {
               onRefresh: _loadData,
               child: SingleChildScrollView(
                 physics: const AlwaysScrollableScrollPhysics(),
-                padding: EdgeInsets.all(desktop ? 32.0 : 16.0),
+                padding: desktop
+                    ? const EdgeInsets.all(32.0)
+                    : const EdgeInsets.fromLTRB(16, 16, 16, 100),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Header
                     _buildHeader(context, desktop),
-                    const SizedBox(height: 24),
+                    const SizedBox(height: 16),
+
+                    // Barre de recherche mobile
+                    if (!desktop) ...[
+                      _buildMobileSearchBar(),
+                      const SizedBox(height: 20),
+                    ],
 
                     // Message "aucun résultat" si recherche active
                     if (_searchQuery.isNotEmpty &&
@@ -366,38 +374,62 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return const Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'Bonjour !',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF2F6B3F),
-              ),
-            ),
-            Text(
-              'Mangez sainement, naturellement',
-              style: TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-          ],
-        ),
-        GestureDetector(
-          onTap: () => Navigator.pushNamed(context, '/profile'),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person, size: 28, color: Colors.grey),
+        Text(
+          'Bonjour !',
+          style: TextStyle(
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF2F6B3F),
           ),
         ),
+        Text(
+          'Mangez sainement, naturellement',
+          style: TextStyle(fontSize: 14, color: Colors.grey),
+        ),
       ],
+    );
+  }
+
+  Widget _buildMobileSearchBar() {
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (value) =>
+            setState(() => _searchQuery = value.toLowerCase().trim()),
+        decoration: InputDecoration(
+          hintText: 'Rechercher une recette…',
+          hintStyle: TextStyle(fontSize: 13, color: Colors.grey[400]),
+          prefixIcon: Icon(Icons.search, size: 20, color: Colors.grey[400]),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: Icon(Icons.close, size: 16, color: Colors.grey[400]),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _searchQuery = '');
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
     );
   }
 

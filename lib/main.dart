@@ -171,7 +171,16 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    Widget page = selectedIndex == 0 ? const HomePage() : const ProfilePage();
+    Widget page = selectedIndex == 0
+        ? const HomePage()
+        : selectedIndex == 1
+            ? const FolderPage(
+                id: 'favorites',
+                label: 'Favoris',
+                color: Color(0xFFEA853D),
+                showBackButton: false,
+              )
+            : const ProfilePage();
 
     if (isDesktop(context)) {
       return Scaffold(
@@ -213,10 +222,16 @@ class _MyHomePageState extends State<MyHomePage> {
                     index: 0,
                   ),
                   _buildNavItem(
+                    icon: Icons.favorite_border,
+                    selectedIcon: Icons.favorite,
+                    label: 'Favoris',
+                    index: 1,
+                  ),
+                  _buildNavItem(
                     icon: Icons.person_outline,
                     selectedIcon: Icons.person,
                     label: 'Profil',
-                    index: 1,
+                    index: 2,
                   ),
 
                   const Spacer(),
@@ -236,16 +251,121 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     return Scaffold(
+      extendBody: true,
       body: page,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: selectedIndex,
-        onTap: (index) => setState(() => selectedIndex = index),
-        selectedItemColor: const Color(0xFFEA853D),
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
-        ],
+      bottomNavigationBar: _buildFloatingNavBar(),
+    );
+  }
+
+  Widget _buildFloatingNavBar() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        child: Container(
+          height: 64,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.10),
+                blurRadius: 30,
+                offset: const Offset(0, 8),
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildNavPillItem(
+                icon: Icons.home_outlined,
+                selectedIcon: Icons.home_rounded,
+                label: 'Accueil',
+                index: 0,
+              ),
+              _buildNavPillItem(
+                icon: Icons.favorite_border_rounded,
+                selectedIcon: Icons.favorite_rounded,
+                label: 'Favoris',
+                index: 1,
+              ),
+              _buildNavPillItem(
+                icon: Icons.person_outline_rounded,
+                selectedIcon: Icons.person_rounded,
+                label: 'Profil',
+                index: 2,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNavPillItem({
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+    required int index,
+  }) {
+    final isSelected = selectedIndex == index;
+    return GestureDetector(
+      onTap: () => setState(() => selectedIndex = index),
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeInOut,
+        padding: EdgeInsets.symmetric(
+          horizontal: isSelected ? 18 : 14,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFFEA853D).withOpacity(0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                isSelected ? selectedIcon : icon,
+                key: ValueKey(isSelected),
+                color: isSelected
+                    ? const Color(0xFFEA853D)
+                    : const Color(0xFFB0B0B0),
+                size: 24,
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOut,
+              child: isSelected
+                  ? Row(
+                      children: [
+                        const SizedBox(width: 7),
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            color: Color(0xFFEA853D),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
       ),
     );
   }

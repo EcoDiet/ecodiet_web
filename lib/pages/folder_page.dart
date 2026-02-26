@@ -6,12 +6,14 @@ class FolderPage extends StatefulWidget {
   final String? id;
   final String? label;
   final Color? color;
+  final bool showBackButton;
 
   const FolderPage({
     Key? key,
     this.id,
     this.label,
     this.color,
+    this.showBackButton = true,
   }) : super(key: key);
 
   @override
@@ -151,21 +153,23 @@ class _FolderPageState extends State<FolderPage> {
       ),
       child: Row(
         children: [
-          if (desktop)
-            TextButton.icon(
-              onPressed: () => Navigator.pop(context),
-              icon: const Icon(Icons.arrow_back, size: 20),
-              label: const Text('Retour'),
-              style: TextButton.styleFrom(
-                foregroundColor: const Color(0xFF2F6B3F),
+          if (widget.showBackButton) ...[
+            if (desktop)
+              TextButton.icon(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.arrow_back, size: 20),
+                label: const Text('Retour'),
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF2F6B3F),
+                ),
+              )
+            else
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1F2E1F)),
+                onPressed: () => Navigator.pop(context),
               ),
-            )
-          else
-            IconButton(
-              icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1F2E1F)),
-              onPressed: () => Navigator.pop(context),
-            ),
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
+          ],
           Container(
             width: 40,
             height: 40,
