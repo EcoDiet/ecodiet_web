@@ -31,19 +31,9 @@ class _LoginPageState extends State<LoginPage> {
                   children: [
                     Image.asset(
                       'lib/assets/logo/EcoDiet-Logo.png',
-                      height: 180,
+                      height: 200,
                     ),
-                    const SizedBox(height: 32),
-                    const Text(
-                      'EcoDiet',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: 1,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 20),
                     const Text(
                       'Mangez sainement, naturellement.',
                       style: TextStyle(
