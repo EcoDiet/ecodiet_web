@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/responsive.dart';
 
 class RecipeInfosPage extends StatefulWidget {
   final String? id;
@@ -100,109 +101,181 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
 
   @override
   Widget build(BuildContext context) {
+    final desktop = isDesktop(context);
+
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            _buildHeader(),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 900),
+            child: Column(
+              children: [
+                // Header
+                _buildHeader(),
 
-            // Contenu scrollable
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          // Image
-                          _buildImage(),
-                          const SizedBox(height: 16),
-
-                          // Titre
-                          Text(
-                            widget.title ?? 'Titre de la recette',
-                            style: const TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1F2E1F),
-                            ),
+                // Contenu scrollable
+                Expanded(
+                  child: isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : SingleChildScrollView(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: desktop ? 32 : 16,
+                            vertical: 16,
                           ),
-                          const SizedBox(height: 8),
-
-                          // Description
-                          Text(
-                            widget.description ?? 'Description',
-                            style: TextStyle(
-                              fontSize: 14,
-                              color: Colors.grey[600],
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Image + titre sur desktop : côte à côte
+                              if (desktop) ...[
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    // Image
+                                    Expanded(
+                                      flex: 5,
+                                      child: _buildImage(height: 260),
+                                    ),
+                                    const SizedBox(width: 24),
+                                    // Titre + description + infos
+                                    Expanded(
+                                      flex: 4,
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            widget.title ??
+                                                'Titre de la recette',
+                                            style: const TextStyle(
+                                              fontSize: 28,
+                                              fontWeight: FontWeight.bold,
+                                              color: Color(0xFF1F2E1F),
+                                            ),
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            widget.description ?? 'Description',
+                                            style: TextStyle(
+                                              fontSize: 15,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                          const SizedBox(height: 20),
+                                          _buildInfoCards(),
+                                          const SizedBox(height: 16),
+                                          _buildCarbonFootprint(),
+                                          const SizedBox(height: 20),
+                                          _buildActionButtons(desktop),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 32),
+                                // Ingrédients et Instructions côte à côte
+                                Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Expanded(
+                                      child: _buildSection(
+                                        'Ingrédients',
+                                        'liste des ingrédients',
+                                        ingredients,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 32),
+                                    Expanded(
+                                      child: _buildSection(
+                                        'Instructions',
+                                        'étapes à suivre',
+                                        instructions,
+                                        numbered: true,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 24),
+                              ] else ...[
+                                // Mobile : layout vertical
+                                _buildImage(height: 180),
+                                const SizedBox(height: 16),
+                                Text(
+                                  widget.title ?? 'Titre de la recette',
+                                  style: const TextStyle(
+                                    fontSize: 24,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1F2E1F),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  widget.description ?? 'Description',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Colors.grey[600],
+                                  ),
+                                ),
+                                const SizedBox(height: 20),
+                                _buildInfoCards(),
+                                const SizedBox(height: 20),
+                                _buildCarbonFootprint(),
+                                const SizedBox(height: 24),
+                                _buildSection(
+                                  'Ingrédients',
+                                  'liste des ingrédients',
+                                  ingredients,
+                                ),
+                                const SizedBox(height: 24),
+                                _buildSection(
+                                  'Instructions',
+                                  'étapes à suivre',
+                                  instructions,
+                                  numbered: true,
+                                ),
+                                const SizedBox(height: 24),
+                                _buildActionButtons(desktop),
+                                const SizedBox(height: 16),
+                              ],
+                            ],
                           ),
-                          const SizedBox(height: 20),
-
-                          // Infos (Temps, Portions, Difficulté)
-                          _buildInfoCards(),
-                          const SizedBox(height: 20),
-
-                          // Empreinte carbone
-                          _buildCarbonFootprint(),
-                          const SizedBox(height: 24),
-
-                          // Ingrédients
-                          _buildSection(
-                            'Ingrédients',
-                            'liste des ingrédients',
-                            ingredients,
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Instructions
-                          _buildSection(
-                            'Instructions',
-                            'étapes à suivre',
-                            instructions,
-                            numbered: true,
-                          ),
-                          const SizedBox(height: 24),
-
-                          // Boutons
-                          _buildActionButtons(),
-                          const SizedBox(height: 16),
-                        ],
-                      ),
-                    ),
+                        ),
+                ),
+              ],
             ),
-          ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildHeader() {
+    final desktop = isDesktop(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1F2E1F)),
-            onPressed: () => Navigator.pop(context),
-          ),
-          IconButton(
-            icon: const Icon(Icons.menu, color: Color(0xFF1F2E1F)),
-            onPressed: () {
-              // TODO: Afficher le menu
-            },
-          ),
+          if (desktop)
+            TextButton.icon(
+              onPressed: () => Navigator.pop(context),
+              icon: const Icon(Icons.arrow_back, size: 20),
+              label: const Text('Retour'),
+              style: TextButton.styleFrom(
+                foregroundColor: const Color(0xFF2F6B3F),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1F2E1F)),
+              onPressed: () => Navigator.pop(context),
+            ),
         ],
       ),
     );
   }
 
-  Widget _buildImage() {
+  Widget _buildImage({required double height}) {
     return Container(
-      height: 180,
+      height: height,
       width: double.infinity,
       decoration: BoxDecoration(
         color: Colors.grey[200],
@@ -441,7 +514,60 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     );
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(bool desktop) {
+    if (desktop) {
+      return Row(
+        children: [
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: _toggleFavorite,
+              icon: Icon(
+                isFavorite ? Icons.favorite : Icons.favorite_border,
+                size: 18,
+              ),
+              label: Text(
+                isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2F6B3F),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: ElevatedButton.icon(
+              onPressed: _addToFolder,
+              icon: const Icon(Icons.folder_outlined, size: 18),
+              label: const Text(
+                'Ajouter à un dossier',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFF4A259),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(25),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Column(
       children: [
         SizedBox(

@@ -28,12 +28,14 @@ class Quiz {
   final String title;
   final String description;
   final String? imageUrl;
+  final IconData icon;
 
   Quiz({
     required this.id,
     required this.title,
     required this.description,
     this.imageUrl,
+    this.icon = Icons.quiz_outlined,
   });
 }
 
@@ -133,13 +135,15 @@ class _HomePageState extends State<HomePage> {
       quizzes = [
         Quiz(
           id: '1',
-          title: 'Quiz 1',
-          description: 'Testez vos connaissances sur les légumes',
+          title: 'Vitamines & Nutriments',
+          description: 'Testez vos connaissances sur les vitamines et nutriments',
+          icon: Icons.science_outlined,
         ),
         Quiz(
           id: '2',
-          title: 'Quiz 2',
-          description: 'Les fruits et leurs bienfaits',
+          title: 'Fruits & Bienfaits',
+          description: 'Les fruits et leurs bienfaits pour la santé',
+          icon: Icons.local_florist_outlined,
         ),
       ];
 
@@ -638,7 +642,7 @@ class _HomePageState extends State<HomePage> {
               child: quiz.imageUrl == null
                   ? Center(
                       child: Icon(
-                        Icons.quiz_outlined,
+                        quiz.icon,
                         size: 36,
                         color: Colors.white.withOpacity(0.7),
                       ),

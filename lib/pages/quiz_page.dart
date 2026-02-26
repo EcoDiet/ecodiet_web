@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/responsive.dart';
 
 /// Modèle pour une question de quiz
 class QuizQuestion {
@@ -50,7 +51,7 @@ class _QuizPageState extends State<QuizPage> {
   void _loadQuestions() {
     // TODO: Remplacer par un appel API qui charge les questions selon widget.id
     // Exemple: final response = await api.getQuizQuestions(widget.id);
-    
+
     // Simulation de différents quiz selon l'id
     switch (widget.id) {
       case '1':
@@ -240,125 +241,155 @@ class _QuizPageState extends State<QuizPage> {
       return _buildResultScreen();
     }
 
+    final desktop = isDesktop(context);
     final question = questions[currentQuestionIndex];
 
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
-            // Header
-            _buildHeader(),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 800),
+            child: Column(
+              children: [
+                // Header
+                _buildHeader(),
 
-            // Progress bar
-            _buildProgressBar(),
+                // Progress bar
+                _buildProgressBar(),
 
-            // Contenu
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Numéro de question
-                    Text(
-                      'Question ${currentQuestionIndex + 1}/${questions.length}',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey[600],
-                        fontWeight: FontWeight.w500,
-                      ),
+                // Contenu
+                Expanded(
+                  child: SingleChildScrollView(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: desktop ? 32 : 16,
+                      vertical: 16,
                     ),
-                    const SizedBox(height: 12),
-
-                    // Question
-                    Text(
-                      question.question,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F2E1F),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Options
-                    ...question.options.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final option = entry.value;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildOptionCard(index, option),
-                      );
-                    }),
-
-                    // Explication (après réponse)
-                    if (hasAnswered && question.explanation != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2F6B3F).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: const Color(0xFF2F6B3F).withOpacity(0.3),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Numéro de question
+                        Text(
+                          'Question ${currentQuestionIndex + 1}/${questions.length}',
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Colors.grey[600],
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                        child: Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const Icon(
-                              Icons.lightbulb_outline,
-                              color: Color(0xFF2F6B3F),
-                              size: 24,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Text(
-                                question.explanation!,
-                                style: const TextStyle(
-                                  fontSize: 14,
-                                  color: Color(0xFF1F2E1F),
-                                ),
+                        const SizedBox(height: 12),
+
+                        // Question
+                        Text(
+                          question.question,
+                          style: TextStyle(
+                            fontSize: desktop ? 24 : 20,
+                            fontWeight: FontWeight.bold,
+                            color: const Color(0xFF1F2E1F),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Options : grille 2 colonnes sur desktop
+                        if (desktop)
+                          GridView.count(
+                            crossAxisCount: 2,
+                            crossAxisSpacing: 12,
+                            mainAxisSpacing: 12,
+                            childAspectRatio: 4.5,
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            children: question.options
+                                .asMap()
+                                .entries
+                                .map((entry) =>
+                                    _buildOptionCard(entry.key, entry.value))
+                                .toList(),
+                          )
+                        else
+                          ...question.options.asMap().entries.map((entry) {
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child:
+                                  _buildOptionCard(entry.key, entry.value),
+                            );
+                          }),
+
+                        // Explication (après réponse)
+                        if (hasAnswered && question.explanation != null) ...[
+                          const SizedBox(height: 16),
+                          Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color:
+                                  const Color(0xFF2F6B3F).withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: const Color(0xFF2F6B3F)
+                                    .withOpacity(0.3),
                               ),
                             ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-            ),
-
-            // Bouton suivant
-            if (hasAnswered)
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _nextQuestion,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF2F6B3F),
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(25),
-                      ),
-                    ),
-                    child: Text(
-                      currentQuestionIndex < questions.length - 1
-                          ? 'Question suivante'
-                          : 'Voir les résultats',
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(
+                                  Icons.lightbulb_outline,
+                                  color: Color(0xFF2F6B3F),
+                                  size: 24,
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Text(
+                                    question.explanation!,
+                                    style: const TextStyle(
+                                      fontSize: 14,
+                                      color: Color(0xFF1F2E1F),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),
-              ),
-          ],
+
+                // Bouton suivant
+                if (hasAnswered)
+                  Padding(
+                    padding: EdgeInsets.symmetric(
+                      horizontal: desktop ? 32 : 16,
+                      vertical: 16,
+                    ),
+                    child: SizedBox(
+                      width: desktop ? 300 : double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _nextQuestion,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2F6B3F),
+                          foregroundColor: Colors.white,
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                        ),
+                        child: Text(
+                          currentQuestionIndex < questions.length - 1
+                              ? 'Question suivante'
+                              : 'Voir les résultats',
+                          style: const TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -477,6 +508,7 @@ class _QuizPageState extends State<QuizPage> {
   }
 
   Widget _buildResultScreen() {
+    final desktop = isDesktop(context);
     final percentage = (score / questions.length * 100).round();
     String message;
     Color messageColor;
@@ -502,95 +534,161 @@ class _QuizPageState extends State<QuizPage> {
 
     return Scaffold(
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                messageIcon,
-                size: 80,
-                color: messageColor,
-              ),
-              const SizedBox(height: 24),
-              Text(
-                message,
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: messageColor,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Ton score',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '$score/${questions.length}',
-                style: const TextStyle(
-                  fontSize: 48,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2E1F),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                '$percentage% de bonnes réponses',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey[600],
-                ),
-              ),
-              const SizedBox(height: 48),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: _restartQuiz,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2F6B3F),
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Padding(
+              padding: EdgeInsets.all(desktop ? 48 : 24),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: messageColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      messageIcon,
+                      size: desktop ? 80 : 64,
+                      color: messageColor,
                     ),
                   ),
-                  child: const Text(
-                    'Recommencer le quiz',
+                  const SizedBox(height: 24),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      fontSize: desktop ? 32 : 28,
+                      fontWeight: FontWeight.bold,
+                      color: messageColor,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Ton score',
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600],
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF2F6B3F),
-                    side: const BorderSide(color: Color(0xFF2F6B3F)),
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(25),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$score/${questions.length}',
+                    style: const TextStyle(
+                      fontSize: 48,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1F2E1F),
                     ),
                   ),
-                  child: const Text(
-                    'Retour à l\'accueil',
+                  const SizedBox(height: 8),
+                  Text(
+                    '$percentage% de bonnes réponses',
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                      color: Colors.grey[600],
                     ),
                   ),
-                ),
+                  const SizedBox(height: 48),
+                  if (desktop)
+                    Row(
+                      children: [
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: _restartQuiz,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF2F6B3F),
+                              foregroundColor: Colors.white,
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(25),
+                              ),
+                            ),
+                            child: const Text(
+                              'Recommencer le quiz',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF2F6B3F),
+                              side: const BorderSide(
+                                  color: Color(0xFF2F6B3F)),
+                              padding:
+                                  const EdgeInsets.symmetric(vertical: 16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(25),
+                              ),
+                            ),
+                            child: const Text(
+                              'Retour à l\'accueil',
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else ...[
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: _restartQuiz,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF2F6B3F),
+                          foregroundColor: Colors.white,
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                        ),
+                        child: const Text(
+                          'Recommencer le quiz',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      width: double.infinity,
+                      child: OutlinedButton(
+                        onPressed: () => Navigator.pop(context),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: const Color(0xFF2F6B3F),
+                          side:
+                              const BorderSide(color: Color(0xFF2F6B3F)),
+                          padding:
+                              const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(25),
+                          ),
+                        ),
+                        child: const Text(
+                          'Retour à l\'accueil',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),
