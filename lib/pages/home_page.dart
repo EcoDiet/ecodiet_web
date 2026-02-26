@@ -374,23 +374,41 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    return const Column(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Bonjour !',
+        const Text(
+          'Bonjour 👋',
           style: TextStyle(
-            fontSize: 24,
+            fontSize: 28,
             fontWeight: FontWeight.bold,
-            color: Color(0xFF2F6B3F),
+            color: Color(0xFF1F2E1F),
           ),
         ),
+        const SizedBox(height: 2),
         Text(
-          'Mangez sainement, naturellement',
-          style: TextStyle(fontSize: 14, color: Colors.grey),
+          _getFormattedDate(),
+          style: const TextStyle(
+            fontSize: 14,
+            color: Colors.grey,
+            fontWeight: FontWeight.w400,
+          ),
         ),
       ],
     );
+  }
+
+  String _getFormattedDate() {
+    final now = DateTime.now();
+    const days = [
+      'Lundi', 'Mardi', 'Mercredi', 'Jeudi',
+      'Vendredi', 'Samedi', 'Dimanche'
+    ];
+    const months = [
+      'jan.', 'fév.', 'mar.', 'avr.', 'mai', 'juin',
+      'juil.', 'août', 'sep.', 'oct.', 'nov.', 'déc.'
+    ];
+    return '${days[now.weekday - 1]} ${now.day} ${months[now.month - 1]}';
   }
 
   Widget _buildMobileSearchBar() {
@@ -454,25 +472,29 @@ class _HomePageState extends State<HomePage> {
   Widget _buildSectionTitle(String title, {bool showViewAll = true}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
           title,
           style: const TextStyle(
-            fontSize: 18,
+            fontSize: 20,
             fontWeight: FontWeight.bold,
             color: Color(0xFF1F2E1F),
+            letterSpacing: -0.3,
           ),
         ),
         if (showViewAll)
-          GestureDetector(
-            onTap: () {},
+          TextButton(
+            onPressed: () {},
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF2F6B3F),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             child: const Text(
               'Voir tout',
-              style: TextStyle(
-                fontSize: 13,
-                color: Color(0xFF2F6B3F),
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
       ],
@@ -607,21 +629,18 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () => _toggleFavorite(recipe),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.red[50],
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        FavoritesService().isFavorite(recipe.id)
-                            ? Icons.favorite
-                            : Icons.favorite_border,
-                        size: 20,
-                        color: Colors.red[400],
-                      ),
+                  IconButton(
+                    onPressed: () => _toggleFavorite(recipe),
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.red[50],
+                      minimumSize: const Size(40, 40),
+                    ),
+                    icon: Icon(
+                      FavoritesService().isFavorite(recipe.id)
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      size: 20,
+                      color: Colors.red[400],
                     ),
                   ),
                 ],

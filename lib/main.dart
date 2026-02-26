@@ -114,25 +114,22 @@ class _MyHomePageState extends State<MyHomePage> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFFEA853D).withOpacity(0.15)
+              ? Colors.white.withOpacity(0.10)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
-          border: isSelected
-              ? Border.all(color: const Color(0xFFEA853D).withOpacity(0.3))
-              : null,
         ),
         child: Row(
           children: [
             Icon(
               isSelected ? selectedIcon : icon,
-              color: isSelected ? const Color(0xFFEA853D) : const Color(0xFF8FBF97),
+              color: isSelected ? Colors.white : const Color(0xFFF5ECD9),
               size: 22,
             ),
             const SizedBox(width: 14),
             Text(
               label,
               style: TextStyle(
-                color: isSelected ? const Color(0xFFEA853D) : const Color(0xFF8FBF97),
+                color: isSelected ? Colors.white : const Color(0xFFF5ECD9),
                 fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                 fontSize: 14,
               ),
@@ -154,12 +151,12 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
         child: const Row(
           children: [
-            Icon(Icons.logout, color: Color(0xFF8FBF97), size: 20),
+            Icon(Icons.logout, color: Color(0xFFF5ECD9), size: 20),
             SizedBox(width: 14),
             Text(
               'Déconnexion',
               style: TextStyle(
-                color: Color(0xFF8FBF97),
+                color: Color(0xFFF5ECD9),
                 fontSize: 14,
               ),
             ),
@@ -204,7 +201,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         const Text(
                           'Mangez naturellement',
                           style: TextStyle(
-                            color: Color(0xFF8FBF97),
+                            color: Color(0xFFF5ECD9),
                             fontSize: 11,
                           ),
                         ),

@@ -94,29 +94,28 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final desktop = isDesktop(context);
-    return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 1000),
-            child: Column(
-              children: [
-                // Header (back button masqué sur desktop car navigation via rail)
-                if (!desktop) _buildHeader(),
 
-                // Contenu scrollable
-                Expanded(
-                  child: SingleChildScrollView(
-                    padding: EdgeInsets.all(desktop ? 32 : 16),
-                    child: desktop
-                        ? _buildDesktopLayout()
-                        : _buildMobileLayout(),
-                  ),
-                ),
-              ],
+    if (desktop) {
+      return Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 1000),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(32),
+                child: _buildDesktopLayout(),
+              ),
             ),
           ),
         ),
+      );
+    }
+
+    // Mobile : hero va sous la status bar
+    return Scaffold(
+      body: SingleChildScrollView(
+        padding: const EdgeInsets.only(bottom: 100),
+        child: _buildMobileLayout(),
       ),
     );
   }
@@ -125,12 +124,99 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Center(child: _buildAvatar()),
-        const SizedBox(height: 24),
-        _buildFoldersSection(),
-        const SizedBox(height: 24),
-        _buildPreferencesSection(),
+        _buildMobileHero(),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _buildFoldersSection(),
+              const SizedBox(height: 24),
+              _buildPreferencesSection(),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _buildMobileHero() {
+    final topPadding = MediaQuery.of(context).padding.top;
+    return Container(
+      width: double.infinity,
+      padding: EdgeInsets.fromLTRB(24, topPadding + 24, 24, 32),
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF1F3A24), Color(0xFF2F6B3F)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
+      ),
+      child: Column(
+        children: [
+          // Avatar circulaire
+          Container(
+            width: 84,
+            height: 84,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: const Color(0xFF63A96E),
+              border: Border.all(
+                  color: Colors.white.withOpacity(0.25), width: 3),
+            ),
+            child: const Center(
+              child: Text(
+                'U',
+                style: TextStyle(
+                  fontSize: 34,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+          const Text(
+            'Utilisateur',
+            style: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: Colors.white,
+            ),
+          ),
+          const SizedBox(height: 10),
+          // Bouton modifier
+          Material(
+            color: Colors.white.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(20),
+            child: InkWell(
+              borderRadius: BorderRadius.circular(20),
+              onTap: () {},
+              child: const Padding(
+                padding:
+                    EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.edit_outlined,
+                        color: Colors.white, size: 14),
+                    SizedBox(width: 6),
+                    Text(
+                      'Modifier le profil',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -138,46 +224,501 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Avatar centré + titre
-        Center(
-          child: Column(
+        _buildDesktopBanner(),
+        const SizedBox(height: 24),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Colonne gauche — dossiers
+            Expanded(
+              flex: 5,
+              child: _buildDesktopFoldersSection(),
+            ),
+            const SizedBox(width: 24),
+            // Colonne droite — préférences
+            Expanded(
+              flex: 4,
+              child: _buildDesktopPreferencesSection(),
+            ),
+          ],
+        ),
+        const SizedBox(height: 32),
+      ],
+    );
+  }
+
+  // ── Banner + carte profil ─────────────────────────────────────────────────
+
+  Widget _buildDesktopBanner() {
+    final favCount = FavoritesService().count;
+    return Column(
+      children: [
+        // Banner gradient
+        Container(
+          height: 140,
+          width: double.infinity,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              colors: [Color(0xFF1F3A24), Color(0xFF2F6B3F)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.all(Radius.circular(20)),
+          ),
+          child: Stack(
             children: [
-              _buildAvatar(size: 100),
-              const SizedBox(height: 12),
-              const Text(
-                'Mon profil',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2E1F),
+              // Motif décoratif
+              Positioned(
+                right: -20,
+                top: -20,
+                child: Container(
+                  width: 180,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.04),
+                  ),
+                ),
+              ),
+              Positioned(
+                right: 60,
+                bottom: -40,
+                child: Container(
+                  width: 120,
+                  height: 120,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withOpacity(0.03),
+                  ),
                 ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 32),
-        // 2 colonnes : dossiers | préférences
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(child: _buildFoldersSection()),
-            const SizedBox(width: 32),
-            Expanded(child: _buildPreferencesSection()),
-          ],
+
+        // Carte profil (chevauchement)
+        Transform.translate(
+          offset: const Offset(0, -40),
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 24),
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 24,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                // Avatar
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
+                    ),
+                    border: Border.all(
+                        color: const Color(0xFFF5ECD9), width: 4),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF2F6B3F).withOpacity(0.3),
+                        blurRadius: 12,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: const Center(
+                    child: Text(
+                      'U',
+                      style: TextStyle(
+                        fontSize: 32,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 20),
+
+                // Nom + infos
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Utilisateur',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1F2E1F),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'utilisateur@ecodiet.fr',
+                        style: TextStyle(
+                            fontSize: 13, color: Colors.grey[500]),
+                      ),
+                      const SizedBox(height: 14),
+                      // Stats pills
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          _buildStatChip(
+                              Icons.favorite_rounded,
+                              '$favCount favori${favCount > 1 ? 's' : ''}',
+                              Colors.red),
+                          _buildStatChip(
+                              Icons.folder_rounded,
+                              '${folders.length} dossier${folders.length > 1 ? 's' : ''}',
+                              const Color(0xFFF4A259)),
+                          _buildStatChip(
+                              Icons.eco_rounded,
+                              'Végétarien',
+                              const Color(0xFF2F6B3F)),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                // Bouton modifier
+                OutlinedButton.icon(
+                  onPressed: () {},
+                  icon: const Icon(Icons.edit_outlined, size: 16),
+                  label: const Text('Modifier'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: const Color(0xFF2F6B3F),
+                    side: const BorderSide(
+                        color: Color(0xFF2F6B3F), width: 1.5),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 20, vertical: 12),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10)),
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ],
     );
   }
 
-  Widget _buildAvatar({double size = 80}) {
+  Widget _buildStatChip(IconData icon, String label, Color color) {
     return Container(
-      width: size,
-      height: size,
+      padding:
+          const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: Colors.grey[200],
-        borderRadius: BorderRadius.circular(size * 0.15),
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: color.withOpacity(0.2)),
       ),
-      child: Icon(Icons.image, size: size * 0.5, color: Colors.grey[400]),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 13, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: color,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ── Dossiers desktop ──────────────────────────────────────────────────────
+
+  Widget _buildDesktopFoldersSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            const Text(
+              'Mes dossiers',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1F2E1F),
+              ),
+            ),
+            FilledButton.icon(
+              onPressed: _showCreateFolderDialog,
+              icon: const Icon(Icons.add, size: 16),
+              label: const Text('Nouveau dossier'),
+              style: FilledButton.styleFrom(
+                backgroundColor: const Color(0xFFF4A259),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 10),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10)),
+                textStyle: const TextStyle(
+                    fontSize: 13, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: 12,
+            mainAxisSpacing: 12,
+            childAspectRatio: 1.1,
+          ),
+          itemCount: folders.length,
+          itemBuilder: (_, i) => _buildDesktopFolderTile(folders[i]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopFolderTile(Folder folder) {
+    final count = folder.id == 'favorites'
+        ? FavoritesService().count
+        : folder.recipeCount;
+
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => Navigator.pushNamed(context, '/folder', arguments: {
+          'id': folder.id,
+          'label': folder.label,
+          'color': folder.color,
+        }),
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border.all(color: Colors.grey[100]!),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: folder.color.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      folder.id == 'favorites'
+                          ? Icons.favorite_rounded
+                          : Icons.folder_rounded,
+                      color: folder.color,
+                      size: 20,
+                    ),
+                  ),
+                  if (folder.id != 'favorites')
+                    InkWell(
+                      onTap: () => _showDeleteFolderDialog(folder),
+                      borderRadius: BorderRadius.circular(8),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(Icons.more_horiz,
+                            color: Colors.grey[400], size: 18),
+                      ),
+                    ),
+                ],
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    folder.label,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1F2E1F),
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    '$count recette${count > 1 ? 's' : ''}',
+                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // ── Préférences desktop ───────────────────────────────────────────────────
+
+  Widget _buildDesktopPreferencesSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Mes préférences',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1F2E1F),
+          ),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey[100]!),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Column(
+            children: preferences.asMap().entries.map((entry) {
+              final i = entry.key;
+              final pref = entry.value;
+              return Column(
+                children: [
+                  _buildDesktopPrefRow(pref),
+                  if (i < preferences.length - 1)
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: Colors.grey[100],
+                      indent: 16,
+                      endIndent: 16,
+                    ),
+                ],
+              );
+            }).toList(),
+          ),
+        ),
+        const SizedBox(height: 16),
+        // Section déconnexion
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: Colors.grey[100]!),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => Navigator.pushReplacementNamed(
+                  context, '/login'),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 14),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: Colors.red[50],
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Icon(Icons.logout_rounded,
+                          color: Colors.red[400], size: 18),
+                    ),
+                    const SizedBox(width: 14),
+                    Text(
+                      'Déconnexion',
+                      style: TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.red[400],
+                      ),
+                    ),
+                    const Spacer(),
+                    Icon(Icons.chevron_right,
+                        color: Colors.grey[300], size: 22),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDesktopPrefRow(Preference pref) {
+    const icons = [Icons.flag_outlined, Icons.restaurant_outlined, Icons.warning_amber_outlined];
+    const colors = [Color(0xFF2F6B3F), Color(0xFFF4A259), Color(0xFF3A7BD5)];
+    final idx = preferences.indexOf(pref).clamp(0, 2);
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {},
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: colors[idx].withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child:
+                    Icon(icons[idx], color: colors[idx], size: 18),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      pref.label,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFF1F2E1F),
+                      ),
+                    ),
+                    Text(
+                      pref.value,
+                      style: TextStyle(
+                          fontSize: 12, color: Colors.grey[500]),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right,
+                  color: Colors.grey[300], size: 20),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -222,32 +763,6 @@ class _ProfilePageState extends State<ProfilePage> {
               child: _buildPreferenceItem(pref),
             )),
       ],
-    );
-  }
-
-  Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios, color: Color(0xFF1F2E1F)),
-            onPressed: () => Navigator.pop(context),
-          ),
-          const Expanded(
-            child: Text(
-              'Profil',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1F2E1F),
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ),
-          const SizedBox(width: 48), // Pour équilibrer
-        ],
-      ),
     );
   }
 
@@ -391,117 +906,157 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Widget _buildFolderItem(Folder folder) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.pushNamed(
-          context,
-          '/folder',
-          arguments: {
-            'id': folder.id,
-            'label': folder.label,
-            'color': folder.color,
-          },
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-        children: [
-          Container(
-            width: 36,
-            height: 36,
-            decoration: BoxDecoration(
-              color: folder.color,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              folder.id == 'favorites' ? Icons.favorite : Icons.folder,
-              color: Colors.white,
-              size: 20,
-            ),
+    final count = folder.id == 'favorites'
+        ? FavoritesService().count
+        : folder.recipeCount;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 2),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => Navigator.pushNamed(
+            context,
+            '/folder',
+            arguments: {
+              'id': folder.id,
+              'label': folder.label,
+              'color': folder.color,
+            },
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
               children: [
-                Text(
-                  folder.label,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: Color(0xFF1F2E1F),
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: folder.color,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(
+                    folder.id == 'favorites'
+                        ? Icons.favorite
+                        : Icons.folder,
+                    color: Colors.white,
+                    size: 20,
                   ),
                 ),
-                Text(
-                  '🍴 ${folder.id == 'favorites' ? FavoritesService().count : folder.recipeCount} recette(s)',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[600],
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        folder.label,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1F2E1F),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '$count recette${count > 1 ? 's' : ''}',
+                        style: TextStyle(
+                            fontSize: 13, color: Colors.grey[500]),
+                      ),
+                    ],
                   ),
                 ),
+                if (folder.id != 'favorites')
+                  IconButton(
+                    icon: Icon(Icons.delete_outline,
+                        color: Colors.red[300], size: 22),
+                    onPressed: () => _showDeleteFolderDialog(folder),
+                    tooltip: 'Supprimer',
+                  )
+                else
+                  Icon(Icons.chevron_right,
+                      color: Colors.grey[400], size: 22),
               ],
             ),
           ),
-          if (folder.id != 'favorites')
-            IconButton(
-              icon: Icon(Icons.delete_outline, color: Colors.red[300], size: 20),
-              onPressed: () => _showDeleteFolderDialog(folder),
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(),
-            )
-          else
-            Icon(
-              Icons.chevron_right,
-              color: Colors.grey[400],
-            ),
-        ],
-      ),
+        ),
       ),
     );
   }
 
   Widget _buildPreferenceItem(Preference pref) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(
-            color: const Color(0xFFF4A259),
-            width: 3,
-          ),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            pref.label,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1F2E1F),
-            ),
-          ),
-          Text(
-            pref.value,
-            style: TextStyle(
-              fontSize: 12,
-              color: Colors.grey[600],
-            ),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      margin: const EdgeInsets.only(bottom: 2),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () {},
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: 16, vertical: 14),
+            child: Row(
+              children: [
+                Container(
+                  width: 36,
+                  height: 36,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF4A259).withOpacity(0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.tune,
+                      color: Color(0xFFF4A259), size: 18),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        pref.label,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1F2E1F),
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        pref.value,
+                        style: TextStyle(
+                            fontSize: 13, color: Colors.grey[500]),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(Icons.chevron_right,
+                    color: Colors.grey[400], size: 22),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
