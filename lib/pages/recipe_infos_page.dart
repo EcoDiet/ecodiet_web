@@ -329,14 +329,14 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           icon: Icons.access_time,
           label: 'Temps',
           value: 'Durée (sec)',
-          color: const Color(0xFF63A96E),
+          color: const Color(0xFF2F6B3F),
         ),
         const SizedBox(width: 12),
         _buildInfoCard(
           icon: Icons.people,
           label: 'Portions',
           value: 'nb personnes',
-          color: const Color(0xFFF4A259),
+          color: const Color(0xFF2F6B3F),
         ),
         const SizedBox(width: 12),
         _buildInfoCard(
@@ -385,7 +385,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               style: const TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
-                color: Color(0xFFF4A259),
+                color: Color(0xFF2F6B3F),
               ),
             ),
             Text(

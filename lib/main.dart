@@ -188,19 +188,10 @@ class _MyHomePageState extends State<MyHomePage> {
                     child: Column(
                       children: [
                         Image.asset(
-                          'lib/assets/logo/EcoDiet-Logo.png',
+                          'lib/assets/logo/EcoDiet-Logo-beige.png',
                           height: 52,
                         ),
                         const SizedBox(height: 10),
-                        const Text(
-                          'EcoDiet',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
                         const Text(
                           'Mangez naturellement',
                           style: TextStyle(

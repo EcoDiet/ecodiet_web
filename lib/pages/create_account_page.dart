@@ -269,7 +269,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.asset('lib/assets/logo/EcoDiet-Logo.png', height: 200),
+          Image.asset('lib/assets/logo/EcoDiet-Logo-beige.png', height: 200),
           const SizedBox(height: 20),
           const Text(
             'Mangez sainement, naturellement.',

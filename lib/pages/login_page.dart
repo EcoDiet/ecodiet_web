@@ -30,7 +30,7 @@ class _LoginPageState extends State<LoginPage> {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Image.asset(
-                      'lib/assets/logo/EcoDiet-Logo.png',
+                      'lib/assets/logo/EcoDiet-Logo-beige.png',
                       height: 200,
                     ),
                     const SizedBox(height: 20),

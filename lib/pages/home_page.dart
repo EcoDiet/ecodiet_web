@@ -88,7 +88,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _onFavoritesChanged() {
-    setState(() {});
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadData() async {
@@ -96,6 +96,7 @@ class _HomePageState extends State<HomePage> {
     // Simulation de chargement de données
     await Future.delayed(const Duration(milliseconds: 500));
 
+    if (!mounted) return;
     setState(() {
       // Données de démonstration - à remplacer par les vraies données
       recommendedRecipes = [
@@ -274,15 +275,14 @@ class _HomePageState extends State<HomePage> {
                       _buildSectionTitle('🧠 Testez vos connaissances', showViewAll: false),
                       const SizedBox(height: 12),
                       if (desktop)
-                        GridView.count(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 1.8,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
                           children: quizzes
-                              .map((quiz) => _buildQuizCard(quiz))
+                              .map((quiz) => SizedBox(
+                                    width: 340,
+                                    child: _buildQuizCard(quiz, desktop: true),
+                                  ))
                               .toList(),
                         )
                       else
@@ -601,10 +601,8 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildQuizCard(Quiz quiz) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.pushNamed(
+  Widget _buildQuizCard(Quiz quiz, {bool desktop = false}) {
+    void onTap() => Navigator.pushNamed(
           context,
           '/quiz',
           arguments: {
@@ -613,7 +611,95 @@ class _HomePageState extends State<HomePage> {
             'description': quiz.description,
           },
         );
-      },
+
+    if (desktop) {
+      // Carte horizontale compacte : pas de bannière image, hauteur libre
+      return GestureDetector(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Icône colorée à gauche
+              Container(
+                width: 64,
+                height: 64,
+                margin: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF4A259), Color(0xFFEA853D)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(quiz.icon, size: 28, color: Colors.white),
+              ),
+              // Texte
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        quiz.title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1F2E1F),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        quiz.description,
+                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Bouton jouer
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF4A259),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Jouer',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Mobile : carte verticale avec bannière
+    return GestureDetector(
+      onTap: onTap,
       child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
@@ -629,7 +715,6 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image
             Container(
               height: 80,
               width: double.infinity,
@@ -653,15 +738,12 @@ class _HomePageState extends State<HomePage> {
               ),
               child: quiz.imageUrl == null
                   ? Center(
-                      child: Icon(
-                        quiz.icon,
-                        size: 36,
-                        color: Colors.white.withOpacity(0.7),
-                      ),
+                      child: Icon(quiz.icon,
+                          size: 36,
+                          color: Colors.white.withOpacity(0.7)),
                     )
                   : null,
             ),
-            // Contenu
             Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
@@ -682,7 +764,8 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(height: 2),
                         Text(
                           quiz.description,
-                          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey[600]),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -691,7 +774,8 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF4A259),
                       borderRadius: BorderRadius.circular(20),

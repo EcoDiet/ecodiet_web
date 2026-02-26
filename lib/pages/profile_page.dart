@@ -362,6 +362,34 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _showDeleteFolderDialog(Folder folder) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer le dossier ?'),
+        content: Text(
+            'Voulez-vous supprimer le dossier "${folder.label}" ? Cette action est irréversible.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          TextButton(
+            onPressed: () {
+              setState(() {
+                folders.removeWhere((f) => f.id == folder.id);
+              });
+              Navigator.pop(context);
+              // TODO: Appeler l'API pour supprimer le dossier
+            },
+            child: const Text('Supprimer',
+                style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildFolderItem(Folder folder) {
     return GestureDetector(
       onTap: () {
@@ -426,10 +454,18 @@ class _ProfilePageState extends State<ProfilePage> {
               ],
             ),
           ),
-          Icon(
-            Icons.chevron_right,
-            color: Colors.grey[400],
-          ),
+          if (folder.id != 'favorites')
+            IconButton(
+              icon: Icon(Icons.delete_outline, color: Colors.red[300], size: 20),
+              onPressed: () => _showDeleteFolderDialog(folder),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(),
+            )
+          else
+            Icon(
+              Icons.chevron_right,
+              color: Colors.grey[400],
+            ),
         ],
       ),
       ),
