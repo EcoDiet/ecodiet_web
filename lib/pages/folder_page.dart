@@ -185,14 +185,21 @@ class _FolderPageState extends State<FolderPage> {
   }
 
   Widget _buildDesktopCard(FavoriteRecipe recipe) {
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(context, '/recipe', arguments: {
-        'id': recipe.id,
-        'title': recipe.title,
-        'description': recipe.category,
-        'duration': recipe.duration,
-      }),
-      child: Container(
+    return Semantics(
+      label: 'Recette : ${recipe.title}, ${recipe.category}',
+      button: true,
+      child: Material(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          onTap: () => Navigator.pushNamed(context, '/recipe', arguments: {
+            'id': recipe.id,
+            'title': recipe.title,
+            'description': recipe.category,
+            'duration': recipe.duration,
+          }),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -260,12 +267,15 @@ class _FolderPageState extends State<FolderPage> {
             IconButton(
               icon: Icon(Icons.remove_circle_outline,
                   color: Colors.red[300]),
+              tooltip: 'Retirer de la liste',
               onPressed: () => _removeRecipe(recipe),
             ),
           ],
         ),
       ),
-    );
+    ),
+  ),
+  );
   }
 
   // ── Mobile ─────────────────────────────────────────────────────────────────
@@ -423,7 +433,7 @@ class _FolderPageState extends State<FolderPage> {
                   ),
                   Text(
                     '${recipes.length} recette(s)',
-                    style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                    style: TextStyle(fontSize: 12, color: Colors.grey[700]),
                   ),
                 ],
               ),
@@ -578,7 +588,7 @@ class _FolderPageState extends State<FolderPage> {
                           Text(
                             recipe.duration,
                             style: TextStyle(
-                                fontSize: 12, color: Colors.grey[500]),
+                                fontSize: 12, color: Colors.grey[700]),
                           ),
                         ],
                       ),
@@ -636,7 +646,7 @@ class _FolderPageState extends State<FolderPage> {
                 : 'Ajoutez des recettes depuis la page d\'une recette',
             style: TextStyle(
               fontSize: 14,
-              color: Colors.grey[500],
+              color: Colors.grey[700],
               height: 1.5,
             ),
             textAlign: TextAlign.center,

@@ -269,7 +269,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.asset('lib/assets/logo/EcoDiet-Logo-beige.png', height: 200),
+          Image.asset('lib/assets/logo/EcoDiet-Logo-beige.png', height: 200, semanticLabel: 'Logo EcoDiet'),
           const SizedBox(height: 20),
           const Text(
             'Mangez sainement, naturellement.',
@@ -379,7 +379,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
               alignment: Alignment.centerRight,
               child: Text(
                 'Étape ${_currentStep + 1} sur 5',
-                style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                style: TextStyle(fontSize: 11, color: Colors.grey[700]),
               ),
             ),
           ),
@@ -440,7 +440,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                     child: Text(
                       'Étape ${_currentStep + 1} sur 5',
                       style:
-                          TextStyle(fontSize: 11, color: Colors.grey[500]),
+                          TextStyle(fontSize: 11, color: Colors.grey[700]),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -650,15 +650,19 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
             children: [
               Text('Déjà un compte ? ',
                   style: TextStyle(color: Colors.grey[600], fontSize: 13)),
-              GestureDetector(
+              InkWell(
                 onTap: () =>
                     Navigator.pushReplacementNamed(context, '/login'),
-                child: const Text(
-                  'Se connecter',
-                  style: TextStyle(
-                    color: Color(0xFF2F6B3F),
-                    fontWeight: FontWeight.bold,
-                    fontSize: 13,
+                borderRadius: BorderRadius.circular(4),
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text(
+                    'Se connecter',
+                    style: TextStyle(
+                      color: Color(0xFF2F6B3F),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ),
@@ -739,9 +743,15 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           const SizedBox(height: 16),
 
           _buildLabel('Date de naissance'),
-          GestureDetector(
-            onTap: _pickBirthDate,
-            child: Container(
+          Semantics(
+            label: _birthDate != null
+                ? 'Date de naissance : ${_birthDate!.day.toString().padLeft(2, '0')}/${_birthDate!.month.toString().padLeft(2, '0')}/${_birthDate!.year}'
+                : 'Date de naissance, sélectionner une date',
+            button: true,
+            child: InkWell(
+              onTap: _pickBirthDate,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
               height: 50,
               padding: const EdgeInsets.symmetric(horizontal: 14),
               decoration: BoxDecoration(
@@ -752,7 +762,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
               child: Row(
                 children: [
                   Icon(Icons.calendar_today_outlined,
-                      size: 18, color: Colors.grey[500]),
+                      size: 18, color: Colors.grey[700]),
                   const SizedBox(width: 10),
                   Text(
                     _birthDate != null
@@ -772,6 +782,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
               ),
             ),
           ),
+        ),
           const SizedBox(height: 16),
 
           Row(
@@ -829,9 +840,14 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   Widget _buildGenderChip(String label, IconData icon, String value) {
     final selected = _gender == value;
     return Expanded(
-      child: GestureDetector(
-        onTap: () => setState(() => _gender = value),
-        child: AnimatedContainer(
+      child: Semantics(
+        label: label,
+        selected: selected,
+        button: true,
+        child: InkWell(
+          onTap: () => setState(() => _gender = value),
+          borderRadius: BorderRadius.circular(24),
+          child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
@@ -867,7 +883,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Future<void> _pickBirthDate() async {
@@ -915,9 +932,14 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
 
   Widget _buildGoalCard(_GoalOption option) {
     final selected = _mainGoal == option.value;
-    return GestureDetector(
-      onTap: () => setState(() => _mainGoal = option.value),
-      child: AnimatedContainer(
+    return Semantics(
+      label: '${option.label} : ${option.sub}',
+      selected: selected,
+      button: true,
+      child: InkWell(
+        onTap: () => setState(() => _mainGoal = option.value),
+        borderRadius: BorderRadius.circular(12),
+        child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.all(14),
@@ -976,7 +998,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                   Text(
                     option.sub,
                     style: TextStyle(
-                        fontSize: 12, color: Colors.grey[500]),
+                        fontSize: 12, color: Colors.grey[700]),
                   ),
                 ],
               ),
@@ -987,7 +1009,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   // ── Étape 4 : Régime ────────────────────────────────────────────────────────
@@ -1021,9 +1044,14 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
 
   Widget _buildDietChip(_DietOption option) {
     final selected = _dietType == option.value;
-    return GestureDetector(
-      onTap: () => setState(() => _dietType = option.value),
-      child: AnimatedContainer(
+    return Semantics(
+      label: option.label,
+      selected: selected,
+      button: true,
+      child: InkWell(
+        onTap: () => setState(() => _dietType = option.value),
+        borderRadius: BorderRadius.circular(30),
+        child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
         decoration: BoxDecoration(
@@ -1061,7 +1089,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   // ── Étape 5 : Allergies ─────────────────────────────────────────────────────
@@ -1124,15 +1153,20 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
 
   Widget _buildAllergyChip(_AllergyOption option) {
     final selected = _allergies.contains(option.value);
-    return GestureDetector(
-      onTap: () => setState(() {
-        if (selected) {
-          _allergies.remove(option.value);
-        } else {
-          _allergies.add(option.value);
-        }
-      }),
-      child: AnimatedContainer(
+    return Semantics(
+      label: option.label,
+      selected: selected,
+      button: true,
+      child: InkWell(
+        onTap: () => setState(() {
+          if (selected) {
+            _allergies.remove(option.value);
+          } else {
+            _allergies.add(option.value);
+          }
+        }),
+        borderRadius: BorderRadius.circular(30),
+        child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
@@ -1170,7 +1204,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }
 

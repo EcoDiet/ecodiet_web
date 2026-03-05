@@ -32,6 +32,7 @@ class _LoginPageState extends State<LoginPage> {
                     Image.asset(
                       'lib/assets/logo/EcoDiet-Logo-beige.png',
                       height: 200,
+                      semanticLabel: 'Logo EcoDiet',
                     ),
                     const SizedBox(height: 20),
                     const Text(
@@ -93,36 +94,41 @@ class _LoginPageState extends State<LoginPage> {
     required String label,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        height: 48,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: const Color(0xFFDADCE0)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.04),
-              blurRadius: 4,
-              offset: const Offset(0, 1),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            icon,
-            const SizedBox(width: 12),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF3C4043),
+    return Semantics(
+      button: true,
+      label: label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          height: 48,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: const Color(0xFFDADCE0)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 4,
+                offset: const Offset(0, 1),
               ),
-            ),
-          ],
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              icon,
+              const SizedBox(width: 12),
+              Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w500,
+                  color: Color(0xFF3C4043),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -135,7 +141,7 @@ class _LoginPageState extends State<LoginPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (!desktop) ...[
-          Center(child: Image.asset('lib/assets/logo/EcoDiet-Logo.png', height: 200)),
+          Center(child: Image.asset('lib/assets/logo/EcoDiet-Logo.png', height: 200, semanticLabel: 'Logo EcoDiet')),
           const SizedBox(height: 10),
         ],
 
@@ -159,7 +165,8 @@ class _LoginPageState extends State<LoginPage> {
         // Champ Email
         TextFormField(
           decoration: InputDecoration(
-            hintText: 'Email',
+            labelText: 'Email',
+            hintText: 'votre@email.com',
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
@@ -179,7 +186,8 @@ class _LoginPageState extends State<LoginPage> {
         TextFormField(
           obscureText: _obscurePassword,
           decoration: InputDecoration(
-            hintText: 'Password',
+            labelText: 'Mot de passe',
+            hintText: 'Votre mot de passe',
             filled: true,
             fillColor: Colors.white,
             border: OutlineInputBorder(
@@ -190,15 +198,18 @@ class _LoginPageState extends State<LoginPage> {
               borderRadius: BorderRadius.circular(8),
               borderSide: const BorderSide(color: Colors.grey),
             ),
-            suffixIcon: TextButton(
-              onPressed: () {
-                setState(() {
-                  _obscurePassword = !_obscurePassword;
-                });
-              },
-              child: Text(
-                _obscurePassword ? 'Show' : 'Hide',
-                style: const TextStyle(color: Colors.black54),
+            suffixIcon: Tooltip(
+              message: _obscurePassword ? 'Afficher le mot de passe' : 'Masquer le mot de passe',
+              child: TextButton(
+                onPressed: () {
+                  setState(() {
+                    _obscurePassword = !_obscurePassword;
+                  });
+                },
+                child: Text(
+                  _obscurePassword ? 'Show' : 'Hide',
+                  style: const TextStyle(color: Colors.black54),
+                ),
               ),
             ),
           ),
@@ -263,15 +274,19 @@ class _LoginPageState extends State<LoginPage> {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text("Pas encore de compte ? "),
-            GestureDetector(
+            InkWell(
               onTap: () {
                 Navigator.pushNamed(context, '/create_account');
               },
-              child: const Text(
-                'Créer un compte',
-                style: TextStyle(
-                  color: Color(0xFF2F6B3F),
-                  fontWeight: FontWeight.bold,
+              borderRadius: BorderRadius.circular(4),
+              child: const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                child: Text(
+                  'Créer un compte',
+                  style: TextStyle(
+                    color: Color(0xFF2F6B3F),
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
               ),
             ),

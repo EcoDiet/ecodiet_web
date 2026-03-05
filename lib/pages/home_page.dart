@@ -173,9 +173,12 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const Scaffold(
+      return Scaffold(
         body: Center(
-          child: CircularProgressIndicator(),
+          child: Semantics(
+            label: 'Chargement en cours',
+            child: const CircularProgressIndicator(),
+          ),
         ),
       );
     }
@@ -183,6 +186,7 @@ class _HomePageState extends State<HomePage> {
     final desktop = isDesktop(context);
 
     return Scaffold(
+      backgroundColor: const Color(0xFFF5ECD9),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
@@ -228,7 +232,7 @@ class _HomePageState extends State<HomePage> {
 
                     // Section "Juste pour vous"
                     if (_filteredRecommended.isNotEmpty) ...[
-                      _buildSectionTitle('⭐ Juste pour vous'),
+                      _buildSectionTitle('Juste pour vous', icon: Icons.star_rounded),
                       const SizedBox(height: 12),
                       if (desktop)
                         _buildRecipeGrid(context, _filteredRecommended)
@@ -254,7 +258,7 @@ class _HomePageState extends State<HomePage> {
 
                     // Section "Nos recettes"
                     if (_filteredAll.isNotEmpty) ...[
-                      _buildSectionTitle('🍽️ Nos recettes'),
+                      _buildSectionTitle('Nos recettes', icon: Icons.restaurant_rounded),
                       const SizedBox(height: 12),
                       if (desktop)
                         _buildRecipeGrid(context, _filteredAll)
@@ -280,7 +284,7 @@ class _HomePageState extends State<HomePage> {
 
                     // Section "Testez vos connaissances"
                     if (quizzes.isNotEmpty && _searchQuery.isEmpty) ...[
-                      _buildSectionTitle('🧠 Testez vos connaissances', showViewAll: false),
+                      _buildSectionTitle('Testez vos connaissances', showViewAll: false, icon: Icons.psychology_rounded),
                       const SizedBox(height: 12),
                       if (desktop)
                         Wrap(
@@ -317,7 +321,7 @@ class _HomePageState extends State<HomePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: const [
               Text(
-                'Bonjour !',
+                'Bonjour 👋',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
@@ -469,19 +473,27 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildSectionTitle(String title, {bool showViewAll = true}) {
+  Widget _buildSectionTitle(String title, {bool showViewAll = true, IconData? icon}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2E1F),
-            letterSpacing: -0.3,
-          ),
+        Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 18, color: const Color(0xFF2F6B3F)),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1F2E1F),
+                letterSpacing: -0.3,
+              ),
+            ),
+          ],
         ),
         if (showViewAll)
           TextButton(
@@ -503,18 +515,22 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildRecipeCard(BuildContext context, Recipe recipe) {
     final desktop = isDesktop(context);
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(
-        context,
-        '/recipe',
-        arguments: {
-          'id': recipe.id,
-          'title': recipe.title,
-          'description': recipe.category,
-          'duration': recipe.duration,
-        },
-      ),
-      child: Container(
+    return Semantics(
+      label: 'Recette : ${recipe.title}, ${recipe.category}, ${recipe.duration}',
+      button: true,
+      child: InkWell(
+        onTap: () => Navigator.pushNamed(
+          context,
+          '/recipe',
+          arguments: {
+            'id': recipe.id,
+            'title': recipe.title,
+            'description': recipe.category,
+            'duration': recipe.duration,
+          },
+        ),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
         width: desktop ? null : 200,
         decoration: BoxDecoration(
           color: Colors.white,
@@ -623,7 +639,7 @@ class _HomePageState extends State<HomePage> {
                           recipe.ingredients,
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey[500],
+                            color: Colors.grey[700],
                           ),
                         ),
                       ],
@@ -631,9 +647,12 @@ class _HomePageState extends State<HomePage> {
                   ),
                   IconButton(
                     onPressed: () => _toggleFavorite(recipe),
+                    tooltip: FavoritesService().isFavorite(recipe.id)
+                        ? 'Retirer des favoris'
+                        : 'Ajouter aux favoris',
                     style: IconButton.styleFrom(
                       backgroundColor: Colors.red[50],
-                      minimumSize: const Size(40, 40),
+                      minimumSize: const Size(44, 44),
                     ),
                     icon: Icon(
                       FavoritesService().isFavorite(recipe.id)
@@ -649,7 +668,8 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildQuizCard(Quiz quiz, {bool desktop = false}) {
@@ -665,9 +685,13 @@ class _HomePageState extends State<HomePage> {
 
     if (desktop) {
       // Carte horizontale compacte : pas de bannière image, hauteur libre
-      return GestureDetector(
-        onTap: onTap,
-        child: Container(
+      return Semantics(
+        label: 'Quiz : ${quiz.title}',
+        button: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
@@ -714,7 +738,7 @@ class _HomePageState extends State<HomePage> {
                       const SizedBox(height: 3),
                       Text(
                         quiz.description,
-                        style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                        style: TextStyle(fontSize: 11, color: Colors.grey[700]),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -745,13 +769,18 @@ class _HomePageState extends State<HomePage> {
             ],
           ),
         ),
-      );
+      ),
+    );
     }
 
     // Mobile : carte verticale avec bannière
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
+    return Semantics(
+      label: 'Quiz : ${quiz.title}',
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -846,6 +875,7 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

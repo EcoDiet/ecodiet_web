@@ -268,12 +268,15 @@ class _QuizPageState extends State<QuizPage> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Numéro de question
-                        Text(
-                          'Question ${currentQuestionIndex + 1}/${questions.length}',
-                          style: TextStyle(
-                            fontSize: 14,
-                            color: Colors.grey[600],
-                            fontWeight: FontWeight.w500,
+                        Semantics(
+                          label: 'Question ${currentQuestionIndex + 1} sur ${questions.length}',
+                          child: Text(
+                            'Question ${currentQuestionIndex + 1}/${questions.length}',
+                            style: TextStyle(
+                              fontSize: 14,
+                              color: Colors.grey[700],
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -402,6 +405,7 @@ class _QuizPageState extends State<QuizPage> {
         children: [
           IconButton(
             icon: const Icon(Icons.close, color: Color(0xFF1F2E1F)),
+            tooltip: 'Quitter le quiz',
             onPressed: () => _showExitDialog(),
           ),
           Expanded(
@@ -427,14 +431,17 @@ class _QuizPageState extends State<QuizPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
         children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(10),
-            child: LinearProgressIndicator(
-              value: progress,
-              backgroundColor: Colors.grey[200],
-              valueColor:
-                  const AlwaysStoppedAnimation<Color>(Color(0xFF2F6B3F)),
-              minHeight: 8,
+          Semantics(
+            label: 'Progression : question ${currentQuestionIndex + 1} sur ${questions.length}',
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(10),
+              child: LinearProgressIndicator(
+                value: progress,
+                backgroundColor: Colors.grey[200],
+                valueColor:
+                    const AlwaysStoppedAnimation<Color>(Color(0xFF2F6B3F)),
+                minHeight: 8,
+              ),
             ),
           ),
           const SizedBox(height: 8),
@@ -445,10 +452,21 @@ class _QuizPageState extends State<QuizPage> {
 
   Widget _buildOptionCard(int index, String option) {
     final icon = _getOptionIcon(index);
+    String semanticsLabel = option;
+    if (hasAnswered) {
+      final isCorrect = index == questions[currentQuestionIndex].correctAnswerIndex;
+      final isSelected = index == selectedAnswerIndex;
+      if (isCorrect) { semanticsLabel += ', bonne réponse'; }
+      else if (isSelected) { semanticsLabel += ', mauvaise réponse'; }
+    }
 
-    return GestureDetector(
-      onTap: () => _selectAnswer(index),
-      child: Container(
+    return Semantics(
+      label: semanticsLabel,
+      button: !hasAnswered,
+      child: InkWell(
+        onTap: () => _selectAnswer(index),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           color: _getOptionColor(index),
@@ -504,7 +522,8 @@ class _QuizPageState extends State<QuizPage> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
   Widget _buildResultScreen() {
@@ -568,7 +587,7 @@ class _QuizPageState extends State<QuizPage> {
                     'Ton score',
                     style: TextStyle(
                       fontSize: 16,
-                      color: Colors.grey[600],
+                      color: Colors.grey[700],
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -585,7 +604,7 @@ class _QuizPageState extends State<QuizPage> {
                     '$percentage% de bonnes réponses',
                     style: TextStyle(
                       fontSize: 16,
-                      color: Colors.grey[600],
+                      color: Colors.grey[700],
                     ),
                   ),
                   const SizedBox(height: 48),

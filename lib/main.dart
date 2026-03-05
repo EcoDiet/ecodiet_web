@@ -107,60 +107,71 @@ class _MyHomePageState extends State<MyHomePage> {
     required int index,
   }) {
     final isSelected = selectedIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() => selectedIndex = index),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? Colors.white.withOpacity(0.10)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? selectedIcon : icon,
-              color: isSelected ? Colors.white : const Color(0xFFF5ECD9),
-              size: 22,
-            ),
-            const SizedBox(width: 14),
-            Text(
-              label,
-              style: TextStyle(
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: label,
+      child: InkWell(
+        onTap: () => setState(() => selectedIndex = index),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Colors.white.withOpacity(0.10)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isSelected ? selectedIcon : icon,
                 color: isSelected ? Colors.white : const Color(0xFFF5ECD9),
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                fontSize: 14,
+                size: 22,
               ),
-            ),
-          ],
+              const SizedBox(width: 14),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : const Color(0xFFF5ECD9),
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildLogoutButton(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.pushReplacementNamed(context, '/login'),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.logout, color: Color(0xFFF5ECD9), size: 20),
-            SizedBox(width: 14),
-            Text(
-              'Déconnexion',
-              style: TextStyle(
-                color: Color(0xFFF5ECD9),
-                fontSize: 14,
+    return Semantics(
+      button: true,
+      label: 'Déconnexion',
+      child: InkWell(
+        onTap: () => Navigator.pushReplacementNamed(context, '/login'),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.logout, color: Color(0xFFF5ECD9), size: 20),
+              SizedBox(width: 14),
+              Text(
+                'Déconnexion',
+                style: TextStyle(
+                  color: Color(0xFFF5ECD9),
+                  fontSize: 14,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -196,6 +207,7 @@ class _MyHomePageState extends State<MyHomePage> {
                         Image.asset(
                           'lib/assets/logo/EcoDiet-Logo-beige.png',
                           height: 52,
+                          semanticLabel: 'Logo EcoDiet',
                         ),
                         const SizedBox(height: 10),
                         const Text(
@@ -311,10 +323,14 @@ class _MyHomePageState extends State<MyHomePage> {
     required int index,
   }) {
     final isSelected = selectedIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() => selectedIndex = index),
-      behavior: HitTestBehavior.opaque,
-      child: AnimatedContainer(
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: label,
+      child: InkWell(
+        onTap: () => setState(() => selectedIndex = index),
+        borderRadius: BorderRadius.circular(24),
+        child: AnimatedContainer(
         duration: const Duration(milliseconds: 280),
         curve: Curves.easeInOut,
         padding: EdgeInsets.symmetric(
@@ -364,6 +380,7 @@ class _MyHomePageState extends State<MyHomePage> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

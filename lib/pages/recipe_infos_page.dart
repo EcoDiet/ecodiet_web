@@ -215,6 +215,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                 color: _isFavorite ? Colors.red[300] : Colors.white,
                 size: 22,
               ),
+              tooltip: _isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
               onPressed: _toggleFavorite,
             ),
           ),
@@ -589,26 +590,31 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   }
 
   Widget _buildInfoCards() {
+    final difficultyLabel = difficulty <= 60
+        ? 'Facile'
+        : difficulty <= 120
+            ? 'Moyen'
+            : 'Difficile';
     return Row(
       children: [
         _buildInfoCard(
           icon: Icons.access_time,
           label: 'Temps',
-          value: 'Durée (sec)',
+          value: widget.duration ?? '–',
           color: const Color(0xFF2F6B3F),
         ),
         const SizedBox(width: 12),
         _buildInfoCard(
           icon: Icons.people,
           label: 'Portions',
-          value: 'nb personnes',
+          value: '${portions}p',
           color: const Color(0xFF2F6B3F),
         ),
         const SizedBox(width: 12),
         _buildInfoCard(
           icon: Icons.trending_up,
           label: 'Difficultés',
-          value: 'Durée (sec)',
+          value: difficultyLabel,
           color: const Color(0xFF2F6B3F),
         ),
       ],
@@ -701,9 +707,9 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              const Text(
-                'Empreinte calculée',
-                style: TextStyle(
+              Text(
+                '${carbonFootprint.toStringAsFixed(1)} kg CO₂',
+                style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF2F6B3F),
@@ -711,7 +717,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               ),
               Text(
                 'par portion',
-                style: TextStyle(fontSize: 12, color: Colors.grey[500]),
+                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
               ),
             ],
           ),
@@ -739,7 +745,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         ),
         const SizedBox(height: 4),
         Text(subtitle,
-            style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+            style: TextStyle(fontSize: 12, color: Colors.grey[700])),
         const SizedBox(height: 12),
         ...items.asMap().entries.map((entry) {
           final index = entry.key;

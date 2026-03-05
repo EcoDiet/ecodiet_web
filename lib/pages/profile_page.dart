@@ -97,6 +97,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     if (desktop) {
       return Scaffold(
+        backgroundColor: const Color(0xFFF5ECD9),
         body: SafeArea(
           child: Center(
             child: ConstrainedBox(
@@ -113,6 +114,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
     // Mobile : hero va sous la status bar
     return Scaffold(
+      backgroundColor: const Color(0xFFF5ECD9),
       body: SingleChildScrollView(
         padding: const EdgeInsets.only(bottom: 100),
         child: _buildMobileLayout(),
@@ -367,7 +369,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Text(
                         'utilisateur@ecodiet.fr',
                         style: TextStyle(
-                            fontSize: 13, color: Colors.grey[500]),
+                            fontSize: 13, color: Colors.grey[700]),
                       ),
                       const SizedBox(height: 14),
                       // Stats pills
@@ -565,7 +567,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   const SizedBox(height: 2),
                   Text(
                     '$count recette${count > 1 ? 's' : ''}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[500]),
+                    style: TextStyle(fontSize: 11, color: Colors.grey[700]),
                   ),
                 ],
               ),
@@ -708,7 +710,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     Text(
                       pref.value,
                       style: TextStyle(
-                          fontSize: 12, color: Colors.grey[500]),
+                          fontSize: 12, color: Colors.grey[700]),
                     ),
                   ],
                 ),
@@ -730,15 +732,19 @@ class _ProfilePageState extends State<ProfilePage> {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             _buildSectionHeader(Icons.folder, 'Mes dossiers'),
-            GestureDetector(
-              onTap: _showCreateFolderDialog,
-              child: Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF4A259),
-                  borderRadius: BorderRadius.circular(8),
+            Tooltip(
+              message: 'Créer un dossier',
+              child: InkWell(
+                onTap: _showCreateFolderDialog,
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF4A259),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.add, size: 20, color: Colors.white),
                 ),
-                child: const Icon(Icons.add, size: 20, color: Colors.white),
               ),
             ),
           ],
@@ -801,28 +807,43 @@ class _ProfilePageState extends State<ProfilePage> {
                   Colors.purple,
                   Colors.pink,
                 ].map((color) {
-                  return GestureDetector(
-                    onTap: () {
-                      setDialogState(() {
-                        selectedColor = color;
-                      });
-                    },
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: selectedColor == color
-                            ? Border.all(
-                                color: const Color(0xFF1F2E1F),
-                                width: 3,
-                              )
+                  final colorName = {
+                    Colors.red: 'Rouge',
+                    Colors.orange: 'Orange',
+                    Colors.amber: 'Ambre',
+                    Colors.green: 'Vert',
+                    Colors.blue: 'Bleu',
+                    const Color(0xFF87CEEB): 'Bleu ciel',
+                    Colors.purple: 'Violet',
+                    Colors.pink: 'Rose',
+                  }[color] ?? 'Couleur';
+                  return Semantics(
+                    label: '$colorName${selectedColor == color ? ', sélectionné' : ''}',
+                    button: true,
+                    child: InkWell(
+                      onTap: () {
+                        setDialogState(() {
+                          selectedColor = color;
+                        });
+                      },
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
+                          border: selectedColor == color
+                              ? Border.all(
+                                  color: const Color(0xFF1F2E1F),
+                                  width: 3,
+                                )
+                              : null,
+                        ),
+                        child: selectedColor == color
+                            ? const Icon(Icons.check, color: Colors.white, size: 20)
                             : null,
                       ),
-                      child: selectedColor == color
-                          ? const Icon(Icons.check, color: Colors.white, size: 20)
-                          : null,
                     ),
                   );
                 }).toList(),
@@ -944,14 +965,14 @@ class _ProfilePageState extends State<ProfilePage> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: folder.color,
+                    color: folder.color.withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     folder.id == 'favorites'
                         ? Icons.favorite
                         : Icons.folder,
-                    color: Colors.white,
+                    color: folder.color,
                     size: 20,
                   ),
                 ),
@@ -972,17 +993,33 @@ class _ProfilePageState extends State<ProfilePage> {
                       Text(
                         '$count recette${count > 1 ? 's' : ''}',
                         style: TextStyle(
-                            fontSize: 13, color: Colors.grey[500]),
+                            fontSize: 13, color: Colors.grey[700]),
                       ),
                     ],
                   ),
                 ),
                 if (folder.id != 'favorites')
-                  IconButton(
-                    icon: Icon(Icons.delete_outline,
-                        color: Colors.red[300], size: 22),
-                    onPressed: () => _showDeleteFolderDialog(folder),
-                    tooltip: 'Supprimer',
+                  PopupMenuButton<String>(
+                    icon: Icon(Icons.more_horiz, color: Colors.grey[400], size: 22),
+                    shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12)),
+                    itemBuilder: (_) => [
+                      PopupMenuItem(
+                        value: 'delete',
+                        child: Row(
+                          children: [
+                            Icon(Icons.delete_outline,
+                                color: Colors.red[400], size: 18),
+                            const SizedBox(width: 10),
+                            Text('Supprimer',
+                                style: TextStyle(color: Colors.red[400])),
+                          ],
+                        ),
+                      ),
+                    ],
+                    onSelected: (value) {
+                      if (value == 'delete') _showDeleteFolderDialog(folder);
+                    },
                   )
                 else
                   Icon(Icons.chevron_right,
@@ -1046,7 +1083,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Text(
                         pref.value,
                         style: TextStyle(
-                            fontSize: 13, color: Colors.grey[500]),
+                            fontSize: 13, color: Colors.grey[700]),
                       ),
                     ],
                   ),
