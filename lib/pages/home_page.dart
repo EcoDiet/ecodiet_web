@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/responsive.dart';
 import '../services/favorites_service.dart';
+import 'all_recipes_page.dart';
 
 /// Modèle pour une recette
 class Recipe {
@@ -232,7 +233,19 @@ class _HomePageState extends State<HomePage> {
 
                     // Section "Juste pour vous"
                     if (_filteredRecommended.isNotEmpty) ...[
-                      _buildSectionTitle('Juste pour vous', icon: Icons.star_rounded),
+                      _buildSectionTitle(
+                        'Juste pour vous',
+                        icon: Icons.star_rounded,
+                        onViewAll: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AllRecipesPage(
+                              title: 'Juste pour vous',
+                              recipes: _filteredRecommended,
+                            ),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       if (desktop)
                         _buildRecipeGrid(context, _filteredRecommended)
@@ -258,7 +271,19 @@ class _HomePageState extends State<HomePage> {
 
                     // Section "Nos recettes"
                     if (_filteredAll.isNotEmpty) ...[
-                      _buildSectionTitle('Nos recettes', icon: Icons.restaurant_rounded),
+                      _buildSectionTitle(
+                        'Nos recettes',
+                        icon: Icons.restaurant_rounded,
+                        onViewAll: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AllRecipesPage(
+                              title: 'Nos recettes',
+                              recipes: _filteredAll,
+                            ),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       if (desktop)
                         _buildRecipeGrid(context, _filteredAll)
@@ -458,22 +483,18 @@ class _HomePageState extends State<HomePage> {
   Widget _buildRecipeGrid(BuildContext context, List<Recipe> recipes) {
     final width = MediaQuery.of(context).size.width;
     final crossAxisCount = width >= 1100 ? 4 : width >= 850 ? 3 : 2;
-    return GridView.builder(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.85,
-      ),
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: recipes.length,
-      itemBuilder: (context, index) =>
-          _buildRecipeCard(context, recipes[index]),
+    final spacing = 12.0;
+    final cardWidth = (width - spacing * (crossAxisCount - 1)) / crossAxisCount;
+    return Wrap(
+      spacing: spacing,
+      runSpacing: spacing,
+      children: recipes
+          .map((r) => SizedBox(width: cardWidth, child: _buildRecipeCard(context, r)))
+          .toList(),
     );
   }
 
-  Widget _buildSectionTitle(String title, {bool showViewAll = true, IconData? icon}) {
+  Widget _buildSectionTitle(String title, {bool showViewAll = true, IconData? icon, VoidCallback? onViewAll}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -495,9 +516,9 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
-        if (showViewAll)
+        if (showViewAll && onViewAll != null)
           TextButton(
-            onPressed: () {},
+            onPressed: onViewAll,
             style: TextButton.styleFrom(
               foregroundColor: const Color(0xFF2F6B3F),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
