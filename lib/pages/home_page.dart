@@ -186,32 +186,43 @@ class _HomePageState extends State<HomePage> {
 
     final desktop = isDesktop(context);
 
+    final hPad = desktop ? 32.0 : 16.0;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF5ECD9),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1200),
-            child: RefreshIndicator(
-              onRefresh: _loadData,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: desktop
-                    ? const EdgeInsets.all(32.0)
-                    : const EdgeInsets.fromLTRB(16, 16, 16, 100),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header
-                    _buildHeader(context, desktop),
-                    const SizedBox(height: 16),
-
-                    // Barre de recherche mobile
-                    if (!desktop) ...[
-                      _buildMobileSearchBar(),
-                      const SizedBox(height: 20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header fixe (ne scrolle pas)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(hPad, desktop ? 32 : 16, hPad, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(context, desktop),
+                      const SizedBox(height: 16),
+                      if (!desktop) ...[
+                        _buildMobileSearchBar(),
+                        const SizedBox(height: 20),
+                      ],
                     ],
+                  ),
+                ),
 
+                // Contenu scrollable
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(hPad, 0, hPad, desktop ? 32 : 100),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                     // Message "aucun résultat" si recherche active
                     if (_searchQuery.isNotEmpty &&
                         _filteredRecommended.isEmpty &&
@@ -328,9 +339,12 @@ class _HomePageState extends State<HomePage> {
                               child: _buildQuizCard(quiz),
                             )),
                     ],
-                  ],
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
