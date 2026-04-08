@@ -1,12 +1,14 @@
 {
-    "name": "ecodiet_v0",
-    "short_name": "ecodiet_v0",
-    "start_url": ".",
+    "name": "EcoDiet - Recettes saines & équilibrées",
+    "short_name": "EcoDiet",
+    "start_url": "/",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#F5ECD9",
+    "theme_color": "#2F6B3F",
+    "description": "Découvrez des recettes saines, équilibrées et écologiques adaptées à vos besoins nutritionnels.",
     "orientation": "portrait-primary",
+    "lang": "fr-FR",
+    "categories": ["food", "health", "lifestyle"],
     "prefer_related_applications": false,
     "icons": [
         {
