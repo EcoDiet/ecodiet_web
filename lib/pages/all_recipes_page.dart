@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../services/favorites_service.dart';
 import '../utils/responsive.dart';
@@ -18,20 +19,6 @@ class AllRecipesPage extends StatefulWidget {
 }
 
 class _AllRecipesPageState extends State<AllRecipesPage> {
-  @override
-  void initState() {
-    super.initState();
-    FavoritesService().addListener(_onFavoritesChanged);
-  }
-
-  @override
-  void dispose() {
-    FavoritesService().removeListener(_onFavoritesChanged);
-    super.dispose();
-  }
-
-  void _onFavoritesChanged() => setState(() {});
-
   void _toggleFavorite(Recipe recipe) {
     FavoritesService().toggle(FavoriteRecipe(
       id: recipe.id,
@@ -75,29 +62,29 @@ class _AllRecipesPageState extends State<AllRecipesPage> {
           ),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: EdgeInsets.fromLTRB(
-          desktop ? 32 : 16,
-          16,
-          desktop ? 32 : 16,
-          100,
-        ),
-        child: _buildRecipeGrid(context),
-      ),
+      body: _buildRecipeGrid(context, desktop),
     );
   }
 
-  Widget _buildRecipeGrid(BuildContext context) {
+  Widget _buildRecipeGrid(BuildContext context, bool desktop) {
     final width = MediaQuery.of(context).size.width;
     final crossAxisCount = width >= 1100 ? 4 : width >= 850 ? 3 : 2;
-    const spacing = 12.0;
-    final cardWidth = (width - spacing * (crossAxisCount - 1)) / crossAxisCount;
-    return Wrap(
-      spacing: spacing,
-      runSpacing: spacing,
-      children: widget.recipes
-          .map((r) => SizedBox(width: cardWidth, child: _buildRecipeCard(context, r)))
-          .toList(),
+    return GridView.builder(
+      padding: EdgeInsets.fromLTRB(desktop ? 32 : 16, 16, desktop ? 32 : 16, 100),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        mainAxisExtent: 210,
+      ),
+      itemCount: widget.recipes.length,
+      itemBuilder: (_, i) {
+        final recipe = widget.recipes[i];
+        return KeyedSubtree(
+          key: ValueKey(recipe.id),
+          child: _buildRecipeCard(context, recipe),
+        );
+      },
     );
   }
 
@@ -146,7 +133,7 @@ class _AllRecipesPageState extends State<AllRecipesPage> {
                       : null,
                   image: recipe.imageUrl != null
                       ? DecorationImage(
-                          image: NetworkImage(recipe.imageUrl!),
+                          image: CachedNetworkImageProvider(recipe.imageUrl!),
                           fit: BoxFit.cover,
                         )
                       : null,
@@ -223,22 +210,9 @@ class _AllRecipesPageState extends State<AllRecipesPage> {
                         ],
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => _toggleFavorite(recipe),
-                      tooltip: FavoritesService().isFavorite(recipe.id)
-                          ? 'Retirer des favoris'
-                          : 'Ajouter aux favoris',
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.red[50],
-                        minimumSize: const Size(44, 44),
-                      ),
-                      icon: Icon(
-                        FavoritesService().isFavorite(recipe.id)
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
-                        size: 20,
-                        color: Colors.red[400],
-                      ),
+                    FavoriteButton(
+                      recipeId: recipe.id,
+                      onToggle: () => _toggleFavorite(recipe),
                     ),
                   ],
                 ),

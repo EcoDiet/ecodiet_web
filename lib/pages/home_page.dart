@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../utils/responsive.dart';
 import '../services/favorites_service.dart';
@@ -57,6 +59,7 @@ class _HomePageState extends State<HomePage> {
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
+  Timer? _debounceTimer;
 
   List<Recipe> get _filteredRecommended => _searchQuery.isEmpty
       ? recommendedRecipes
@@ -78,18 +81,20 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadData();
-    FavoritesService().addListener(_onFavoritesChanged);
   }
 
   @override
   void dispose() {
-    FavoritesService().removeListener(_onFavoritesChanged);
+    _debounceTimer?.cancel();
     _searchController.dispose();
     super.dispose();
   }
 
-  void _onFavoritesChanged() {
-    if (mounted) setState(() {});
+  void _onSearchChanged(String value) {
+    _debounceTimer?.cancel();
+    _debounceTimer = Timer(const Duration(milliseconds: 300), () {
+      if (mounted) setState(() => _searchQuery = value.toLowerCase().trim());
+    });
   }
 
   Future<void> _loadData() async {
@@ -267,12 +272,11 @@ class _HomePageState extends State<HomePage> {
                             scrollDirection: Axis.horizontal,
                             itemCount: _filteredRecommended.length,
                             itemBuilder: (context, index) {
+                              final recipe = _filteredRecommended[index];
                               return Padding(
+                                key: ValueKey(recipe.id),
                                 padding: const EdgeInsets.only(right: 12),
-                                child: _buildRecipeCard(
-                                  context,
-                                  _filteredRecommended[index],
-                                ),
+                                child: _buildRecipeCard(context, recipe),
                               );
                             },
                           ),
@@ -305,12 +309,11 @@ class _HomePageState extends State<HomePage> {
                             scrollDirection: Axis.horizontal,
                             itemCount: _filteredAll.length,
                             itemBuilder: (context, index) {
+                              final recipe = _filteredAll[index];
                               return Padding(
+                                key: ValueKey(recipe.id),
                                 padding: const EdgeInsets.only(right: 12),
-                                child: _buildRecipeCard(
-                                  context,
-                                  _filteredAll[index],
-                                ),
+                                child: _buildRecipeCard(context, recipe),
                               );
                             },
                           ),
@@ -328,6 +331,7 @@ class _HomePageState extends State<HomePage> {
                           runSpacing: 12,
                           children: quizzes
                               .map((quiz) => SizedBox(
+                                    key: ValueKey(quiz.id),
                                     width: 340,
                                     child: _buildQuizCard(quiz, desktop: true),
                                   ))
@@ -335,6 +339,7 @@ class _HomePageState extends State<HomePage> {
                         )
                       else
                         ...quizzes.map((quiz) => Padding(
+                              key: ValueKey(quiz.id),
                               padding: const EdgeInsets.only(bottom: 12),
                               child: _buildQuizCard(quiz),
                             )),
@@ -391,8 +396,7 @@ class _HomePageState extends State<HomePage> {
             ),
             child: TextField(
               controller: _searchController,
-              onChanged: (value) =>
-                  setState(() => _searchQuery = value.toLowerCase().trim()),
+              onChanged: _onSearchChanged,
               decoration: InputDecoration(
                 hintText: 'Rechercher une recette…',
                 hintStyle: TextStyle(fontSize: 13, color: Colors.grey[400]),
@@ -497,14 +501,23 @@ class _HomePageState extends State<HomePage> {
   Widget _buildRecipeGrid(BuildContext context, List<Recipe> recipes) {
     final width = MediaQuery.of(context).size.width;
     final crossAxisCount = width >= 1100 ? 4 : width >= 850 ? 3 : 2;
-    final spacing = 12.0;
-    final cardWidth = (width - spacing * (crossAxisCount - 1)) / crossAxisCount;
-    return Wrap(
-      spacing: spacing,
-      runSpacing: spacing,
-      children: recipes
-          .map((r) => SizedBox(width: cardWidth, child: _buildRecipeCard(context, r)))
-          .toList(),
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: crossAxisCount,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        mainAxisExtent: 210,
+      ),
+      itemCount: recipes.length,
+      itemBuilder: (_, i) {
+        final recipe = recipes[i];
+        return KeyedSubtree(
+          key: ValueKey(recipe.id),
+          child: _buildRecipeCard(context, recipe),
+        );
+      },
     );
   }
 
@@ -597,7 +610,7 @@ class _HomePageState extends State<HomePage> {
                     : null,
                 image: recipe.imageUrl != null
                     ? DecorationImage(
-                        image: NetworkImage(recipe.imageUrl!),
+                        image: CachedNetworkImageProvider(recipe.imageUrl!),
                         fit: BoxFit.cover,
                       )
                     : null,
@@ -680,22 +693,9 @@ class _HomePageState extends State<HomePage> {
                       ],
                     ),
                   ),
-                  IconButton(
-                    onPressed: () => _toggleFavorite(recipe),
-                    tooltip: FavoritesService().isFavorite(recipe.id)
-                        ? 'Retirer des favoris'
-                        : 'Ajouter aux favoris',
-                    style: IconButton.styleFrom(
-                      backgroundColor: Colors.red[50],
-                      minimumSize: const Size(44, 44),
-                    ),
-                    icon: Icon(
-                      FavoritesService().isFavorite(recipe.id)
-                          ? Icons.favorite_rounded
-                          : Icons.favorite_border_rounded,
-                      size: 20,
-                      color: Colors.red[400],
-                    ),
+                  FavoriteButton(
+                    recipeId: recipe.id,
+                    onToggle: () => _toggleFavorite(recipe),
                   ),
                 ],
               ),
@@ -846,7 +846,7 @@ class _HomePageState extends State<HomePage> {
                     : null,
                 image: quiz.imageUrl != null
                     ? DecorationImage(
-                        image: NetworkImage(quiz.imageUrl!),
+                        image: CachedNetworkImageProvider(quiz.imageUrl!),
                         fit: BoxFit.cover,
                       )
                     : null,
@@ -912,5 +912,55 @@ class _HomePageState extends State<HomePage> {
       ),
     ),
   );
+  }
+}
+
+/// Bouton favori isolé : seul ce widget se reconstruit quand les favoris changent.
+class FavoriteButton extends StatefulWidget {
+  final String recipeId;
+  final VoidCallback onToggle;
+
+  const FavoriteButton({
+    Key? key,
+    required this.recipeId,
+    required this.onToggle,
+  }) : super(key: key);
+
+  @override
+  State<FavoriteButton> createState() => _FavoriteButtonState();
+}
+
+class _FavoriteButtonState extends State<FavoriteButton> {
+  late final VoidCallback _listener;
+
+  @override
+  void initState() {
+    super.initState();
+    _listener = () { if (mounted) setState(() {}); };
+    FavoritesService().addListener(_listener);
+  }
+
+  @override
+  void dispose() {
+    FavoritesService().removeListener(_listener);
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isFav = FavoritesService().isFavorite(widget.recipeId);
+    return IconButton(
+      onPressed: widget.onToggle,
+      tooltip: isFav ? 'Retirer des favoris' : 'Ajouter aux favoris',
+      style: IconButton.styleFrom(
+        backgroundColor: Colors.red[50],
+        minimumSize: const Size(44, 44),
+      ),
+      icon: Icon(
+        isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+        size: 20,
+        color: Colors.red[400],
+      ),
+    );
   }
 }

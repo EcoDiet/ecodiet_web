@@ -54,7 +54,8 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   void _onFavoritesChanged() {
-    setState(() {});
+    // Seul le compteur de favoris change — rebuild minimal
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadProfileData() async {
@@ -492,7 +493,10 @@ class _ProfilePageState extends State<ProfilePage> {
             childAspectRatio: 1.1,
           ),
           itemCount: folders.length,
-          itemBuilder: (_, i) => _buildDesktopFolderTile(folders[i]),
+          itemBuilder: (_, i) => KeyedSubtree(
+            key: ValueKey(folders[i].id),
+            child: _buildDesktopFolderTile(folders[i]),
+          ),
         ),
       ],
     );

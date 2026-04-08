@@ -140,7 +140,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   @override
   void initState() {
     super.initState();
-    _passwordController.addListener(() => setState(() {}));
   }
 
   @override
@@ -675,45 +674,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   }
 
   Widget _buildPasswordStrength() {
-    final pwd = _passwordController.text;
-    if (pwd.isEmpty) return const SizedBox.shrink();
-    int strength = 0;
-    if (pwd.length >= 8) strength++;
-    if (pwd.contains(RegExp(r'[A-Z]'))) strength++;
-    if (pwd.contains(RegExp(r'[0-9]'))) strength++;
-    if (pwd.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'))) strength++;
-
-    final colors = [
-      Colors.red[400]!,
-      Colors.orange[400]!,
-      const Color(0xFF63A96E),
-      const Color(0xFF2F6B3F),
-    ];
-    final labels = ['Faible', 'Moyen', 'Bon', 'Excellent'];
-
-    return Row(
-      children: [
-        ...List.generate(4, (i) => Expanded(
-          child: Container(
-            height: 4,
-            margin: EdgeInsets.only(right: i < 3 ? 4 : 0),
-            decoration: BoxDecoration(
-              color: i < strength ? colors[strength - 1] : Colors.grey[200],
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-        )),
-        const SizedBox(width: 10),
-        Text(
-          strength > 0 ? labels[strength - 1] : '',
-          style: TextStyle(
-            fontSize: 11,
-            color: strength > 0 ? colors[strength - 1] : Colors.transparent,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
+    return _PasswordStrengthIndicator(controller: _passwordController);
   }
 
   // ── Étape 2 : Profil ────────────────────────────────────────────────────────
@@ -1209,3 +1170,78 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   }
 }
 
+class _PasswordStrengthIndicator extends StatefulWidget {
+  final TextEditingController controller;
+
+  const _PasswordStrengthIndicator({required this.controller});
+
+  @override
+  State<_PasswordStrengthIndicator> createState() =>
+      _PasswordStrengthIndicatorState();
+}
+
+class _PasswordStrengthIndicatorState
+    extends State<_PasswordStrengthIndicator> {
+  @override
+  void initState() {
+    super.initState();
+    widget.controller.addListener(_rebuild);
+  }
+
+  @override
+  void dispose() {
+    widget.controller.removeListener(_rebuild);
+    super.dispose();
+  }
+
+  void _rebuild() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final pwd = widget.controller.text;
+    if (pwd.isEmpty) return const SizedBox.shrink();
+
+    int strength = 0;
+    if (pwd.length >= 8) strength++;
+    if (pwd.contains(RegExp(r'[A-Z]'))) strength++;
+    if (pwd.contains(RegExp(r'[0-9]'))) strength++;
+    if (pwd.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'))) strength++;
+
+    final colors = [
+      Colors.red[400]!,
+      Colors.orange[400]!,
+      const Color(0xFF63A96E),
+      const Color(0xFF2F6B3F),
+    ];
+    final labels = ['Faible', 'Moyen', 'Bon', 'Excellent'];
+
+    return Row(
+      children: [
+        ...List.generate(
+          4,
+          (i) => Expanded(
+            child: Container(
+              height: 4,
+              margin: EdgeInsets.only(right: i < 3 ? 4 : 0),
+              decoration: BoxDecoration(
+                color: i < strength ? colors[strength - 1] : Colors.grey[200],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        Text(
+          strength > 0 ? labels[strength - 1] : '',
+          style: TextStyle(
+            fontSize: 11,
+            color: strength > 0 ? colors[strength - 1] : Colors.transparent,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+}
