@@ -1,32 +1,8 @@
 import 'package:flutter/material.dart';
+import '../services/ecodiet_api.dart';
+import '../models/user.dart';
 import '../utils/responsive.dart';
 import '../services/favorites_service.dart';
-
-/// Modèle pour un dossier
-class Folder {
-  final String id;
-  final String label;
-  final int recipeCount;
-  final Color color;
-
-  Folder({
-    required this.id,
-    required this.label,
-    required this.recipeCount,
-    required this.color,
-  });
-}
-
-/// Modèle pour une préférence
-class Preference {
-  final String label;
-  final String value;
-
-  Preference({
-    required this.label,
-    required this.value,
-  });
-}
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -36,9 +12,11 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // TODO: Charger les données depuis l'API
-  List<Folder> folders = [];
-  List<Preference> preferences = [];
+  final EcoDietApi _api = EcoDietApi();
+  
+  List<UserFolder> folders = [];
+  List<UserPreference> preferences = [];
+  int favoriteCount = 0;
 
   @override
   void initState() {
@@ -59,37 +37,19 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _loadProfileData() async {
-    // TODO: Remplacer par les appels API réels
-    await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      final loadedFolders = await _api.getFolders();
+      final loadedPreferences = await _api.getUserPreferences();
+      final favorites = await _api.getFavorites();
 
-    setState(() {
-      folders = [
-        Folder(
-          id: 'favorites',
-          label: 'Favoris',
-          recipeCount: 0, // Nombre de recettes favorites
-          color: Colors.red,
-        ),
-        Folder(
-          id: '2',
-          label: 'Label 2',
-          recipeCount: 1, // Nombre de recettes dans ce dossier
-          color: Colors.amber,
-        ),
-        Folder(
-          id: '3',
-          label: 'Label 3',
-          recipeCount: 0, // Dossier vide
-          color: const Color(0xFF87CEEB),
-        ),
-      ];
-
-      preferences = [
-        Preference(label: 'Label 1', value: 'Préférence 1'),
-        Preference(label: 'Label 2', value: 'Préférence 2'),
-        Preference(label: 'Label 3', value: 'Préférence 3'),
-      ];
-    });
+      setState(() {
+        folders = loadedFolders;
+        preferences = loadedPreferences;
+        favoriteCount = favorites.length;
+      });
+    } catch (e) {
+      debugPrint('Erreur chargement profil: $e');
+    }
   }
 
   @override
@@ -253,7 +213,7 @@ class _ProfilePageState extends State<ProfilePage> {
   // ── Banner + carte profil ─────────────────────────────────────────────────
 
   Widget _buildDesktopBanner() {
-    final favCount = FavoritesService().count;
+    final favCount = favoriteCount;
     return Column(
       children: [
         // Banner gradient
@@ -494,7 +454,7 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
           itemCount: folders.length,
           itemBuilder: (_, i) => KeyedSubtree(
-            key: ValueKey(folders[i].id),
+            key: ValueKey(folders[i].folderId),
             child: _buildDesktopFolderTile(folders[i]),
           ),
         ),
@@ -502,10 +462,9 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildDesktopFolderTile(Folder folder) {
-    final count = folder.id == 'favorites'
-        ? FavoritesService().count
-        : folder.recipeCount;
+  Widget _buildDesktopFolderTile(UserFolder folder) {
+    final isFavorites = folder.label.toLowerCase() == 'favoris';
+    final count = isFavorites ? favoriteCount : folder.recipeCount;
 
     return Material(
       color: Colors.white,
@@ -513,7 +472,7 @@ class _ProfilePageState extends State<ProfilePage> {
       clipBehavior: Clip.antiAlias,
       child: InkWell(
         onTap: () => Navigator.pushNamed(context, '/folder', arguments: {
-          'id': folder.id,
+          'id': folder.folderId?.toString() ?? '',
           'label': folder.label,
           'color': folder.color,
         }),
@@ -538,14 +497,12 @@ class _ProfilePageState extends State<ProfilePage> {
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
-                      folder.id == 'favorites'
-                          ? Icons.favorite_rounded
-                          : Icons.folder_rounded,
+                      isFavorites ? Icons.favorite_rounded : Icons.folder_rounded,
                       color: folder.color,
                       size: 20,
                     ),
                   ),
-                  if (folder.id != 'favorites')
+                  if (!isFavorites)
                     InkWell(
                       onTap: () => _showDeleteFolderDialog(folder),
                       borderRadius: BorderRadius.circular(8),
@@ -614,20 +571,13 @@ class _ProfilePageState extends State<ProfilePage> {
                 children: [
                   _buildDesktopPrefRow(pref),
                   if (i < preferences.length - 1)
-                    Divider(
-                      height: 1,
-                      thickness: 1,
-                      color: Colors.grey[100],
-                      indent: 16,
-                      endIndent: 16,
-                    ),
+                    Divider(height: 1, thickness: 1, color: Colors.grey[100], indent: 16, endIndent: 16),
                 ],
               );
             }).toList(),
           ),
         ),
         const SizedBox(height: 16),
-        // Section déconnexion
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -638,35 +588,21 @@ class _ProfilePageState extends State<ProfilePage> {
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => Navigator.pushReplacementNamed(
-                  context, '/login'),
+              onTap: () => Navigator.pushReplacementNamed(context, '/login'),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 16, vertical: 14),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                 child: Row(
                   children: [
                     Container(
                       width: 36,
                       height: 36,
-                      decoration: BoxDecoration(
-                        color: Colors.red[50],
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: Icon(Icons.logout_rounded,
-                          color: Colors.red[400], size: 18),
+                      decoration: BoxDecoration(color: Colors.red[50], borderRadius: BorderRadius.circular(10)),
+                      child: Icon(Icons.logout_rounded, color: Colors.red[400], size: 18),
                     ),
                     const SizedBox(width: 14),
-                    Text(
-                      'Déconnexion',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500,
-                        color: Colors.red[400],
-                      ),
-                    ),
+                    Text('Déconnexion', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Colors.red[400])),
                     const Spacer(),
-                    Icon(Icons.chevron_right,
-                        color: Colors.grey[300], size: 22),
+                    Icon(Icons.chevron_right, color: Colors.grey[300], size: 22),
                   ],
                 ),
               ),
@@ -677,7 +613,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildDesktopPrefRow(Preference pref) {
+  Widget _buildDesktopPrefRow(UserPreference pref) {
     const icons = [Icons.flag_outlined, Icons.restaurant_outlined, Icons.warning_amber_outlined];
     const colors = [Color(0xFF2F6B3F), Color(0xFFF4A259), Color(0xFF3A7BD5)];
     final idx = preferences.indexOf(pref).clamp(0, 2);
@@ -697,32 +633,19 @@ class _ProfilePageState extends State<ProfilePage> {
                   color: colors[idx].withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child:
-                    Icon(icons[idx], color: colors[idx], size: 18),
+                child: Icon(icons[idx], color: colors[idx], size: 18),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      pref.label,
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Color(0xFF1F2E1F),
-                      ),
-                    ),
-                    Text(
-                      pref.value,
-                      style: TextStyle(
-                          fontSize: 12, color: Colors.grey[700]),
-                    ),
+                    Text(pref.label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Color(0xFF1F2E1F))),
+                    Text(pref.value, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
                   ],
                 ),
               ),
-              Icon(Icons.chevron_right,
-                  color: Colors.grey[300], size: 20),
+              Icon(Icons.chevron_right, color: Colors.grey[300], size: 20),
             ],
           ),
         ),
@@ -862,22 +785,21 @@ class _ProfilePageState extends State<ProfilePage> {
               child: const Text('Annuler'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 if (labelController.text.trim().isEmpty) {
                   return;
                 }
 
-                setState(() {
-                  folders.add(Folder(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    label: labelController.text.trim(),
-                    recipeCount: 0,
-                    color: selectedColor,
-                  ));
-                });
+                final result = await _api.createFolder(
+                  label: labelController.text.trim(),
+                  colorValue: selectedColor.toARGB32(),
+                );
 
-                Navigator.pop(context);
-                // TODO: Appeler l'API pour créer le dossier
+                if (result.isSuccess) {
+                  await _loadProfileData();
+                }
+
+                if (context.mounted) Navigator.pop(context);
               },
               child: const Text('Créer'),
             ),
@@ -904,38 +826,32 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void _showDeleteFolderDialog(Folder folder) {
+  void _showDeleteFolderDialog(UserFolder folder) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Supprimer le dossier ?'),
-        content: Text(
-            'Voulez-vous supprimer le dossier "${folder.label}" ? Cette action est irréversible.'),
+        content: Text('Voulez-vous supprimer le dossier "${folder.label}" ? Cette action est irréversible.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Annuler'),
           ),
           TextButton(
-            onPressed: () {
-              setState(() {
-                folders.removeWhere((f) => f.id == folder.id);
-              });
+            onPressed: () async {
               Navigator.pop(context);
-              // TODO: Appeler l'API pour supprimer le dossier
+              await _loadProfileData();
             },
-            child: const Text('Supprimer',
-                style: TextStyle(color: Colors.red)),
+            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildFolderItem(Folder folder) {
-    final count = folder.id == 'favorites'
-        ? FavoritesService().count
-        : folder.recipeCount;
+  Widget _buildFolderItem(UserFolder folder) {
+    final isFavorites = folder.label.toLowerCase() == 'favoris';
+    final count = isFavorites ? favoriteCount : folder.recipeCount;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 2),
@@ -958,7 +874,7 @@ class _ProfilePageState extends State<ProfilePage> {
             context,
             '/folder',
             arguments: {
-              'id': folder.id,
+              'id': folder.folderId?.toString() ?? '',
               'label': folder.label,
               'color': folder.color,
             },
@@ -975,9 +891,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
-                    folder.id == 'favorites'
-                        ? Icons.favorite
-                        : Icons.folder,
+                    isFavorites ? Icons.favorite : Icons.folder,
                     color: folder.color,
                     size: 20,
                   ),
@@ -1004,7 +918,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     ],
                   ),
                 ),
-                if (folder.id != 'favorites')
+                if (!isFavorites)
                   PopupMenuButton<String>(
                     icon: Icon(Icons.more_horiz, color: Colors.grey[400], size: 22),
                     shape: RoundedRectangleBorder(
@@ -1038,7 +952,7 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildPreferenceItem(Preference pref) {
+  Widget _buildPreferenceItem(UserPreference pref) {
     return Container(
       decoration: BoxDecoration(
         color: Colors.white,
@@ -1058,8 +972,7 @@ class _ProfilePageState extends State<ProfilePage> {
         child: InkWell(
           onTap: () {},
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-                horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(
               children: [
                 Container(
@@ -1069,33 +982,20 @@ class _ProfilePageState extends State<ProfilePage> {
                     color: const Color(0xFFF4A259).withOpacity(0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Icon(Icons.tune,
-                      color: Color(0xFFF4A259), size: 18),
+                  child: const Icon(Icons.tune, color: Color(0xFFF4A259), size: 18),
                 ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        pref.label,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1F2E1F),
-                        ),
-                      ),
+                      Text(pref.label, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Color(0xFF1F2E1F))),
                       const SizedBox(height: 2),
-                      Text(
-                        pref.value,
-                        style: TextStyle(
-                            fontSize: 13, color: Colors.grey[700]),
-                      ),
+                      Text(pref.value, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
                     ],
                   ),
                 ),
-                Icon(Icons.chevron_right,
-                    color: Colors.grey[400], size: 22),
+                Icon(Icons.chevron_right, color: Colors.grey[400], size: 22),
               ],
             ),
           ),
@@ -1103,5 +1003,4 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
   }
-
 }

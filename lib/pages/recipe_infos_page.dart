@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
+<<<<<<< HEAD
+import '../services/ecodiet_api.dart';
+import '../models/recette.dart';
+import '../models/user.dart';
+=======
 import '../utils/responsive.dart';
 import '../services/favorites_service.dart';
+>>>>>>> origin/main
 
 class RecipeInfosPage extends StatefulWidget {
   final String? id;
@@ -21,6 +27,14 @@ class RecipeInfosPage extends StatefulWidget {
 }
 
 class _RecipeInfosPageState extends State<RecipeInfosPage> {
+<<<<<<< HEAD
+  final EcoDietApi _api = EcoDietApi();
+  
+  bool isFavorite = false;
+  bool isLoading = true;
+  RecetteComplete? recette;
+  List<UserFolder> _folders = [];
+=======
   bool isLoading = true;
   late final FavoritesService _favoritesService;
 
@@ -31,6 +45,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   double carbonFootprint = 0.0;
   List<String> ingredients = [];
   List<String> instructions = [];
+>>>>>>> origin/main
 
   @override
   void initState() {
@@ -40,6 +55,47 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     _loadRecipeDetails();
   }
 
+<<<<<<< HEAD
+  Future<void> _loadRecipeDetails() async {
+    if (widget.id == null) {
+      setState(() => isLoading = false);
+      return;
+    }
+
+    final recetteId = widget.id!;
+
+    final result = await _api.getRecetteComplete(recetteId);
+    
+    if (result != null) {
+      final favResult = await _api.isFavorite(recetteId);
+      final foldersResult = await _api.getFolders();
+      
+      setState(() {
+        recette = result;
+        isFavorite = favResult;
+        _folders = foldersResult;
+        isLoading = false;
+      });
+    } else {
+      setState(() => isLoading = false);
+    }
+  }
+
+  Future<void> _toggleFavorite() async {
+    if (recette == null) return;
+    
+    final success = await _api.toggleFavorite(recette!.recette.recetteId);
+    if (success) {
+      setState(() => isFavorite = !isFavorite);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(isFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+=======
   @override
   void dispose() {
     _favoritesService.removeListener(_onFavoritesChanged);
@@ -83,6 +139,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
       duration: widget.duration ?? '',
       imageUrl: imageUrl,
     ));
+>>>>>>> origin/main
   }
 
   bool get _isFavorite =>
@@ -98,6 +155,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
               width: 36,
@@ -113,12 +171,99 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
+<<<<<<< HEAD
+            if (_folders.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 20),
+                child: Center(child: Text('Aucun dossier créé')),
+              )
+            else
+              ..._folders.map((folder) => ListTile(
+                leading: const Icon(Icons.folder, color: Color(0xFF2F6B3F)),
+                title: Text(folder.label),
+                onTap: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  Navigator.pop(context);
+                  if (recette != null && folder.folderId != null) {
+                    final success = await _api.addRecipeToFolder(
+                      folder.folderId!,
+                      recette!.recette.recetteId,
+                    );
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          success 
+                            ? 'Ajouté à "${folder.label}"' 
+                            : 'Erreur lors de l\'ajout',
+                        ),
+                      ),
+                    );
+                  }
+                },
+              )),
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton.icon(
+                icon: const Icon(Icons.add),
+                label: const Text('Nouveau dossier'),
+                onPressed: () {
+                  Navigator.pop(context);
+                  _showCreateFolderDialog();
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+=======
             const Text('Fonctionnalité à implémenter'),
             const SizedBox(height: 24),
+>>>>>>> origin/main
           ],
         ),
       ),
     );
+  }
+
+  void _showCreateFolderDialog() {
+    final controller = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Nouveau dossier'),
+        content: TextField(
+          controller: controller,
+          decoration: const InputDecoration(
+            labelText: 'Nom du dossier',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (controller.text.trim().isNotEmpty) {
+                final result = await _api.createFolder(label: controller.text.trim());
+                if (result.isSuccess) {
+                  final foldersResult = await _api.getFolders();
+                  setState(() => _folders = foldersResult);
+                }
+                if (context.mounted) Navigator.pop(context);
+              }
+            },
+            child: const Text('Créer'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(int minutes) {
+    if (minutes < 60) return '$minutes min';
+    final hours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+    return '${hours}h${remainingMinutes > 0 ? " ${remainingMinutes}min" : ""}';
   }
 
   @override
@@ -235,6 +380,75 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         background: Stack(
           fit: StackFit.expand,
           children: [
+<<<<<<< HEAD
+            // Header
+            _buildHeader(),
+
+            // Contenu scrollable
+            Expanded(
+              child: isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : recette == null
+                      ? const Center(child: Text('Recette non trouvée'))
+                      : SingleChildScrollView(
+                          padding: const EdgeInsets.all(16),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Image
+                              _buildImage(),
+                              const SizedBox(height: 16),
+
+                              // Titre
+                              Text(
+                                recette!.recette.titre,
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1F2E1F),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+
+                              const SizedBox(height: 20),
+
+                              // Infos (Temps, Portions, Difficultés)
+                              _buildInfoCards(),
+                              const SizedBox(height: 20),
+
+                              // Type de plat
+                              if (recette!.typePlat != null) ...[
+                                _buildTypePlat(),
+                                const SizedBox(height: 24),
+                              ],
+
+                              // Allergènes
+                              if (recette!.allergenes.isNotEmpty) ...[
+                                _buildAllergenes(),
+                                const SizedBox(height: 24),
+                              ],
+
+                              // Régime
+                              if (recette!.regime != null) ...[
+                                _buildRegime(),
+                                const SizedBox(height: 24),
+                              ],
+
+                              // Ingrédients
+                              _buildSection(
+                                'Ingrédients',
+                                '${recette!.ingredients.length} ingrédients',
+                                recette!.ingredients.map((i) => i.nomIngredient).toList(),
+                              ),
+                              const SizedBox(height: 24),
+
+                              // Boutons
+                              _buildActionButtons(),
+                              const SizedBox(height: 16),
+                            ],
+                          ),
+                        ),
+=======
             Container(
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
@@ -274,6 +488,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                   ),
                 ),
               ),
+>>>>>>> origin/main
             ),
           ],
         ),
@@ -388,6 +603,10 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     );
   }
 
+<<<<<<< HEAD
+  Widget _buildImage() {
+    final photo = recette?.recette.photo ?? '';
+=======
   Widget _buildInfoDivider() {
     return Container(width: 1, height: 40, color: const Color(0xFFEEEEEE));
   }
@@ -565,10 +784,16 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   // ── Shared helpers ─────────────────────────────────────────────────────────
 
   Widget _buildImage({required double height}) {
+>>>>>>> origin/main
     return Container(
       height: height,
       width: double.infinity,
       decoration: BoxDecoration(
+<<<<<<< HEAD
+        color: Colors.grey[200],
+        borderRadius: BorderRadius.circular(12),
+        image: photo.isNotEmpty
+=======
         borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
           colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
@@ -576,15 +801,25 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           end: Alignment.bottomRight,
         ),
         image: imageUrl != null
+>>>>>>> origin/main
             ? DecorationImage(
-                image: NetworkImage(imageUrl!),
+                image: NetworkImage(photo),
                 fit: BoxFit.cover,
               )
             : null,
       ),
-      child: imageUrl == null
+      child: photo.isEmpty
           ? Center(
+<<<<<<< HEAD
+              child: Icon(
+                Icons.restaurant,
+                size: 60,
+                color: Colors.grey[400],
+              ),
+            )
+=======
               child: Icon(Icons.eco, size: 60, color: Colors.white.withOpacity(0.3)))
+>>>>>>> origin/main
           : null,
     );
   }
@@ -600,6 +835,17 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         _buildInfoCard(
           icon: Icons.access_time,
           label: 'Temps',
+<<<<<<< HEAD
+          value: _formatDuration(recette?.recette.dureeMinute ?? 0),
+          color: const Color(0xFF87CEEB),
+        ),
+        const SizedBox(width: 12),
+        _buildInfoCard(
+          icon: Icons.trending_up,
+          label: 'Difficulté',
+          value: _getDifficultyLabel(),
+          color: const Color(0xFFF4A259),
+=======
           value: widget.duration ?? '–',
           color: const Color(0xFF2F6B3F),
         ),
@@ -616,9 +862,17 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           label: 'Difficultés',
           value: difficultyLabel,
           color: const Color(0xFF2F6B3F),
+>>>>>>> origin/main
         ),
       ],
     );
+  }
+
+  String _getDifficultyLabel() {
+    final duree = recette?.recette.dureeMinute ?? 0;
+    if (duree <= 15) return 'Facile';
+    if (duree <= 30) return 'Moyen';
+    return 'Difficile';
   }
 
   Widget _buildInfoCard({
@@ -635,8 +889,13 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
+<<<<<<< HEAD
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 4,
+=======
               color: Colors.black.withOpacity(0.05),
               blurRadius: 8,
+>>>>>>> origin/main
               offset: const Offset(0, 2),
             ),
           ],
@@ -646,7 +905,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.2),
+                color: color.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(icon, color: color, size: 24),
@@ -670,6 +929,75 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     );
   }
 
+<<<<<<< HEAD
+  Widget _buildAllergenes() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Allergènes',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFFF44336),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: recette!.allergenes.map((a) => Chip(
+            label: Text(a.libelle),
+            backgroundColor: Colors.red[50],
+            labelStyle: TextStyle(color: Colors.red[700]),
+          )).toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTypePlat() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Type de plat',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF2F6B3F),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Chip(
+          label: Text(recette!.typePlat!.libelle),
+          backgroundColor: Colors.blue[50],
+          labelStyle: TextStyle(color: Colors.blue[700]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildRegime() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          'Régime compatible',
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF2F6B3F),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Chip(
+          label: Text(recette!.regime!.libelle),
+          backgroundColor: Colors.green[50],
+          labelStyle: TextStyle(color: Colors.green[700]),
+        ),
+      ],
+=======
   Widget _buildCarbonFootprint() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -723,6 +1051,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           ),
         ],
       ),
+>>>>>>> origin/main
     );
   }
 
