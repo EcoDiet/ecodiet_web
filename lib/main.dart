@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
 import 'package:logger/logger.dart';
 import 'pages/login_page.dart';
 import 'pages/create_account_page.dart';
@@ -25,18 +26,38 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final baseTextTheme = GoogleFonts.interTextTheme();
+    final titleTextTheme = GoogleFonts.montserratTextTheme();
+
+    final mainTextTheme = baseTextTheme.copyWith(
+      displayLarge: titleTextTheme.displayLarge,
+      displayMedium: titleTextTheme.displayMedium,
+      displaySmall: titleTextTheme.displaySmall,
+      headlineLarge: titleTextTheme.headlineLarge,
+      headlineMedium: titleTextTheme.headlineMedium,
+      headlineSmall: titleTextTheme.headlineSmall,
+      titleLarge: titleTextTheme.titleLarge,
+      titleMedium: titleTextTheme.titleMedium,
+      titleSmall: titleTextTheme.titleSmall,
+    );
+
     return MaterialApp(
       title: 'EcoDiet',
       theme: ThemeData(
+        textTheme: mainTextTheme,
         scaffoldBackgroundColor: const Color(0xFFF5ECD9), 
         colorScheme: const ColorScheme.light(
           primary: Color(0xFF2F6B3F), 
           secondary: Color(0xFFF4A259), 
         ),
-        appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFFF5ECD9),
-          iconTheme: IconThemeData(color: Color(0xFFF4A259)),
-          titleTextStyle: TextStyle(color: Color(0xFF1F2E1F), fontSize: 18),
+        appBarTheme: AppBarTheme(
+          backgroundColor: const Color(0xFFF5ECD9),
+          iconTheme: const IconThemeData(color: Color(0xFFF4A259)),
+          titleTextStyle: GoogleFonts.montserrat(
+            color: const Color(0xFF1F2E1F),
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
           elevation: 0,
         ),
         inputDecorationTheme: InputDecorationTheme(
@@ -54,7 +75,7 @@ class MyApp extends StatelessWidget {
       initialRoute: '/login',
       routes: {
         '/login': (context) => const LoginPage(),
-        '/create-account': (context) => const CreateAccountPage(),
+        '/create_account': (context) => const CreateAccountPage(),
         '/home': (context) => const MyHomePage(),
         '/profile': (context) => const ProfilePage(),
         '/recipe': (context) {
