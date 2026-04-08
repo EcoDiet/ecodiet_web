@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/ecodiet_api.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -8,12 +9,51 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
+  final EcoDietApi _api = EcoDietApi();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
   bool _obscurePassword = true;
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  Future<void> _login() async {
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty) {
+      setState(() => _errorMessage = 'Veuillez remplir tous les champs');
+      return;
+    }
+
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    final result = await _api.login(email: email, password: password);
+
+    setState(() => _isLoading = false);
+
+    if (!mounted) return;
+
+    if (result.isSuccess) {
+      Navigator.pushReplacementNamed(context, '/home');
+    } else {
+      setState(() => _errorMessage = result.error);
+    }
+  }
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0EAD6), // Couleur de fond beige de la maquette
+      backgroundColor: const Color(0xFFF0EAD6),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -24,7 +64,6 @@ class _LoginPageState extends State<LoginPage> {
                 Image.asset('lib/assets/logo/EcoDiet-Logo.png', height: 300),
                 const SizedBox(height: 10),
 
-                // Sous-titre
                 const Text(
                   'Login to your account',
                   style: TextStyle(
@@ -34,8 +73,23 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 20),
 
-                // Champ Email
+                if (_errorMessage != null)
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    margin: const EdgeInsets.only(bottom: 15),
+                    decoration: BoxDecoration(
+                      color: Colors.red[50],
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red[200]!),
+                    ),
+                    child: Text(
+                      _errorMessage!,
+                      style: TextStyle(color: Colors.red[700]),
+                    ),
+                  ),
+
                 TextFormField(
+                  controller: _emailController,
                   decoration: InputDecoration(
                     hintText: 'Email',
                     filled: true,
@@ -53,8 +107,8 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 15),
 
-                // Champ Mot de passe
                 TextFormField(
+                  controller: _passwordController,
                   obscureText: _obscurePassword,
                   decoration: InputDecoration(
                     hintText: 'Password',
@@ -83,49 +137,50 @@ class _LoginPageState extends State<LoginPage> {
                 ),
                 const SizedBox(height: 25),
 
-                // Bouton Sign In
                 ElevatedButton(
-                  onPressed: () {
-                    // Logique de connexion
-                    Navigator.pushReplacementNamed(context, '/home');
-                  },
+                  onPressed: _isLoading ? null : _login,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFFE91E63), // Couleur rose/magenta
+                    backgroundColor: const Color(0xFFE91E63),
                     minimumSize: const Size(double.infinity, 50),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(8),
                     ),
                   ),
-                  child: const Text('Sign in', style: TextStyle(color: Colors.white)),
+                  child: _isLoading
+                      ? const SizedBox(
+                          height: 20,
+                          width: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: Colors.white,
+                          ),
+                        )
+                      : const Text('Sign in', style: TextStyle(color: Colors.white)),
                 ),
                 const SizedBox(height: 30),
 
-                // Séparateur
                 const Text('-Or sign in with-'),
                 const SizedBox(height: 20),
 
-                // Icônes de réseaux sociaux
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    // Remplacez par vos propres icônes
-                    IconButton(onPressed: () {}, icon: const Icon(Icons.android, size: 30)), // Placeholder Google
+                    IconButton(onPressed: () {}, icon: const Icon(Icons.android, size: 30)),
                     const SizedBox(width: 20),
                     IconButton(onPressed: () {}, icon: const Icon(Icons.facebook, size: 30)),
                     const SizedBox(width: 20),
-                    IconButton(onPressed: () {}, icon: const Icon(Icons.flutter_dash, size: 30)), // Placeholder Twitter
+                    IconButton(onPressed: () {}, icon: const Icon(Icons.flutter_dash, size: 30)),
                   ],
                 ),
                 const SizedBox(height: 40),
 
-                // Lien vers la création de compte
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Text("Don't have an account? "),
                     GestureDetector(
                       onTap: () {
-                        Navigator.pushNamed(context, '/create_account');
+                        Navigator.pushNamed(context, '/create-account');
                       },
                       child: const Text(
                         'Sign up',

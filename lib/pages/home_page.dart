@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import '../services/ecodiet_api.dart';
+import '../models/recette.dart';
+import '../models/user.dart' as user_models;
 
-/// Modèle pour une recette
-class Recipe {
+/// Modèle local pour une recette avec favoris
+class RecipeDisplayModel {
   final String id;
   final String title;
   final String category;
@@ -10,7 +13,7 @@ class Recipe {
   final String? imageUrl;
   bool isFavorite;
 
-  Recipe({
+  RecipeDisplayModel({
     required this.id,
     required this.title,
     required this.category,
@@ -19,21 +22,21 @@ class Recipe {
     this.imageUrl,
     this.isFavorite = false,
   });
-}
 
-/// Modèle pour un quiz
-class Quiz {
-  final String id;
-  final String title;
-  final String description;
-  final String? imageUrl;
-
-  Quiz({
-    required this.id,
-    required this.title,
-    required this.description,
-    this.imageUrl,
-  });
+  static Future<RecipeDisplayModel> fromRecette(Recette recette, EcoDietApi api) async {
+    final isFav = await api.isFavorite(recette.recetteId);
+    final typePlat = await api.getRecetteComplete(recette.recetteId);
+    
+    return RecipeDisplayModel(
+      id: recette.recetteId,
+      title: recette.titre,
+      category: typePlat?.typePlat?.libelle ?? 'Recette',
+      ingredients: '${typePlat?.ingredients.length ?? 0} ingrédients',
+      duration: "${recette.dureeMinute}'",
+      imageUrl: recette.photo.isNotEmpty ? recette.photo : null,
+      isFavorite: isFav,
+    );
+  }
 }
 
 class HomePage extends StatefulWidget {
@@ -44,10 +47,11 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // TODO: Remplacer par les données récupérées depuis l'API/base de données
-  List<Recipe> recommendedRecipes = [];
-  List<Recipe> allRecipes = [];
-  List<Quiz> quizzes = [];
+  final EcoDietApi _api = EcoDietApi();
+  
+  List<RecipeDisplayModel> recommendedRecipes = [];
+  List<RecipeDisplayModel> allRecipes = [];
+  List<user_models.Quiz> quizzes = [];
   bool isLoading = true;
 
   @override
@@ -57,75 +61,45 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _loadData() async {
-    // TODO: Remplacer par les appels API réels
-    // Simulation de chargement de données
-    await Future.delayed(const Duration(milliseconds: 500));
+    setState(() => isLoading = true);
 
-    setState(() {
-      // Données de démonstration - à remplacer par les vraies données
-      recommendedRecipes = [
-        Recipe(
-          id: '1',
-          title: 'Salade de quinoa',
-          category: 'Entrée',
-          ingredients: '5 ingrédients',
-          duration: "15'",
-        ),
-        Recipe(
-          id: '2',
-          title: 'Soupe de lentilles',
-          category: 'Plat',
-          ingredients: '6 ingrédients',
-          duration: "30'",
-        ),
-        Recipe(
-          id: '3',
-          title: 'Smoothie vert',
-          category: 'Boisson',
-          ingredients: '4 ingrédients',
-          duration: "5'",
-        ),
-      ];
+    try {
+      // Charger les recettes recommandées
+      final recommended = await _api.getRecommendedRecettes(limit: 5);
+      final recommendedModels = <RecipeDisplayModel>[];
+      for (final r in recommended) {
+        recommendedModels.add(await RecipeDisplayModel.fromRecette(r, _api));
+      }
 
-      allRecipes = [
-        Recipe(
-          id: '4',
-          title: 'Bowl Buddha',
-          category: 'Plat',
-          ingredients: '8 ingrédients',
-          duration: "20'",
-        ),
-        Recipe(
-          id: '5',
-          title: 'Tarte aux légumes',
-          category: 'Plat',
-          ingredients: '7 ingrédients',
-          duration: "45'",
-        ),
-      ];
+      // Charger toutes les recettes
+      final all = await _api.getAllRecettes();
+      final allModels = <RecipeDisplayModel>[];
+      for (final r in all.take(10)) {
+        allModels.add(await RecipeDisplayModel.fromRecette(r, _api));
+      }
 
-      quizzes = [
-        Quiz(
-          id: '1',
-          title: 'Quiz 1',
-          description: 'Testez vos connaissances sur les légumes',
-        ),
-        Quiz(
-          id: '2',
-          title: 'Quiz 2',
-          description: 'Les fruits et leurs bienfaits',
-        ),
-      ];
+      // Charger les quiz
+      final loadedQuizzes = await _api.getAllQuizzes();
 
-      isLoading = false;
-    });
+      setState(() {
+        recommendedRecipes = recommendedModels;
+        allRecipes = allModels;
+        quizzes = loadedQuizzes;
+        isLoading = false;
+      });
+    } catch (e) {
+      setState(() => isLoading = false);
+      debugPrint('Erreur chargement données: $e');
+    }
   }
 
-  void _toggleFavorite(Recipe recipe) {
-    setState(() {
-      recipe.isFavorite = !recipe.isFavorite;
-    });
-    // TODO: Sauvegarder le statut favori dans la base de données
+  Future<void> _toggleFavorite(RecipeDisplayModel recipe) async {
+    final success = await _api.toggleFavorite(recipe.id);
+    if (success) {
+      setState(() {
+        recipe.isFavorite = !recipe.isFavorite;
+      });
+    }
   }
 
   @override
@@ -269,7 +243,7 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildRecipeCard(BuildContext context, Recipe recipe) {
+  Widget _buildRecipeCard(BuildContext context, RecipeDisplayModel recipe) {
     return GestureDetector(
       onTap: () => Navigator.pushNamed(
         context,
@@ -287,7 +261,7 @@ class _HomePageState extends State<HomePage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -412,16 +386,16 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildQuizCard(Quiz quiz) {
+  Widget _buildQuizCard(user_models.Quiz quiz) {
     return GestureDetector(
       onTap: () {
         Navigator.pushNamed(
           context,
           '/quiz',
           arguments: {
-            'id': quiz.id,
+            'id': quiz.quizId.toString(),
             'title': quiz.title,
-            'description': quiz.description,
+            'description': quiz.description ?? '',
           },
         );
       },
@@ -431,7 +405,7 @@ class _HomePageState extends State<HomePage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -482,7 +456,7 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    quiz.description,
+                    quiz.description ?? '',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.grey[600],

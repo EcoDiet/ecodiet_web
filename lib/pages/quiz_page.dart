@@ -1,19 +1,6 @@
 import 'package:flutter/material.dart';
-
-/// Modèle pour une question de quiz
-class QuizQuestion {
-  final String question;
-  final List<String> options;
-  final int correctAnswerIndex;
-  final String? explanation;
-
-  QuizQuestion({
-    required this.question,
-    required this.options,
-    required this.correctAnswerIndex,
-    this.explanation,
-  });
-}
+import '../services/ecodiet_api.dart';
+import '../models/user.dart' as user_models;
 
 class QuizPage extends StatefulWidget {
   final String? id;
@@ -32,14 +19,17 @@ class QuizPage extends StatefulWidget {
 }
 
 class _QuizPageState extends State<QuizPage> {
+  final EcoDietApi _api = EcoDietApi();
+  
   int currentQuestionIndex = 0;
   int? selectedAnswerIndex;
   bool hasAnswered = false;
   int score = 0;
   bool quizCompleted = false;
+  bool isLoading = true;
 
-  // TODO: Charger les questions depuis l'API selon l'id du quiz
-  late List<QuizQuestion> questions;
+  List<user_models.QuizQuestion> questions = [];
+  user_models.Quiz? quiz;
 
   @override
   void initState() {
@@ -47,108 +37,36 @@ class _QuizPageState extends State<QuizPage> {
     _loadQuestions();
   }
 
-  void _loadQuestions() {
-    // TODO: Remplacer par un appel API qui charge les questions selon widget.id
-    // Exemple: final response = await api.getQuizQuestions(widget.id);
-    
-    // Simulation de différents quiz selon l'id
-    switch (widget.id) {
-      case '1':
-        questions = _getQuiz1Questions();
-        break;
-      case '2':
-        questions = _getQuiz2Questions();
-        break;
-      default:
-        // Quiz par défaut si l'id n'est pas reconnu
-        questions = _getQuiz1Questions();
+  Future<void> _loadQuestions() async {
+    if (widget.id == null) {
+      setState(() => isLoading = false);
+      return;
+    }
+
+    final quizId = int.tryParse(widget.id!);
+    if (quizId == null) {
+      setState(() => isLoading = false);
+      return;
+    }
+
+    final quizResult = await _api.getQuizById(quizId);
+    final questionsResult = await _api.getQuizQuestions(quizId);
+
+    setState(() {
+      quiz = quizResult;
+      questions = questionsResult;
+      isLoading = false;
+    });
+  }
+
+  Future<void> _saveScore() async {
+    if (quiz != null && quiz!.quizId != null) {
+      await _api.saveQuizScore(quiz!.quizId!, score, questions.length);
     }
   }
 
-  // Quiz 1 : Les vitamines et nutriments
-  List<QuizQuestion> _getQuiz1Questions() {
-    return [
-      QuizQuestion(
-        question: 'Quel fruit contient le plus de vitamine C ?',
-        options: ['Pomme', 'Orange', 'Kiwi', 'Banane'],
-        correctAnswerIndex: 2,
-        explanation:
-            'Le kiwi contient environ 93mg de vitamine C pour 100g, soit plus que l\'orange (53mg) !',
-      ),
-      QuizQuestion(
-        question: 'Quel nutriment est essentiel pour la santé des os ?',
-        options: ['Fer', 'Calcium', 'Vitamine A', 'Sodium'],
-        correctAnswerIndex: 1,
-        explanation:
-            'Le calcium est essentiel pour la formation et le maintien des os et des dents.',
-      ),
-      QuizQuestion(
-        question: 'Quelle vitamine est produite par le corps grâce au soleil ?',
-        options: ['Vitamine A', 'Vitamine B12', 'Vitamine C', 'Vitamine D'],
-        correctAnswerIndex: 3,
-        explanation:
-            'La vitamine D est synthétisée par la peau sous l\'effet des rayons UV du soleil.',
-      ),
-      QuizQuestion(
-        question: 'Quel aliment est riche en fer ?',
-        options: ['Lait', 'Épinards', 'Pain blanc', 'Pomme'],
-        correctAnswerIndex: 1,
-        explanation:
-            'Les épinards sont une excellente source de fer, surtout pour les végétariens.',
-      ),
-      QuizQuestion(
-        question: 'La vitamine B12 se trouve principalement dans :',
-        options: ['Les fruits', 'Les légumes verts', 'Les produits animaux', 'Les céréales'],
-        correctAnswerIndex: 2,
-        explanation:
-            'La vitamine B12 se trouve naturellement dans les produits d\'origine animale (viande, poisson, œufs, lait).',
-      ),
-    ];
-  }
-
-  // Quiz 2 : Les fruits et leurs bienfaits
-  List<QuizQuestion> _getQuiz2Questions() {
-    return [
-      QuizQuestion(
-        question: 'Quel fruit est connu pour sa richesse en potassium ?',
-        options: ['Fraise', 'Banane', 'Raisin', 'Cerise'],
-        correctAnswerIndex: 1,
-        explanation:
-            'La banane est très riche en potassium, essentiel pour les muscles et le cœur.',
-      ),
-      QuizQuestion(
-        question: 'Quel fruit rouge est un puissant antioxydant ?',
-        options: ['Pomme', 'Poire', 'Myrtille', 'Melon'],
-        correctAnswerIndex: 2,
-        explanation:
-            'Les myrtilles sont parmi les fruits les plus riches en antioxydants.',
-      ),
-      QuizQuestion(
-        question: 'Quel agrume aide à renforcer le système immunitaire ?',
-        options: ['Citron', 'Avocat', 'Figue', 'Datte'],
-        correctAnswerIndex: 0,
-        explanation:
-            'Le citron, riche en vitamine C, aide à renforcer les défenses immunitaires.',
-      ),
-      QuizQuestion(
-        question: 'Quel fruit tropical contient une enzyme digestive appelée bromélaïne ?',
-        options: ['Mangue', 'Papaye', 'Ananas', 'Fruit de la passion'],
-        correctAnswerIndex: 2,
-        explanation:
-            'L\'ananas contient de la bromélaïne, une enzyme qui facilite la digestion des protéines.',
-      ),
-      QuizQuestion(
-        question: 'Combien de portions de fruits est-il recommandé de manger par jour ?',
-        options: ['1 portion', '2-3 portions', '5-6 portions', '10 portions'],
-        correctAnswerIndex: 1,
-        explanation:
-            'Il est recommandé de manger 2 à 3 portions de fruits par jour dans le cadre des 5 fruits et légumes.',
-      ),
-    ];
-  }
-
   void _selectAnswer(int index) {
-    if (hasAnswered) return;
+    if (hasAnswered || questions.isEmpty) return;
 
     setState(() {
       selectedAnswerIndex = index;
@@ -167,6 +85,7 @@ class _QuizPageState extends State<QuizPage> {
         hasAnswered = false;
       });
     } else {
+      _saveScore();
       setState(() {
         quizCompleted = true;
       });
@@ -186,16 +105,16 @@ class _QuizPageState extends State<QuizPage> {
   Color _getOptionColor(int index) {
     if (!hasAnswered) {
       return selectedAnswerIndex == index
-          ? const Color(0xFF2F6B3F).withOpacity(0.1)
+          ? const Color(0xFF2F6B3F).withValues(alpha: 0.1)
           : Colors.white;
     }
 
     if (index == questions[currentQuestionIndex].correctAnswerIndex) {
-      return Colors.green.withOpacity(0.2);
+      return Colors.green.withValues(alpha: 0.2);
     }
 
     if (index == selectedAnswerIndex) {
-      return Colors.red.withOpacity(0.2);
+      return Colors.red.withValues(alpha: 0.2);
     }
 
     return Colors.white;
@@ -236,6 +155,23 @@ class _QuizPageState extends State<QuizPage> {
 
   @override
   Widget build(BuildContext context) {
+    if (isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    if (questions.isEmpty) {
+      return Scaffold(
+        appBar: AppBar(
+          title: Text(widget.title ?? 'Quiz'),
+        ),
+        body: const Center(
+          child: Text('Aucune question disponible'),
+        ),
+      );
+    }
+
     if (quizCompleted) {
       return _buildResultScreen();
     }
@@ -272,7 +208,7 @@ class _QuizPageState extends State<QuizPage> {
 
                     // Question
                     Text(
-                      question.question,
+                      question.questionText,
                       style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
@@ -287,7 +223,7 @@ class _QuizPageState extends State<QuizPage> {
                       final option = entry.value;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildOptionCard(index, option),
+                        child: _buildOptionCard(index, option.optionText),
                       );
                     }),
 
@@ -297,10 +233,10 @@ class _QuizPageState extends State<QuizPage> {
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: const Color(0xFF2F6B3F).withOpacity(0.1),
+                          color: const Color(0xFF2F6B3F).withValues(alpha: 0.1),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(
-                            color: const Color(0xFF2F6B3F).withOpacity(0.3),
+                            color: const Color(0xFF2F6B3F).withValues(alpha: 0.3),
                           ),
                         ),
                         child: Row(
@@ -428,7 +364,7 @@ class _QuizPageState extends State<QuizPage> {
           ),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -440,7 +376,7 @@ class _QuizPageState extends State<QuizPage> {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: const Color(0xFFF4A259).withOpacity(0.2),
+                color: const Color(0xFFF4A259).withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Center(

@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:logger/logger.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart'; // Pour charger les variables sensibles
 import 'pages/login_page.dart';
 import 'pages/create_account_page.dart';
 import 'pages/home_page.dart';
@@ -7,14 +10,35 @@ import 'pages/recipe_infos_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/quiz_page.dart';
 import 'pages/folder_page.dart';
+import 'services/ecodiet_api.dart';
 
 final logger = Logger(
   level: Level.debug,
   printer: PrettyPrinter(),
 );
 
+/// Instance globale de l'API
+final api = EcoDietApi();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Charger les variables d'environnement (.env)
+  await dotenv.load(fileName: ".env");
+
+  // Initialiser Supabase
+  await Supabase.initialize(
+    url: dotenv.env['SUPABASE_URL'] ?? '',
+    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+  );
+
+  // Initialiser sqflite pour le web
+
+  // Initialiser la base de données avec les données CSV au premier lancement
+  try {
+  } catch (e) {
+    logger.w('Base de données déjà initialisée ou erreur: $e');
+  }
 
   runApp(const MyApp());
 }
@@ -27,10 +51,10 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'EcoDiet',
       theme: ThemeData(
-        scaffoldBackgroundColor: const Color(0xFFF5ECD9), 
+        scaffoldBackgroundColor: const Color(0xFFF5ECD9),
         colorScheme: const ColorScheme.light(
-          primary: Color(0xFF2F6B3F), 
-          secondary: Color(0xFFF4A259), 
+          primary: Color(0xFF2F6B3F),
+          secondary: Color(0xFFF4A259),
         ),
         appBarTheme: const AppBarTheme(
           backgroundColor: Color(0xFFF5ECD9),
@@ -41,7 +65,7 @@ class MyApp extends StatelessWidget {
         inputDecorationTheme: InputDecorationTheme(
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
-            borderSide: const BorderSide(color: Color(0xFF63A96E)), 
+            borderSide: const BorderSide(color: Color(0xFF63A96E)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(8),
@@ -60,6 +84,7 @@ class MyApp extends StatelessWidget {
           final args = ModalRoute.of(context)!.settings.arguments
               as Map<String, dynamic>?;
           return RecipeInfosPage(
+            id: args?['id'] as String?,
             title: args?['title'] as String?,
             description: args?['description'] as String?,
           );

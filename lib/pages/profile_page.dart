@@ -1,30 +1,6 @@
 import 'package:flutter/material.dart';
-
-/// Modèle pour un dossier
-class Folder {
-  final String id;
-  final String label;
-  final int recipeCount;
-  final Color color;
-
-  Folder({
-    required this.id,
-    required this.label,
-    required this.recipeCount,
-    required this.color,
-  });
-}
-
-/// Modèle pour une préférence
-class Preference {
-  final String label;
-  final String value;
-
-  Preference({
-    required this.label,
-    required this.value,
-  });
-}
+import '../services/ecodiet_api.dart';
+import '../models/user.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -34,9 +10,11 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  // TODO: Charger les données depuis l'API
-  List<Folder> folders = [];
-  List<Preference> preferences = [];
+  final EcoDietApi _api = EcoDietApi();
+  
+  List<UserFolder> folders = [];
+  List<UserPreference> preferences = [];
+  int favoriteCount = 0;
 
   @override
   void initState() {
@@ -45,37 +23,19 @@ class _ProfilePageState extends State<ProfilePage> {
   }
 
   Future<void> _loadProfileData() async {
-    // TODO: Remplacer par les appels API réels
-    await Future.delayed(const Duration(milliseconds: 300));
+    try {
+      final loadedFolders = await _api.getFolders();
+      final loadedPreferences = await _api.getUserPreferences();
+      final favorites = await _api.getFavorites();
 
-    setState(() {
-      folders = [
-        Folder(
-          id: 'favorites',
-          label: 'Favoris',
-          recipeCount: 0, // Nombre de recettes favorites
-          color: Colors.red,
-        ),
-        Folder(
-          id: '2',
-          label: 'Label 2',
-          recipeCount: 1, // Nombre de recettes dans ce dossier
-          color: Colors.amber,
-        ),
-        Folder(
-          id: '3',
-          label: 'Label 3',
-          recipeCount: 0, // Dossier vide
-          color: const Color(0xFF87CEEB),
-        ),
-      ];
-
-      preferences = [
-        Preference(label: 'Label 1', value: 'Préférence 1'),
-        Preference(label: 'Label 2', value: 'Préférence 2'),
-        Preference(label: 'Label 3', value: 'Préférence 3'),
-      ];
-    });
+      setState(() {
+        folders = loadedFolders;
+        preferences = loadedPreferences;
+        favoriteCount = favorites.length;
+      });
+    } catch (e) {
+      debugPrint('Erreur chargement profil: $e');
+    }
   }
 
   @override
@@ -243,22 +203,21 @@ class _ProfilePageState extends State<ProfilePage> {
               child: const Text('Annuler'),
             ),
             TextButton(
-              onPressed: () {
+              onPressed: () async {
                 if (labelController.text.trim().isEmpty) {
                   return;
                 }
 
-                setState(() {
-                  folders.add(Folder(
-                    id: DateTime.now().millisecondsSinceEpoch.toString(),
-                    label: labelController.text.trim(),
-                    recipeCount: 0,
-                    color: selectedColor,
-                  ));
-                });
+                final result = await _api.createFolder(
+                  label: labelController.text.trim(),
+                  colorValue: selectedColor.toARGB32(),
+                );
 
-                Navigator.pop(context);
-                // TODO: Appeler l'API pour créer le dossier
+                if (result.isSuccess) {
+                  await _loadProfileData();
+                }
+
+                if (context.mounted) Navigator.pop(context);
               },
               child: const Text('Créer'),
             ),
@@ -285,14 +244,15 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildFolderItem(Folder folder) {
+  Widget _buildFolderItem(UserFolder folder) {
+    final isFavorites = folder.label.toLowerCase() == 'favoris';
     return GestureDetector(
       onTap: () {
         Navigator.pushNamed(
           context,
           '/folder',
           arguments: {
-            'id': folder.id,
+            'id': folder.folderId.toString(),
             'label': folder.label,
             'color': folder.color,
           },
@@ -305,7 +265,7 @@ class _ProfilePageState extends State<ProfilePage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -321,7 +281,7 @@ class _ProfilePageState extends State<ProfilePage> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
-              folder.id == 'favorites' ? Icons.favorite : Icons.folder,
+              isFavorites ? Icons.favorite : Icons.folder,
               color: Colors.white,
               size: 20,
             ),
@@ -359,13 +319,13 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  Widget _buildPreferenceItem(Preference pref) {
+  Widget _buildPreferenceItem(UserPreference pref) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      decoration: BoxDecoration(
+      decoration: const BoxDecoration(
         border: Border(
           left: BorderSide(
-            color: const Color(0xFFF4A259),
+            color: Color(0xFFF4A259),
             width: 3,
           ),
         ),

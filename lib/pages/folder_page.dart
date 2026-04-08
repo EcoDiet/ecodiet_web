@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import '../services/ecodiet_api.dart';
+import '../models/recette.dart';
 
 class FolderPage extends StatefulWidget {
   final String? id;
@@ -17,8 +19,9 @@ class FolderPage extends StatefulWidget {
 }
 
 class _FolderPageState extends State<FolderPage> {
+  final EcoDietApi _api = EcoDietApi();
   bool isLoading = true;
-  List<FolderRecipe> recipes = [];
+  List<Recette> recipes = [];
 
   @override
   void initState() {
@@ -27,60 +30,40 @@ class _FolderPageState extends State<FolderPage> {
   }
 
   Future<void> _loadFolderRecipes() async {
-    // TODO: Remplacer par l'appel API réel
-    // final recipes = await api.getFolderRecipes(widget.id);
-    await Future.delayed(const Duration(milliseconds: 300));
+    if (widget.id == null) {
+      setState(() => isLoading = false);
+      return;
+    }
 
-    setState(() {
-      // Chaque dossier a ses propres recettes selon son id
-      // À remplacer par les vraies données de l'API
-      switch (widget.id) {
-        case 'favorites':
-          recipes = _getFavoritesRecipes();
-          break;
-        case '2':
-          recipes = _getFolder2Recipes();
-          break;
-        case '3':
-          recipes = _getFolder3Recipes();
-          break;
-        default:
-          recipes = [];
+    // Gestion spéciale pour les favoris
+    if (widget.id == 'favorites') {
+      final result = await _api.getFavorites();
+      setState(() {
+        recipes = result;
+        isLoading = false;
+      });
+    } else {
+      final folderId = int.tryParse(widget.id!);
+      if (folderId == null) {
+        setState(() => isLoading = false);
+        return;
       }
-      isLoading = false;
-    });
+
+      final result = await _api.getRecipesInFolder(folderId);
+      setState(() {
+        recipes = result;
+        isLoading = false;
+      });
+    }
   }
 
-  // Recettes favorites
-  List<FolderRecipe> _getFavoritesRecipes() {
-    return [];
-  }
-
-  // Recettes du dossier 2
-  List<FolderRecipe> _getFolder2Recipes() {
-    return [
-      FolderRecipe(
-        id: '3',
-        title: 'Smoothie vert',
-        category: 'Boisson',
-        duration: "5'",
-        imageUrl: null,
-      ),
-    ];
-  }
-
-  // Recettes du dossier 3 - vide pour l'exemple
-  List<FolderRecipe> _getFolder3Recipes() {
-    return [];
-  }
-
-  void _removeFromFolder(FolderRecipe recipe) {
+  void _removeFromFolder(Recette recipe) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Retirer du dossier ?'),
         content: Text(
-          'Voulez-vous retirer "${recipe.title}" de ce dossier ?',
+          'Voulez-vous retirer "${recipe.titre}" de ce dossier ?',
         ),
         actions: [
           TextButton(
@@ -88,12 +71,21 @@ class _FolderPageState extends State<FolderPage> {
             child: const Text('Annuler'),
           ),
           TextButton(
-            onPressed: () {
-              setState(() {
-                recipes.removeWhere((r) => r.id == recipe.id);
-              });
+            onPressed: () async {
               Navigator.pop(context);
-              // TODO: Appeler l'API pour retirer la recette du dossier
+              
+              if (widget.id == 'favorites') {
+                await _api.removeFromFavorites(recipe.recetteId);
+              } else {
+                final folderId = int.tryParse(widget.id!);
+                if (folderId != null) {
+                  await _api.removeRecipeFromFolder(folderId, recipe.recetteId);
+                }
+              }
+              
+              setState(() {
+                recipes.removeWhere((r) => r.recetteId == recipe.recetteId);
+              });
             },
             child: const Text(
               'Retirer',
@@ -103,6 +95,13 @@ class _FolderPageState extends State<FolderPage> {
         ],
       ),
     );
+  }
+
+  String _formatDuration(int minutes) {
+    if (minutes < 60) return "$minutes'";
+    final hours = minutes ~/ 60;
+    final remainingMinutes = minutes % 60;
+    return '${hours}h${remainingMinutes > 0 ? "$remainingMinutes'" : ""}';
   }
 
   @override
@@ -226,15 +225,14 @@ class _FolderPageState extends State<FolderPage> {
     );
   }
 
-  Widget _buildRecipeCard(FolderRecipe recipe) {
+  Widget _buildRecipeCard(Recette recipe) {
     return GestureDetector(
       onTap: () => Navigator.pushNamed(
         context,
         '/recipe',
         arguments: {
-          'id': recipe.id,
-          'title': recipe.title,
-          'description': recipe.category,
+          'id': recipe.recetteId,
+          'title': recipe.titre,
         },
       ),
       child: Container(
@@ -243,7 +241,7 @@ class _FolderPageState extends State<FolderPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.05),
+              color: Colors.black.withValues(alpha: 0.05),
               blurRadius: 8,
               offset: const Offset(0, 2),
             ),
@@ -260,17 +258,17 @@ class _FolderPageState extends State<FolderPage> {
                 borderRadius: const BorderRadius.horizontal(
                   left: Radius.circular(12),
                 ),
-                image: recipe.imageUrl != null
+                image: recipe.photo.isNotEmpty
                     ? DecorationImage(
-                        image: NetworkImage(recipe.imageUrl!),
+                        image: NetworkImage(recipe.photo),
                         fit: BoxFit.cover,
                       )
                     : null,
               ),
-              child: recipe.imageUrl == null
+              child: recipe.photo.isEmpty
                   ? Center(
                       child: Icon(
-                        Icons.image,
+                        Icons.restaurant,
                         size: 30,
                         color: Colors.grey[400],
                       ),
@@ -285,7 +283,7 @@ class _FolderPageState extends State<FolderPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      recipe.title,
+                      recipe.titre,
                       style: const TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.bold,
@@ -293,14 +291,6 @@ class _FolderPageState extends State<FolderPage> {
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      recipe.category,
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Color(0xFF2F6B3F),
-                      ),
                     ),
                     const SizedBox(height: 4),
                     Row(
@@ -312,7 +302,7 @@ class _FolderPageState extends State<FolderPage> {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          recipe.duration,
+                          _formatDuration(recipe.dureeMinute),
                           style: TextStyle(
                             fontSize: 12,
                             color: Colors.grey[500],
@@ -337,21 +327,4 @@ class _FolderPageState extends State<FolderPage> {
       ),
     );
   }
-}
-
-/// Modèle pour une recette dans un dossier
-class FolderRecipe {
-  final String id;
-  final String title;
-  final String category;
-  final String duration;
-  final String? imageUrl;
-
-  FolderRecipe({
-    required this.id,
-    required this.title,
-    required this.category,
-    required this.duration,
-    this.imageUrl,
-  });
 }
