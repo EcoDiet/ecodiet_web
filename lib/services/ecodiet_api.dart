@@ -3,6 +3,15 @@ import '../models/recette.dart';
 import '../models/user.dart' as app_models;
 import '../models/user.dart' hide User;
 
+const String kMarmitonImageBaseUrl = 'https://assets.afcdn.com/recipe/';
+
+/// Retourne l'URL complète d'une image recette à partir du nom de fichier stocké en BDD.
+String recetteImageUrl(String photo) {
+  if (photo.isEmpty) return '';
+  if (photo.startsWith('http')) return photo;
+  return '$kMarmitonImageBaseUrl$photo';
+}
+
 /// Service API principal pour EcoDiet
 /// Centralise toutes les opérations entre le front-end et la base de données
 class EcoDietApi {
@@ -38,29 +47,30 @@ class EcoDietApi {
       );
 
       if (res.user != null) {
-        final existingFiles = await _supabase
-            .from('utilisateurs')
-            .select()
-            .eq('email', email.toLowerCase());
-            
-        Map<String, dynamic> userData;
-        if (existingFiles.isEmpty) {
-            userData = await _supabase.from('utilisateurs').insert({
+        // Essaie d'insérer dans utilisateurs, mais ne bloque pas si RLS l'interdit
+        try {
+          final existing = await _supabase
+              .from('utilisateurs')
+              .select()
+              .eq('email', email.toLowerCase())
+              .maybeSingle();
+          if (existing == null) {
+            await _supabase.from('utilisateurs').insert({
               'email': email.toLowerCase(),
               'nom': nom,
               'prenom': prenom,
-              'mot_de_passe': password, // On l'enregistre ici selon ta table (bien que géré par auth)
-            }).select().single();
-        } else {
-            userData = existingFiles.first;
+            });
+          }
+        } catch (_) {
+          // RLS ou table inaccessible — l'auth Supabase suffit
         }
-        
+
         final user = app_models.User(
-          userId: res.user!.id, // On garde l'UUID de Supabase Auth
-          email: userData['email'] ?? email.toLowerCase(),
-          nom: userData['nom'],
-          prenom: userData['prenom'],
-          passwordHash: userData['mot_de_passe'],
+          userId: res.user!.id,
+          email: res.user!.email ?? email.toLowerCase(),
+          nom: nom,
+          prenom: prenom,
+          passwordHash: null,
         );
 
         _currentUser = user;
@@ -86,15 +96,33 @@ class EcoDietApi {
         email: email.toLowerCase(),
         password: password,
       );
-      
+
       if (res.user != null) {
-        final userData = await _supabase.from('utilisateurs').select().eq('email', email.toLowerCase()).limit(1).single();
+        final metadata = res.user!.userMetadata ?? {};
+        // Essaie de lire la table utilisateurs, mais ne bloque pas si RLS l'interdit
+        String? nom = metadata['nom'] as String?;
+        String? prenom = metadata['prenom'] as String?;
+        try {
+          final userData = await _supabase
+              .from('utilisateurs')
+              .select()
+              .eq('email', email.toLowerCase())
+              .limit(1)
+              .maybeSingle();
+          if (userData != null) {
+            nom = userData['nom'] ?? nom;
+            prenom = userData['prenom'] ?? prenom;
+          }
+        } catch (_) {
+          // RLS ou table inaccessible — on continue avec les metadata Auth
+        }
+
         final user = app_models.User(
-          userId: res.user!.id,  // On garde l'UUID de Supabase Auth
-          email: userData['email'] ?? email.toLowerCase(),
-          nom: userData['nom'],
-          prenom: userData['prenom'],
-          passwordHash: userData['mot_de_passe'],
+          userId: res.user!.id,
+          email: res.user!.email ?? email.toLowerCase(),
+          nom: nom,
+          prenom: prenom,
+          passwordHash: null,
         );
         _currentUser = user;
         return ApiResult.success(user);
@@ -157,6 +185,33 @@ class EcoDietApi {
     }
   }
 
+  /// Retourne les recettes avec leur type de plat en une seule requête
+  Future<List<RecettePreview>> getRecettesPreview({int limit = 20, int offset = 0}) async {
+    try {
+      final res = await _supabase
+          .from('fact_recette_base')
+          .select('recette_id, titre, photo, duree_minute, temps_bin_id, fact_recette_type_plat(dim_type_plat(libelle))')
+          .range(offset, offset + limit - 1);
+      return (res as List).map((m) => RecettePreview.fromMap(m)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  /// Retourne les IDs des recettes favorites de l'utilisateur courant
+  Future<Set<String>> getFavoriteIds() async {
+    if (_currentUser == null) return {};
+    try {
+      final res = await _supabase
+          .from('user_favorite')
+          .select('recette_id')
+          .eq('user_id', _currentUser!.userId!);
+      return (res as List).map<String>((r) => r['recette_id'] as String).toSet();
+    } catch (e) {
+      return {};
+    }
+  }
+
   Future<Recette?> getRecetteById(String recetteId) async {
     try {
       final res = await _supabase.from('fact_recette_base').select().eq('recette_id', recetteId).limit(1).single();
@@ -189,7 +244,7 @@ class EcoDietApi {
       // Allergenes
       List<Allergene> allergenes = [];
       try {
-        final aRes = await _supabase.from('bridge_recette_allergene')
+        final aRes = await _supabase.from('fact_recette_allergene')
             .select('dim_allergene!inner(allergene_id, libelle)')
             .eq('recette_id', recetteId);
         for (var row in aRes) {
@@ -200,7 +255,7 @@ class EcoDietApi {
       // Equipements
       List<Equipement> equipements = [];
       try {
-        final eRes = await _supabase.from('bridge_recette_equipement')
+        final eRes = await _supabase.from('fact_recette_equipements')
             .select('dim_equipement!inner(equipement_id, nom_equipement)')
             .eq('recette_id', recetteId);
         for (var row in eRes) {
@@ -211,18 +266,18 @@ class EcoDietApi {
       // Ingredients
       List<Ingredient> ingredients = [];
       try {
-        final iRes = await _supabase.from('bridge_recette_ingredient')
-            .select('dim_ingredient!inner(ingredient_id, nom_ingredient)')
+        final iRes = await _supabase.from('fact_ingredients_recette')
+            .select('dim_ingredients!inner(ingredient_id, nom_ingredient)')
             .eq('recette_id', recetteId);
         for (var row in iRes) {
-          if (row['dim_ingredient'] != null) ingredients.add(Ingredient.fromMap(row['dim_ingredient']));
+          if (row['dim_ingredients'] != null) ingredients.add(Ingredient.fromMap(row['dim_ingredients']));
         }
       } catch (ignore) { /* ignore */ }
 
       // Occasions
       List<Occasion> occasions = [];
       try {
-        final oRes = await _supabase.from('bridge_recette_occasion')
+        final oRes = await _supabase.from('fact_recette_occasion')
             .select('dim_occasion!inner(occasion_id, libelle)')
             .eq('recette_id', recetteId);
         for (var row in oRes) {
@@ -233,7 +288,7 @@ class EcoDietApi {
       // Type Plat
       TypePlat? typePlat;
       try {
-        final tpRes = await _supabase.from('bridge_recette_type_plat')
+        final tpRes = await _supabase.from('fact_recette_type_plat')
             .select('dim_type_plat!inner(type_plat_id, libelle)')
             .eq('recette_id', recetteId).limit(1).maybeSingle();
         if (tpRes != null && tpRes['dim_type_plat'] != null) {
@@ -241,10 +296,10 @@ class EcoDietApi {
         }
       } catch (ignore) { /* ignore */ }
 
-      // Regime (TODO: check if bridge_recette_regime exist)
+      // Regime
       Regime? regime;
       try {
-        final regRes = await _supabase.from('bridge_recette_regime')
+        final regRes = await _supabase.from('fact_recette_regime')
             .select('dim_regime!inner(regime_id, libelle)')
             .eq('recette_id', recetteId).limit(1).maybeSingle();
         if (regRes != null && regRes['dim_regime'] != null) {
@@ -294,7 +349,7 @@ class EcoDietApi {
       List<Recette> recettes = [];
       if ((userRegimes as List).isNotEmpty) {
          final regimeId = userRegimes.first['regime_id'];
-         final res = await _supabase.from('bridge_recette_regime').select('recette_id').eq('regime_id', regimeId);
+         final res = await _supabase.from('fact_recette_regime').select('recette_id').eq('regime_id', regimeId);
          final ids = (res as List).map((r) => r['recette_id']).toList();
          if (ids.isNotEmpty) {
             final fRes = await _supabase.from('fact_recette_base').select().inFilter('recette_id', ids);
@@ -307,7 +362,7 @@ class EcoDietApi {
       if (allergeneIds.isNotEmpty) {
          final filtered = <Recette>[];
          for (var rec in recettes) {
-            final aRes = await _supabase.from('bridge_recette_allergene').select('allergene_id').eq('recette_id', rec.recetteId);
+            final aRes = await _supabase.from('fact_recette_allergene').select('allergene_id').eq('recette_id', rec.recetteId);
             final recA = (aRes as List).map((a) => a['allergene_id']).toList();
             bool hasAllergen = recA.any((id) => allergeneIds.contains(id));
             if (!hasAllergen) filtered.add(rec);
@@ -345,19 +400,19 @@ class EcoDietApi {
       List<Recette> recettes = (res as List).map((m) => Recette.fromMap(m)).toList();
 
       if (regimeId != null) {
-        final bRes = await _supabase.from('bridge_recette_regime').select('recette_id').eq('regime_id', regimeId);
+        final bRes = await _supabase.from('fact_recette_regime').select('recette_id').eq('regime_id', regimeId);
          final ids = (bRes as List).map((r) => r['recette_id']).toSet();
          recettes = recettes.where((r) => ids.contains(r.recetteId)).toList();
       }
 
       if (typePlatId != null) {
-        final bRes = await _supabase.from('bridge_recette_type_plat').select('recette_id').eq('type_plat_id', typePlatId);
+        final bRes = await _supabase.from('fact_recette_type_plat').select('recette_id').eq('type_plat_id', typePlatId);
          final ids = (bRes as List).map((r) => r['recette_id']).toSet();
          recettes = recettes.where((r) => ids.contains(r.recetteId)).toList();
       }
 
       if (occasionId != null) {
-        final bRes = await _supabase.from('bridge_recette_occasion').select('recette_id').eq('occasion_id', occasionId);
+        final bRes = await _supabase.from('fact_recette_occasion').select('recette_id').eq('occasion_id', occasionId);
          final ids = (bRes as List).map((r) => r['recette_id']).toSet();
          recettes = recettes.where((r) => ids.contains(r.recetteId)).toList();
       }
@@ -365,7 +420,7 @@ class EcoDietApi {
       if (excludeAllergenes != null && excludeAllergenes.isNotEmpty) {
         final filtered = <Recette>[];
         for (var rec in recettes) {
-          final aRes = await _supabase.from('bridge_recette_allergene').select('allergene_id').eq('recette_id', rec.recetteId);
+          final aRes = await _supabase.from('fact_recette_allergene').select('allergene_id').eq('recette_id', rec.recetteId);
           final recA = (aRes as List).map((a) => a['allergene_id']).toList();
           bool hasAllergen = recA.any((id) => excludeAllergenes.contains(id));
           if (!hasAllergen) filtered.add(rec);

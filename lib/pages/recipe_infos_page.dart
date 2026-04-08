@@ -315,26 +315,25 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           fit: StackFit.expand,
           children: [
             Container(
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
                   colors: [Color(0xFF1F3A24), Color(0xFF2F6B3F)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                image: photo != null && photo.isNotEmpty
-                    ? DecorationImage(
-                        image: CachedNetworkImageProvider(photo),
-                        fit: BoxFit.cover,
-                      )
-                    : null,
               ),
-              child: photo == null || photo.isEmpty
-                  ? Center(
-                      child: Icon(Icons.eco_rounded,
-                          size: 80,
-                          color: Colors.white.withOpacity(0.12)))
-                  : null,
+              child: Center(
+                child: Icon(Icons.eco_rounded,
+                    size: 80, color: Colors.white.withOpacity(0.12)),
+              ),
             ),
+            if (photo != null && photo.isNotEmpty)
+              CachedNetworkImage(
+                imageUrl: recetteImageUrl(photo),
+                fit: BoxFit.cover,
+                errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                placeholder: (_, __) => const SizedBox.shrink(),
+              ),
             // Bottom scrim
             Positioned(
               bottom: 0,
@@ -675,28 +674,36 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
 
   Widget _buildImage({required double height}) {
     final photo = recette?.recette.photo;
-    return Container(
-      height: height,
-      width: double.infinity,
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        image: photo != null && photo.isNotEmpty
-            ? DecorationImage(
-                image: CachedNetworkImageProvider(photo),
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(16),
+      child: SizedBox(
+        height: height,
+        width: double.infinity,
+        child: Stack(
+          fit: StackFit.expand,
+          children: [
+            Container(
+              decoration: const BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+              ),
+              child: Center(
+                child: Icon(Icons.eco, size: 60, color: Colors.white.withOpacity(0.3)),
+              ),
+            ),
+            if (photo != null && photo.isNotEmpty)
+              CachedNetworkImage(
+                imageUrl: recetteImageUrl(photo),
                 fit: BoxFit.cover,
-              )
-            : null,
+                errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                placeholder: (_, __) => const SizedBox.shrink(),
+              ),
+          ],
+        ),
       ),
-      child: photo == null || photo.isEmpty
-          ? Center(
-              child: Icon(Icons.eco,
-                  size: 60, color: Colors.white.withOpacity(0.3)))
-          : null,
     );
   }
 

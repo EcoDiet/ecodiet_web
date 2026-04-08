@@ -35,6 +35,42 @@ class Recette {
   }
 }
 
+/// Modèle léger pour l'affichage des cartes (homepage, liste)
+class RecettePreview {
+  final String recetteId;
+  final String titre;
+  final String photo;
+  final int dureeMinute;
+  final int tempsBinId;
+  final String? typePlatLibelle;
+
+  RecettePreview({
+    required this.recetteId,
+    required this.titre,
+    required this.photo,
+    required this.dureeMinute,
+    required this.tempsBinId,
+    this.typePlatLibelle,
+  });
+
+  factory RecettePreview.fromMap(Map<String, dynamic> map) {
+    String? typePlat;
+    final tpList = map['fact_recette_type_plat'];
+    if (tpList is List && tpList.isNotEmpty) {
+      final dim = tpList.first['dim_type_plat'];
+      if (dim is Map) typePlat = dim['libelle'] as String?;
+    }
+    return RecettePreview(
+      recetteId: map['recette_id'] as String,
+      titre: map['titre'] as String,
+      photo: map['photo'] as String? ?? '',
+      dureeMinute: (map['duree_minute'] as num?)?.toInt() ?? 0,
+      tempsBinId: (map['temps_bin_id'] as num?)?.toInt() ?? 0,
+      typePlatLibelle: typePlat,
+    );
+  }
+}
+
 /// Modèle représentant un allergène
 class Allergene {
   final int allergeneId;

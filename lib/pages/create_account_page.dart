@@ -204,7 +204,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message),
-        backgroundColor: const Color(0xFFF4A259),
+        backgroundColor: const Color(0xFF2F6B3F),
         behavior: SnackBarBehavior.floating,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
@@ -288,7 +288,10 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Image.asset('lib/assets/logo/EcoDiet-Logo-beige.png', height: 200, semanticLabel: 'Logo EcoDiet'),
+          GestureDetector(
+            onTap: () => Navigator.pushReplacementNamed(context, '/login'),
+            child: Image.asset('lib/assets/logo/EcoDiet-Logo-beige.png', height: 200, semanticLabel: 'Logo EcoDiet'),
+          ),
           const SizedBox(height: 20),
           const Text(
             'Mangez sainement, naturellement.',
@@ -324,7 +327,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       color: isDone
                           ? const Color(0xFF63A96E)
                           : isActive
-                              ? const Color(0xFFF4A259)
+                              ? const Color(0xFF8FBF97)
                               : const Color(0xFF2F5435),
                       borderRadius: BorderRadius.circular(4),
                     ),
@@ -364,14 +367,13 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 onPressed: _onBackPressed,
               ),
               Expanded(
-                child: Text(
-                  _stepTitles[_currentStep],
-                  style: const TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1F2E1F),
+                child: GestureDetector(
+                  onTap: () => Navigator.pushReplacementNamed(context, '/login'),
+                  child: Image.asset(
+                    'lib/assets/logo/EcoDiet-Logo.png',
+                    height: 36,
+                    semanticLabel: 'Logo EcoDiet - retour à la connexion',
                   ),
-                  textAlign: TextAlign.center,
                 ),
               ),
               const SizedBox(width: 48),
@@ -951,7 +953,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
               decoration: BoxDecoration(
                 color: selected
                     ? const Color(0xFF2F6B3F).withOpacity(0.12)
-                    : const Color(0xFFF4A259).withOpacity(0.12),
+                    : const Color(0xFF8FBF97).withOpacity(0.18),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -959,7 +961,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 size: 22,
                 color: selected
                     ? const Color(0xFF2F6B3F)
-                    : const Color(0xFFF4A259),
+                    : const Color(0xFF63A96E),
               ),
             ),
             const SizedBox(width: 14),
@@ -1152,11 +1154,11 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0xFFF4A259)
+              ? const Color(0xFF2F6B3F)
               : Colors.white,
           border: Border.all(
             color: selected
-                ? const Color(0xFFF4A259)
+                ? const Color(0xFF2F6B3F)
                 : Colors.grey.shade300,
             width: 1.5,
           ),

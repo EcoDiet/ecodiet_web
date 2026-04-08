@@ -27,18 +27,15 @@ class RecipeDisplayModel {
     this.isFavorite = false,
   });
 
-  static Future<RecipeDisplayModel> fromRecette(Recette recette, EcoDietApi api) async {
-    final isFav = await api.isFavorite(recette.recetteId);
-    final typePlat = await api.getRecetteComplete(recette.recetteId);
-
+  static RecipeDisplayModel fromPreview(RecettePreview recette, Set<String> favoriteIds) {
     return RecipeDisplayModel(
       id: recette.recetteId,
       title: recette.titre,
-      category: typePlat?.typePlat?.libelle ?? 'Recette',
-      ingredients: '${typePlat?.ingredients.length ?? 0} ingrédients',
-      duration: "${recette.dureeMinute}'",
-      imageUrl: recette.photo.isNotEmpty ? recette.photo : null,
-      isFavorite: isFav,
+      category: recette.typePlatLibelle ?? 'Recette',
+      ingredients: '',
+      duration: recette.dureeMinute > 0 ? "${recette.dureeMinute} min" : '',
+      imageUrl: recette.photo.isNotEmpty ? recetteImageUrl(recette.photo) : null,
+      isFavorite: favoriteIds.contains(recette.recetteId),
     );
   }
 }
@@ -122,23 +119,24 @@ class _HomePageState extends State<HomePage> {
     setState(() => isLoading = true);
 
     try {
-      final recommended = await _api.getRecommendedRecettes(limit: 5);
-      final recommendedModels = <RecipeDisplayModel>[];
-      for (final r in recommended) {
-        recommendedModels.add(await RecipeDisplayModel.fromRecette(r, _api));
-      }
+      // 2 requêtes au lieu de ~120 : previews + favoris en parallèle
+      final results = await Future.wait([
+        _api.getRecettesPreview(limit: 20),
+        _api.getFavoriteIds(),
+        _api.getAllQuizzes(),
+      ]);
 
-      final all = await _api.getAllRecettes();
-      final allModels = <RecipeDisplayModel>[];
-      for (final r in all.take(10)) {
-        allModels.add(await RecipeDisplayModel.fromRecette(r, _api));
-      }
+      final previews = results[0] as List<RecettePreview>;
+      final favoriteIds = results[1] as Set<String>;
+      final loadedQuizzes = results[2] as List;
 
-      final loadedQuizzes = await _api.getAllQuizzes();
+      final models = previews
+          .map((r) => RecipeDisplayModel.fromPreview(r, favoriteIds))
+          .toList();
 
       setState(() {
-        recommendedRecipes = recommendedModels;
-        allRecipes = allModels;
+        recommendedRecipes = models.take(5).toList();
+        allRecipes = models;
         quizzes = loadedQuizzes
             .map((q) => Quiz(
                   id: q.quizId?.toString() ?? '',
@@ -583,63 +581,63 @@ class _HomePageState extends State<HomePage> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Image
-            Container(
-              height: 110,
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(12),
-                ),
-                gradient: recipe.imageUrl == null
-                    ? const LinearGradient(
-                        colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      )
-                    : null,
-                image: recipe.imageUrl != null
-                    ? DecorationImage(
-                        image: CachedNetworkImageProvider(recipe.imageUrl!),
+            ClipRRect(
+              borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              child: SizedBox(
+                height: 110,
+                width: double.infinity,
+                child: Stack(
+                  fit: StackFit.expand,
+                  children: [
+                    // Gradient de fond affiché si l'image échoue ou est absente
+                    Container(
+                      decoration: const BoxDecoration(
+                        gradient: LinearGradient(
+                          colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
+                          begin: Alignment.topLeft,
+                          end: Alignment.bottomRight,
+                        ),
+                      ),
+                      child: Center(
+                        child: Icon(Icons.eco, size: 40, color: Colors.white.withOpacity(0.6)),
+                      ),
+                    ),
+                    if (recipe.imageUrl != null)
+                      CachedNetworkImage(
+                        imageUrl: recipe.imageUrl!,
                         fit: BoxFit.cover,
-                      )
-                    : null,
-              ),
-              child: Stack(
-                children: [
-                  if (recipe.imageUrl == null)
-                    Center(
-                      child: Icon(
-                        Icons.eco,
-                        size: 40,
-                        color: Colors.white.withOpacity(0.6),
+                        errorWidget: (_, __, ___) => const SizedBox.shrink(),
+                        placeholder: (_, __) => const SizedBox.shrink(),
                       ),
-                    ),
-                  Positioned(
-                    top: 8,
-                    right: 8,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withOpacity(0.35),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(Icons.timer_outlined, size: 11, color: Colors.white),
-                          const SizedBox(width: 3),
-                          Text(
-                            recipe.duration,
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.white,
-                              fontWeight: FontWeight.w500,
+                    // Badge durée
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.35),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(Icons.timer_outlined, size: 11, color: Colors.white),
+                            const SizedBox(width: 3),
+                            Text(
+                              recipe.duration,
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.white,
+                                fontWeight: FontWeight.w500,
+                              ),
                             ),
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
             // Contenu
