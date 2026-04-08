@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../utils/responsive.dart';
+import '../services/favorites_service.dart';
+import 'all_recipes_page.dart';
 
 /// Modèle pour une recette
 class Recipe {
@@ -28,12 +30,14 @@ class Quiz {
   final String title;
   final String description;
   final String? imageUrl;
+  final IconData icon;
 
   Quiz({
     required this.id,
     required this.title,
     required this.description,
     this.imageUrl,
+    this.icon = Icons.quiz_outlined,
   });
 }
 
@@ -74,12 +78,18 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _loadData();
+    FavoritesService().addListener(_onFavoritesChanged);
   }
 
   @override
   void dispose() {
+    FavoritesService().removeListener(_onFavoritesChanged);
     _searchController.dispose();
     super.dispose();
+  }
+
+  void _onFavoritesChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadData() async {
@@ -87,6 +97,7 @@ class _HomePageState extends State<HomePage> {
     // Simulation de chargement de données
     await Future.delayed(const Duration(milliseconds: 500));
 
+    if (!mounted) return;
     setState(() {
       // Données de démonstration - à remplacer par les vraies données
       recommendedRecipes = [
@@ -133,13 +144,15 @@ class _HomePageState extends State<HomePage> {
       quizzes = [
         Quiz(
           id: '1',
-          title: 'Quiz 1',
-          description: 'Testez vos connaissances sur les légumes',
+          title: 'Vitamines & Nutriments',
+          description: 'Testez vos connaissances sur les vitamines et nutriments',
+          icon: Icons.science_outlined,
         ),
         Quiz(
           id: '2',
-          title: 'Quiz 2',
-          description: 'Les fruits et leurs bienfaits',
+          title: 'Fruits & Bienfaits',
+          description: 'Les fruits et leurs bienfaits pour la santé',
+          icon: Icons.local_florist_outlined,
         ),
       ];
 
@@ -148,41 +161,68 @@ class _HomePageState extends State<HomePage> {
   }
 
   void _toggleFavorite(Recipe recipe) {
-    setState(() {
-      recipe.isFavorite = !recipe.isFavorite;
-    });
+    FavoritesService().toggle(FavoriteRecipe(
+      id: recipe.id,
+      title: recipe.title,
+      category: recipe.category,
+      duration: recipe.duration,
+      imageUrl: recipe.imageUrl,
+    ));
     // TODO: Sauvegarder le statut favori dans la base de données
   }
 
   @override
   Widget build(BuildContext context) {
     if (isLoading) {
-      return const Scaffold(
+      return Scaffold(
         body: Center(
-          child: CircularProgressIndicator(),
+          child: Semantics(
+            label: 'Chargement en cours',
+            child: const CircularProgressIndicator(),
+          ),
         ),
       );
     }
 
     final desktop = isDesktop(context);
 
+    final hPad = desktop ? 32.0 : 16.0;
+
     return Scaffold(
+      backgroundColor: const Color(0xFFF5ECD9),
       body: SafeArea(
         child: Center(
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1200),
-            child: RefreshIndicator(
-              onRefresh: _loadData,
-              child: SingleChildScrollView(
-                physics: const AlwaysScrollableScrollPhysics(),
-                padding: EdgeInsets.all(desktop ? 32.0 : 16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Header
-                    _buildHeader(context, desktop),
-                    const SizedBox(height: 24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Header fixe (ne scrolle pas)
+                Padding(
+                  padding: EdgeInsets.fromLTRB(hPad, desktop ? 32 : 16, hPad, 0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _buildHeader(context, desktop),
+                      const SizedBox(height: 16),
+                      if (!desktop) ...[
+                        _buildMobileSearchBar(),
+                        const SizedBox(height: 20),
+                      ],
+                    ],
+                  ),
+                ),
 
+                // Contenu scrollable
+                Expanded(
+                  child: RefreshIndicator(
+                    onRefresh: _loadData,
+                    child: SingleChildScrollView(
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      padding: EdgeInsets.fromLTRB(hPad, 0, hPad, desktop ? 32 : 100),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
                     // Message "aucun résultat" si recherche active
                     if (_searchQuery.isNotEmpty &&
                         _filteredRecommended.isEmpty &&
@@ -204,7 +244,19 @@ class _HomePageState extends State<HomePage> {
 
                     // Section "Juste pour vous"
                     if (_filteredRecommended.isNotEmpty) ...[
-                      _buildSectionTitle('⭐ Juste pour vous'),
+                      _buildSectionTitle(
+                        'Juste pour vous',
+                        icon: Icons.star_rounded,
+                        onViewAll: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AllRecipesPage(
+                              title: 'Juste pour vous',
+                              recipes: _filteredRecommended,
+                            ),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       if (desktop)
                         _buildRecipeGrid(context, _filteredRecommended)
@@ -230,7 +282,19 @@ class _HomePageState extends State<HomePage> {
 
                     // Section "Nos recettes"
                     if (_filteredAll.isNotEmpty) ...[
-                      _buildSectionTitle('🍽️ Nos recettes'),
+                      _buildSectionTitle(
+                        'Nos recettes',
+                        icon: Icons.restaurant_rounded,
+                        onViewAll: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => AllRecipesPage(
+                              title: 'Nos recettes',
+                              recipes: _filteredAll,
+                            ),
+                          ),
+                        ),
+                      ),
                       const SizedBox(height: 12),
                       if (desktop)
                         _buildRecipeGrid(context, _filteredAll)
@@ -256,18 +320,17 @@ class _HomePageState extends State<HomePage> {
 
                     // Section "Testez vos connaissances"
                     if (quizzes.isNotEmpty && _searchQuery.isEmpty) ...[
-                      _buildSectionTitle('🧠 Testez vos connaissances', showViewAll: false),
+                      _buildSectionTitle('Testez vos connaissances', showViewAll: false, icon: Icons.psychology_rounded),
                       const SizedBox(height: 12),
                       if (desktop)
-                        GridView.count(
-                          crossAxisCount: 3,
-                          crossAxisSpacing: 12,
-                          mainAxisSpacing: 12,
-                          childAspectRatio: 1.8,
-                          shrinkWrap: true,
-                          physics: const NeverScrollableScrollPhysics(),
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
                           children: quizzes
-                              .map((quiz) => _buildQuizCard(quiz))
+                              .map((quiz) => SizedBox(
+                                    width: 340,
+                                    child: _buildQuizCard(quiz, desktop: true),
+                                  ))
                               .toList(),
                         )
                       else
@@ -276,9 +339,12 @@ class _HomePageState extends State<HomePage> {
                               child: _buildQuizCard(quiz),
                             )),
                     ],
-                  ],
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-              ),
+              ],
             ),
           ),
         ),
@@ -294,7 +360,7 @@ class _HomePageState extends State<HomePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: const [
               Text(
-                'Bonjour !',
+                'Bonjour 👋',
                 style: TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
@@ -351,81 +417,131 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: const [
-            Text(
-              'Bonjour !',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF2F6B3F),
-              ),
-            ),
-            Text(
-              'Mangez sainement, naturellement',
-              style: TextStyle(fontSize: 14, color: Colors.grey),
-            ),
-          ],
+        const Text(
+          'Bonjour 👋',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.bold,
+            color: Color(0xFF1F2E1F),
+          ),
         ),
-        GestureDetector(
-          onTap: () => Navigator.pushNamed(context, '/profile'),
-          child: Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: Colors.grey[200],
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.person, size: 28, color: Colors.grey),
+        const SizedBox(height: 2),
+        Text(
+          _getFormattedDate(),
+          style: const TextStyle(
+            fontSize: 14,
+            color: Colors.grey,
+            fontWeight: FontWeight.w400,
           ),
         ),
       ],
     );
   }
 
-  Widget _buildRecipeGrid(BuildContext context, List<Recipe> recipes) {
-    final width = MediaQuery.of(context).size.width;
-    final crossAxisCount = width >= 1100 ? 4 : width >= 850 ? 3 : 2;
-    return GridView.builder(
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: crossAxisCount,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 0.85,
+  String _getFormattedDate() {
+    final now = DateTime.now();
+    const days = [
+      'Lundi', 'Mardi', 'Mercredi', 'Jeudi',
+      'Vendredi', 'Samedi', 'Dimanche'
+    ];
+    const months = [
+      'jan.', 'fév.', 'mar.', 'avr.', 'mai', 'juin',
+      'juil.', 'août', 'sep.', 'oct.', 'nov.', 'déc.'
+    ];
+    return '${days[now.weekday - 1]} ${now.day} ${months[now.month - 1]}';
+  }
+
+  Widget _buildMobileSearchBar() {
+    return Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.06),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
       ),
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: recipes.length,
-      itemBuilder: (context, index) =>
-          _buildRecipeCard(context, recipes[index]),
+      child: TextField(
+        controller: _searchController,
+        onChanged: (value) =>
+            setState(() => _searchQuery = value.toLowerCase().trim()),
+        decoration: InputDecoration(
+          hintText: 'Rechercher une recette…',
+          hintStyle: TextStyle(fontSize: 13, color: Colors.grey[400]),
+          prefixIcon: Icon(Icons.search, size: 20, color: Colors.grey[400]),
+          suffixIcon: _searchQuery.isNotEmpty
+              ? IconButton(
+                  icon: Icon(Icons.close, size: 16, color: Colors.grey[400]),
+                  onPressed: () {
+                    _searchController.clear();
+                    setState(() => _searchQuery = '');
+                  },
+                )
+              : null,
+          border: InputBorder.none,
+          enabledBorder: InputBorder.none,
+          focusedBorder: InputBorder.none,
+          contentPadding: const EdgeInsets.symmetric(vertical: 12),
+        ),
+      ),
     );
   }
 
-  Widget _buildSectionTitle(String title, {bool showViewAll = true}) {
+  Widget _buildRecipeGrid(BuildContext context, List<Recipe> recipes) {
+    final width = MediaQuery.of(context).size.width;
+    final crossAxisCount = width >= 1100 ? 4 : width >= 850 ? 3 : 2;
+    final spacing = 12.0;
+    final cardWidth = (width - spacing * (crossAxisCount - 1)) / crossAxisCount;
+    return Wrap(
+      spacing: spacing,
+      runSpacing: spacing,
+      children: recipes
+          .map((r) => SizedBox(width: cardWidth, child: _buildRecipeCard(context, r)))
+          .toList(),
+    );
+  }
+
+  Widget _buildSectionTitle(String title, {bool showViewAll = true, IconData? icon, VoidCallback? onViewAll}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2E1F),
-          ),
+        Row(
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 18, color: const Color(0xFF2F6B3F)),
+              const SizedBox(width: 8),
+            ],
+            Text(
+              title,
+              style: const TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF1F2E1F),
+                letterSpacing: -0.3,
+              ),
+            ),
+          ],
         ),
-        if (showViewAll)
-          GestureDetector(
-            onTap: () {},
+        if (showViewAll && onViewAll != null)
+          TextButton(
+            onPressed: onViewAll,
+            style: TextButton.styleFrom(
+              foregroundColor: const Color(0xFF2F6B3F),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             child: const Text(
               'Voir tout',
-              style: TextStyle(
-                fontSize: 13,
-                color: Color(0xFF2F6B3F),
-                fontWeight: FontWeight.w500,
-              ),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
           ),
       ],
@@ -434,17 +550,22 @@ class _HomePageState extends State<HomePage> {
 
   Widget _buildRecipeCard(BuildContext context, Recipe recipe) {
     final desktop = isDesktop(context);
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(
-        context,
-        '/recipe',
-        arguments: {
-          'id': recipe.id,
-          'title': recipe.title,
-          'description': recipe.category,
-        },
-      ),
-      child: Container(
+    return Semantics(
+      label: 'Recette : ${recipe.title}, ${recipe.category}, ${recipe.duration}',
+      button: true,
+      child: InkWell(
+        onTap: () => Navigator.pushNamed(
+          context,
+          '/recipe',
+          arguments: {
+            'id': recipe.id,
+            'title': recipe.title,
+            'description': recipe.category,
+            'duration': recipe.duration,
+          },
+        ),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
         width: desktop ? null : 200,
         decoration: BoxDecoration(
           color: Colors.white,
@@ -553,27 +674,27 @@ class _HomePageState extends State<HomePage> {
                           recipe.ingredients,
                           style: TextStyle(
                             fontSize: 11,
-                            color: Colors.grey[500],
+                            color: Colors.grey[700],
                           ),
                         ),
                       ],
                     ),
                   ),
-                  GestureDetector(
-                    onTap: () => _toggleFavorite(recipe),
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: Colors.red[50],
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(
-                        recipe.isFavorite
-                            ? Icons.favorite
-                            : Icons.favorite_border,
-                        size: 20,
-                        color: Colors.red[400],
-                      ),
+                  IconButton(
+                    onPressed: () => _toggleFavorite(recipe),
+                    tooltip: FavoritesService().isFavorite(recipe.id)
+                        ? 'Retirer des favoris'
+                        : 'Ajouter aux favoris',
+                    style: IconButton.styleFrom(
+                      backgroundColor: Colors.red[50],
+                      minimumSize: const Size(44, 44),
+                    ),
+                    icon: Icon(
+                      FavoritesService().isFavorite(recipe.id)
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      size: 20,
+                      color: Colors.red[400],
                     ),
                   ),
                 ],
@@ -582,13 +703,12 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 
-  Widget _buildQuizCard(Quiz quiz) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.pushNamed(
+  Widget _buildQuizCard(Quiz quiz, {bool desktop = false}) {
+    void onTap() => Navigator.pushNamed(
           context,
           '/quiz',
           arguments: {
@@ -597,8 +717,105 @@ class _HomePageState extends State<HomePage> {
             'description': quiz.description,
           },
         );
-      },
-      child: Container(
+
+    if (desktop) {
+      // Carte horizontale compacte : pas de bannière image, hauteur libre
+      return Semantics(
+        label: 'Quiz : ${quiz.title}',
+        button: true,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Icône colorée à gauche
+              Container(
+                width: 64,
+                height: 64,
+                margin: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFF4A259), Color(0xFFEA853D)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(quiz.icon, size: 28, color: Colors.white),
+              ),
+              // Texte
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        quiz.title,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: Color(0xFF1F2E1F),
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        quiz.description,
+                        style: TextStyle(fontSize: 11, color: Colors.grey[700]),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              // Bouton jouer
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFF4A259),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: const Text(
+                    'Jouer',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    }
+
+    // Mobile : carte verticale avec bannière
+    return Semantics(
+      label: 'Quiz : ${quiz.title}',
+      button: true,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
@@ -613,7 +830,6 @@ class _HomePageState extends State<HomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Image
             Container(
               height: 80,
               width: double.infinity,
@@ -637,15 +853,12 @@ class _HomePageState extends State<HomePage> {
               ),
               child: quiz.imageUrl == null
                   ? Center(
-                      child: Icon(
-                        Icons.quiz_outlined,
-                        size: 36,
-                        color: Colors.white.withOpacity(0.7),
-                      ),
+                      child: Icon(quiz.icon,
+                          size: 36,
+                          color: Colors.white.withOpacity(0.7)),
                     )
                   : null,
             ),
-            // Contenu
             Padding(
               padding: const EdgeInsets.all(12),
               child: Row(
@@ -666,7 +879,8 @@ class _HomePageState extends State<HomePage> {
                         const SizedBox(height: 2),
                         Text(
                           quiz.description,
-                          style: TextStyle(fontSize: 11, color: Colors.grey[600]),
+                          style: TextStyle(
+                              fontSize: 11, color: Colors.grey[600]),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -675,7 +889,8 @@ class _HomePageState extends State<HomePage> {
                   ),
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 10, vertical: 5),
                     decoration: BoxDecoration(
                       color: const Color(0xFFF4A259),
                       borderRadius: BorderRadius.circular(20),
@@ -695,6 +910,7 @@ class _HomePageState extends State<HomePage> {
           ],
         ),
       ),
-    );
+    ),
+  );
   }
 }

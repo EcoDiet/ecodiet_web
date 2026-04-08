@@ -82,8 +82,10 @@ class MyApp extends StatelessWidget {
           final args = ModalRoute.of(context)!.settings.arguments
               as Map<String, dynamic>?;
           return RecipeInfosPage(
+            id: args?['id'] as String?,
             title: args?['title'] as String?,
             description: args?['description'] as String?,
+            duration: args?['duration'] as String?,
           );
         },
         '/quiz': (context) {
@@ -126,63 +128,71 @@ class _MyHomePageState extends State<MyHomePage> {
     required int index,
   }) {
     final isSelected = selectedIndex == index;
-    return GestureDetector(
-      onTap: () => setState(() => selectedIndex = index),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? const Color(0xFFEA853D).withOpacity(0.15)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(10),
-          border: isSelected
-              ? Border.all(color: const Color(0xFFEA853D).withOpacity(0.3))
-              : null,
-        ),
-        child: Row(
-          children: [
-            Icon(
-              isSelected ? selectedIcon : icon,
-              color: isSelected ? const Color(0xFFEA853D) : const Color(0xFF8FBF97),
-              size: 22,
-            ),
-            const SizedBox(width: 14),
-            Text(
-              label,
-              style: TextStyle(
-                color: isSelected ? const Color(0xFFEA853D) : const Color(0xFF8FBF97),
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-                fontSize: 14,
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: label,
+      child: InkWell(
+        onTap: () => setState(() => selectedIndex = index),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? Colors.white.withOpacity(0.10)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Row(
+            children: [
+              Icon(
+                isSelected ? selectedIcon : icon,
+                color: isSelected ? Colors.white : const Color(0xFFF5ECD9),
+                size: 22,
               ),
-            ),
-          ],
+              const SizedBox(width: 14),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : const Color(0xFFF5ECD9),
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   Widget _buildLogoutButton(BuildContext context) {
-    return GestureDetector(
-      onTap: () => Navigator.pushReplacementNamed(context, '/login'),
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(10),
-        ),
-        child: const Row(
-          children: [
-            Icon(Icons.logout, color: Color(0xFF8FBF97), size: 20),
-            SizedBox(width: 14),
-            Text(
-              'Déconnexion',
-              style: TextStyle(
-                color: Color(0xFF8FBF97),
-                fontSize: 14,
+    return Semantics(
+      button: true,
+      label: 'Déconnexion',
+      child: InkWell(
+        onTap: () => Navigator.pushReplacementNamed(context, '/login'),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Row(
+            children: [
+              Icon(Icons.logout, color: Color(0xFFF5ECD9), size: 20),
+              SizedBox(width: 14),
+              Text(
+                'Déconnexion',
+                style: TextStyle(
+                  color: Color(0xFFF5ECD9),
+                  fontSize: 14,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -190,7 +200,16 @@ class _MyHomePageState extends State<MyHomePage> {
 
   @override
   Widget build(BuildContext context) {
-    Widget page = selectedIndex == 0 ? const HomePage() : const ProfilePage();
+    Widget page = selectedIndex == 0
+        ? const HomePage()
+        : selectedIndex == 1
+            ? const FolderPage(
+                id: 'favorites',
+                label: 'Favoris',
+                color: Color(0xFFEA853D),
+                showBackButton: false,
+              )
+            : const ProfilePage();
 
     if (isDesktop(context)) {
       return Scaffold(
@@ -207,23 +226,15 @@ class _MyHomePageState extends State<MyHomePage> {
                     child: Column(
                       children: [
                         Image.asset(
-                          'lib/assets/logo/EcoDiet-Logo.png',
+                          'lib/assets/logo/EcoDiet-Logo-beige.png',
                           height: 52,
+                          semanticLabel: 'Logo EcoDiet',
                         ),
                         const SizedBox(height: 10),
                         const Text(
-                          'EcoDiet',
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: 0.5,
-                          ),
-                        ),
-                        const Text(
                           'Mangez naturellement',
                           style: TextStyle(
-                            color: Color(0xFF8FBF97),
+                            color: Color(0xFFF5ECD9),
                             fontSize: 11,
                           ),
                         ),
@@ -241,10 +252,16 @@ class _MyHomePageState extends State<MyHomePage> {
                     index: 0,
                   ),
                   _buildNavItem(
+                    icon: Icons.favorite_border,
+                    selectedIcon: Icons.favorite,
+                    label: 'Favoris',
+                    index: 1,
+                  ),
+                  _buildNavItem(
                     icon: Icons.person_outline,
                     selectedIcon: Icons.person,
                     label: 'Profil',
-                    index: 1,
+                    index: 2,
                   ),
 
                   const Spacer(),
@@ -264,17 +281,127 @@ class _MyHomePageState extends State<MyHomePage> {
     }
 
     return Scaffold(
+      extendBody: true,
       body: page,
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: selectedIndex,
-        onTap: (index) => setState(() => selectedIndex = index),
-        selectedItemColor: const Color(0xFFEA853D),
-        unselectedItemColor: Colors.grey,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Accueil'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profil'),
-        ],
+      bottomNavigationBar: _buildFloatingNavBar(),
+    );
+  }
+
+  Widget _buildFloatingNavBar() {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        child: Container(
+          height: 64,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.10),
+                blurRadius: 30,
+                offset: const Offset(0, 8),
+              ),
+              BoxShadow(
+                color: Colors.black.withOpacity(0.04),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _buildNavPillItem(
+                icon: Icons.home_outlined,
+                selectedIcon: Icons.home_rounded,
+                label: 'Accueil',
+                index: 0,
+              ),
+              _buildNavPillItem(
+                icon: Icons.favorite_border_rounded,
+                selectedIcon: Icons.favorite_rounded,
+                label: 'Favoris',
+                index: 1,
+              ),
+              _buildNavPillItem(
+                icon: Icons.person_outline_rounded,
+                selectedIcon: Icons.person_rounded,
+                label: 'Profil',
+                index: 2,
+              ),
+            ],
+          ),
+        ),
       ),
     );
+  }
+
+  Widget _buildNavPillItem({
+    required IconData icon,
+    required IconData selectedIcon,
+    required String label,
+    required int index,
+  }) {
+    final isSelected = selectedIndex == index;
+    return Semantics(
+      button: true,
+      selected: isSelected,
+      label: label,
+      child: InkWell(
+        onTap: () => setState(() => selectedIndex = index),
+        borderRadius: BorderRadius.circular(24),
+        child: AnimatedContainer(
+        duration: const Duration(milliseconds: 280),
+        curve: Curves.easeInOut,
+        padding: EdgeInsets.symmetric(
+          horizontal: isSelected ? 18 : 14,
+          vertical: 10,
+        ),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? const Color(0xFFEA853D).withOpacity(0.12)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 200),
+              child: Icon(
+                isSelected ? selectedIcon : icon,
+                key: ValueKey(isSelected),
+                color: isSelected
+                    ? const Color(0xFFEA853D)
+                    : const Color(0xFFB0B0B0),
+                size: 24,
+              ),
+            ),
+            AnimatedSize(
+              duration: const Duration(milliseconds: 280),
+              curve: Curves.easeInOut,
+              child: isSelected
+                  ? Row(
+                      children: [
+                        const SizedBox(width: 7),
+                        Text(
+                          label,
+                          style: const TextStyle(
+                            color: Color(0xFFEA853D),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            letterSpacing: 0.1,
+                          ),
+                        ),
+                      ],
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
   }
 }
