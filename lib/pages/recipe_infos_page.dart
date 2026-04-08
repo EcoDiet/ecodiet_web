@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-<<<<<<< HEAD
+import 'package:cached_network_image/cached_network_image.dart';
 import '../services/ecodiet_api.dart';
 import '../models/recette.dart';
 import '../models/user.dart';
-=======
 import '../utils/responsive.dart';
-import '../services/favorites_service.dart';
->>>>>>> origin/main
 
 class RecipeInfosPage extends StatefulWidget {
   final String? id;
@@ -27,35 +24,21 @@ class RecipeInfosPage extends StatefulWidget {
 }
 
 class _RecipeInfosPageState extends State<RecipeInfosPage> {
-<<<<<<< HEAD
   final EcoDietApi _api = EcoDietApi();
-  
+
   bool isFavorite = false;
   bool isLoading = true;
   RecetteComplete? recette;
   List<UserFolder> _folders = [];
-=======
-  bool isLoading = true;
-  late final FavoritesService _favoritesService;
 
-  String? imageUrl;
-  int duration = 0;
-  int portions = 0;
-  int difficulty = 0;
-  double carbonFootprint = 0.0;
-  List<String> ingredients = [];
-  List<String> instructions = [];
->>>>>>> origin/main
+  bool get _isFavorite => isFavorite;
 
   @override
   void initState() {
     super.initState();
-    _favoritesService = FavoritesService();
-    _favoritesService.addListener(_onFavoritesChanged);
     _loadRecipeDetails();
   }
 
-<<<<<<< HEAD
   Future<void> _loadRecipeDetails() async {
     if (widget.id == null) {
       setState(() => isLoading = false);
@@ -63,13 +46,12 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     }
 
     final recetteId = widget.id!;
-
     final result = await _api.getRecetteComplete(recetteId);
-    
+
     if (result != null) {
       final favResult = await _api.isFavorite(recetteId);
       final foldersResult = await _api.getFolders();
-      
+
       setState(() {
         recette = result;
         isFavorite = favResult;
@@ -83,67 +65,20 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
 
   Future<void> _toggleFavorite() async {
     if (recette == null) return;
-    
+
     final success = await _api.toggleFavorite(recette!.recette.recetteId);
     if (success) {
       setState(() => isFavorite = !isFavorite);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(isFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris'),
+          content:
+              Text(isFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris'),
           duration: const Duration(seconds: 2),
         ),
       );
     }
-=======
-  @override
-  void dispose() {
-    _favoritesService.removeListener(_onFavoritesChanged);
-    super.dispose();
   }
-
-  void _onFavoritesChanged() => setState(() {});
-
-  Future<void> _loadRecipeDetails() async {
-    await Future.delayed(const Duration(milliseconds: 300));
-    setState(() {
-      duration = 1800;
-      portions = 4;
-      difficulty = 120;
-      carbonFootprint = 2.5;
-      ingredients = [
-        '200g de quinoa',
-        '1 concombre',
-        '2 tomates',
-        '1 oignon rouge',
-        'Huile d\'olive',
-        'Jus de citron',
-      ];
-      instructions = [
-        'Rincer le quinoa et le cuire selon les instructions.',
-        'Couper les légumes en petits dés.',
-        'Mélanger le quinoa refroidi avec les légumes.',
-        'Assaisonner avec l\'huile d\'olive et le jus de citron.',
-        'Servir frais.',
-      ];
-      isLoading = false;
-    });
-  }
-
-  void _toggleFavorite() {
-    if (widget.id == null) return;
-    _favoritesService.toggle(FavoriteRecipe(
-      id: widget.id!,
-      title: widget.title ?? '',
-      category: widget.description ?? '',
-      duration: widget.duration ?? '',
-      imageUrl: imageUrl,
-    ));
->>>>>>> origin/main
-  }
-
-  bool get _isFavorite =>
-      widget.id != null && _favoritesService.isFavorite(widget.id!);
 
   void _addToFolder() {
     showModalBottomSheet(
@@ -171,7 +106,6 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
-<<<<<<< HEAD
             if (_folders.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
@@ -179,28 +113,29 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               )
             else
               ..._folders.map((folder) => ListTile(
-                leading: const Icon(Icons.folder, color: Color(0xFF2F6B3F)),
-                title: Text(folder.label),
-                onTap: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  Navigator.pop(context);
-                  if (recette != null && folder.folderId != null) {
-                    final success = await _api.addRecipeToFolder(
-                      folder.folderId!,
-                      recette!.recette.recetteId,
-                    );
-                    messenger.showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          success 
-                            ? 'Ajouté à "${folder.label}"' 
-                            : 'Erreur lors de l\'ajout',
-                        ),
-                      ),
-                    );
-                  }
-                },
-              )),
+                    leading:
+                        const Icon(Icons.folder, color: Color(0xFF2F6B3F)),
+                    title: Text(folder.label),
+                    onTap: () async {
+                      final messenger = ScaffoldMessenger.of(context);
+                      Navigator.pop(context);
+                      if (recette != null && folder.folderId != null) {
+                        final success = await _api.addRecipeToFolder(
+                          folder.folderId!,
+                          recette!.recette.recetteId,
+                        );
+                        messenger.showSnackBar(
+                          SnackBar(
+                            content: Text(
+                              success
+                                  ? 'Ajouté à "${folder.label}"'
+                                  : 'Erreur lors de l\'ajout',
+                            ),
+                          ),
+                        );
+                      }
+                    },
+                  )),
             const SizedBox(height: 8),
             Center(
               child: TextButton.icon(
@@ -213,10 +148,6 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               ),
             ),
             const SizedBox(height: 16),
-=======
-            const Text('Fonctionnalité à implémenter'),
-            const SizedBox(height: 24),
->>>>>>> origin/main
           ],
         ),
       ),
@@ -244,7 +175,8 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           ElevatedButton(
             onPressed: () async {
               if (controller.text.trim().isNotEmpty) {
-                final result = await _api.createFolder(label: controller.text.trim());
+                final result = await _api.createFolder(
+                    label: controller.text.trim());
                 if (result.isSuccess) {
                   final foldersResult = await _api.getFolders();
                   setState(() => _folders = foldersResult);
@@ -327,6 +259,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   }
 
   Widget _buildMobileSliverAppBar() {
+    final photo = recette?.recette.photo;
     return SliverAppBar(
       expandedHeight: 260,
       pinned: true,
@@ -360,7 +293,8 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                 color: _isFavorite ? Colors.red[300] : Colors.white,
                 size: 22,
               ),
-              tooltip: _isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
+              tooltip:
+                  _isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
               onPressed: _toggleFavorite,
             ),
           ),
@@ -380,75 +314,6 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         background: Stack(
           fit: StackFit.expand,
           children: [
-<<<<<<< HEAD
-            // Header
-            _buildHeader(),
-
-            // Contenu scrollable
-            Expanded(
-              child: isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : recette == null
-                      ? const Center(child: Text('Recette non trouvée'))
-                      : SingleChildScrollView(
-                          padding: const EdgeInsets.all(16),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              // Image
-                              _buildImage(),
-                              const SizedBox(height: 16),
-
-                              // Titre
-                              Text(
-                                recette!.recette.titre,
-                                style: const TextStyle(
-                                  fontSize: 24,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1F2E1F),
-                                ),
-                              ),
-                              const SizedBox(height: 8),
-
-                              const SizedBox(height: 20),
-
-                              // Infos (Temps, Portions, Difficultés)
-                              _buildInfoCards(),
-                              const SizedBox(height: 20),
-
-                              // Type de plat
-                              if (recette!.typePlat != null) ...[
-                                _buildTypePlat(),
-                                const SizedBox(height: 24),
-                              ],
-
-                              // Allergènes
-                              if (recette!.allergenes.isNotEmpty) ...[
-                                _buildAllergenes(),
-                                const SizedBox(height: 24),
-                              ],
-
-                              // Régime
-                              if (recette!.regime != null) ...[
-                                _buildRegime(),
-                                const SizedBox(height: 24),
-                              ],
-
-                              // Ingrédients
-                              _buildSection(
-                                'Ingrédients',
-                                '${recette!.ingredients.length} ingrédients',
-                                recette!.ingredients.map((i) => i.nomIngredient).toList(),
-                              ),
-                              const SizedBox(height: 24),
-
-                              // Boutons
-                              _buildActionButtons(),
-                              const SizedBox(height: 16),
-                            ],
-                          ),
-                        ),
-=======
             Container(
               decoration: BoxDecoration(
                 gradient: const LinearGradient(
@@ -456,14 +321,14 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
-                image: imageUrl != null
+                image: photo != null && photo.isNotEmpty
                     ? DecorationImage(
-                        image: NetworkImage(imageUrl!),
+                        image: CachedNetworkImageProvider(photo),
                         fit: BoxFit.cover,
                       )
                     : null,
               ),
-              child: imageUrl == null
+              child: photo == null || photo.isEmpty
                   ? Center(
                       child: Icon(Icons.eco_rounded,
                           size: 80,
@@ -488,7 +353,6 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                   ),
                 ),
               ),
->>>>>>> origin/main
             ),
           ],
         ),
@@ -497,6 +361,11 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   }
 
   Widget _buildMobileContent() {
+    final ingredients = recette?.ingredients
+            .map((i) => i.nomIngredient)
+            .toList() ??
+        [];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -537,12 +406,31 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         const SizedBox(height: 16),
         // Empreinte carbone
         _buildCarbonFootprint(),
-        const SizedBox(height: 28),
+
+        // Allergènes
+        if (recette != null && recette!.allergenes.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          _buildAllergenes(),
+        ],
+
+        // Type de plat
+        if (recette != null && recette!.typePlat != null) ...[
+          const SizedBox(height: 20),
+          _buildTypePlat(),
+        ],
+
+        // Régime
+        if (recette != null && recette!.regime != null) ...[
+          const SizedBox(height: 20),
+          _buildRegime(),
+        ],
+
         // Ingrédients
-        _buildMobileSection('Ingrédients', ingredients),
-        const SizedBox(height: 28),
-        // Instructions
-        _buildMobileSection('Instructions', instructions, numbered: true),
+        if (ingredients.isNotEmpty) ...[
+          const SizedBox(height: 28),
+          _buildMobileSection('Ingrédients', ingredients),
+        ],
+
         const SizedBox(height: 32),
         // Boutons
         _buildActionButtons(false),
@@ -551,6 +439,10 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   }
 
   Widget _buildMobileInfoRow() {
+    final durationStr = widget.duration ??
+        _formatDuration(recette?.recette.dureeMinute ?? 0);
+    final difficultyLabel = _getDifficultyLabel();
+
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
       decoration: BoxDecoration(
@@ -567,13 +459,10 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
       child: Row(
         children: [
           _buildInfoStat(
-              Icons.access_time_rounded, 'Temps', widget.duration ?? '–'),
+              Icons.access_time_rounded, 'Temps', durationStr),
           _buildInfoDivider(),
-          _buildInfoStat(
-              Icons.people_rounded, 'Portions', '${portions}p'),
-          _buildInfoDivider(),
-          _buildInfoStat(
-              Icons.signal_cellular_alt_rounded, 'Difficulté', 'Facile'),
+          _buildInfoStat(Icons.signal_cellular_alt_rounded, 'Difficulté',
+              difficultyLabel),
         ],
       ),
     );
@@ -603,10 +492,6 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     );
   }
 
-<<<<<<< HEAD
-  Widget _buildImage() {
-    final photo = recette?.recette.photo ?? '';
-=======
   Widget _buildInfoDivider() {
     return Container(width: 1, height: 40, color: const Color(0xFFEEEEEE));
   }
@@ -723,6 +608,11 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   }
 
   Widget _buildDesktopContent() {
+    final ingredients = recette?.ingredients
+            .map((i) => i.nomIngredient)
+            .toList() ??
+        [];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -760,22 +650,22 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
             ),
           ],
         ),
-        const SizedBox(height: 32),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: _buildSection('Ingrédients', 'liste des ingrédients',
-                  ingredients),
-            ),
-            const SizedBox(width: 32),
-            Expanded(
-              child: _buildSection(
-                  'Instructions', 'étapes à suivre', instructions,
-                  numbered: true),
-            ),
-          ],
-        ),
+        if (recette != null && recette!.allergenes.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _buildAllergenes(),
+        ],
+        if (recette != null && recette!.typePlat != null) ...[
+          const SizedBox(height: 24),
+          _buildTypePlat(),
+        ],
+        if (recette != null && recette!.regime != null) ...[
+          const SizedBox(height: 24),
+          _buildRegime(),
+        ],
+        if (ingredients.isNotEmpty) ...[
+          const SizedBox(height: 32),
+          _buildSection('Ingrédients', 'liste des ingrédients', ingredients),
+        ],
         const SizedBox(height: 24),
       ],
     );
@@ -784,76 +674,43 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   // ── Shared helpers ─────────────────────────────────────────────────────────
 
   Widget _buildImage({required double height}) {
->>>>>>> origin/main
+    final photo = recette?.recette.photo;
     return Container(
       height: height,
       width: double.infinity,
       decoration: BoxDecoration(
-<<<<<<< HEAD
-        color: Colors.grey[200],
-        borderRadius: BorderRadius.circular(12),
-        image: photo.isNotEmpty
-=======
         borderRadius: BorderRadius.circular(16),
         gradient: const LinearGradient(
           colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
-        image: imageUrl != null
->>>>>>> origin/main
+        image: photo != null && photo.isNotEmpty
             ? DecorationImage(
-                image: NetworkImage(photo),
+                image: CachedNetworkImageProvider(photo),
                 fit: BoxFit.cover,
               )
             : null,
       ),
-      child: photo.isEmpty
+      child: photo == null || photo.isEmpty
           ? Center(
-<<<<<<< HEAD
-              child: Icon(
-                Icons.restaurant,
-                size: 60,
-                color: Colors.grey[400],
-              ),
-            )
-=======
-              child: Icon(Icons.eco, size: 60, color: Colors.white.withOpacity(0.3)))
->>>>>>> origin/main
+              child: Icon(Icons.eco,
+                  size: 60, color: Colors.white.withOpacity(0.3)))
           : null,
     );
   }
 
   Widget _buildInfoCards() {
-    final difficultyLabel = difficulty <= 60
-        ? 'Facile'
-        : difficulty <= 120
-            ? 'Moyen'
-            : 'Difficile';
+    final durationStr = widget.duration ??
+        _formatDuration(recette?.recette.dureeMinute ?? 0);
+    final difficultyLabel = _getDifficultyLabel();
+
     return Row(
       children: [
         _buildInfoCard(
           icon: Icons.access_time,
           label: 'Temps',
-<<<<<<< HEAD
-          value: _formatDuration(recette?.recette.dureeMinute ?? 0),
-          color: const Color(0xFF87CEEB),
-        ),
-        const SizedBox(width: 12),
-        _buildInfoCard(
-          icon: Icons.trending_up,
-          label: 'Difficulté',
-          value: _getDifficultyLabel(),
-          color: const Color(0xFFF4A259),
-=======
-          value: widget.duration ?? '–',
-          color: const Color(0xFF2F6B3F),
-        ),
-        const SizedBox(width: 12),
-        _buildInfoCard(
-          icon: Icons.people,
-          label: 'Portions',
-          value: '${portions}p',
+          value: durationStr,
           color: const Color(0xFF2F6B3F),
         ),
         const SizedBox(width: 12),
@@ -862,7 +719,6 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           label: 'Difficultés',
           value: difficultyLabel,
           color: const Color(0xFF2F6B3F),
->>>>>>> origin/main
         ),
       ],
     );
@@ -889,13 +745,8 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-<<<<<<< HEAD
               color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 4,
-=======
-              color: Colors.black.withOpacity(0.05),
               blurRadius: 8,
->>>>>>> origin/main
               offset: const Offset(0, 2),
             ),
           ],
@@ -929,7 +780,6 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     );
   }
 
-<<<<<<< HEAD
   Widget _buildAllergenes() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -946,11 +796,13 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         Wrap(
           spacing: 8,
           runSpacing: 8,
-          children: recette!.allergenes.map((a) => Chip(
-            label: Text(a.libelle),
-            backgroundColor: Colors.red[50],
-            labelStyle: TextStyle(color: Colors.red[700]),
-          )).toList(),
+          children: recette!.allergenes
+              .map((a) => Chip(
+                    label: Text(a.libelle),
+                    backgroundColor: Colors.red[50],
+                    labelStyle: TextStyle(color: Colors.red[700]),
+                  ))
+              .toList(),
         ),
       ],
     );
@@ -997,7 +849,9 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           labelStyle: TextStyle(color: Colors.green[700]),
         ),
       ],
-=======
+    );
+  }
+
   Widget _buildCarbonFootprint() {
     return Container(
       padding: const EdgeInsets.all(12),
@@ -1006,7 +860,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         borderRadius: BorderRadius.circular(12),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -1017,10 +871,11 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: const Color(0xFF2F6B3F).withOpacity(0.12),
+              color: const Color(0xFF2F6B3F).withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: const Icon(Icons.eco, color: Color(0xFF2F6B3F), size: 24),
+            child:
+                const Icon(Icons.eco, color: Color(0xFF2F6B3F), size: 24),
           ),
           const SizedBox(width: 12),
           const Text(
@@ -1035,9 +890,9 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
-              Text(
-                '${carbonFootprint.toStringAsFixed(1)} kg CO₂',
-                style: const TextStyle(
+              const Text(
+                '–',
+                style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF2F6B3F),
@@ -1051,7 +906,6 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           ),
         ],
       ),
->>>>>>> origin/main
     );
   }
 
@@ -1144,7 +998,8 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               icon: const Icon(Icons.folder_outlined, size: 18),
               label: const Text(
                 'Ajouter à un dossier',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                style:
+                    TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFFF4A259),
@@ -1166,7 +1021,9 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           child: ElevatedButton.icon(
             onPressed: _toggleFavorite,
             icon: Icon(
-                _isFavorite ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                _isFavorite
+                    ? Icons.favorite_rounded
+                    : Icons.favorite_border_rounded,
                 size: 20),
             label: Text(
               _isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',

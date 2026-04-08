@@ -1,9 +1,5 @@
 import 'package:flutter/material.dart';
-<<<<<<< HEAD
-import 'package:flutter/foundation.dart' show kIsWeb;
-=======
 import 'package:google_fonts/google_fonts.dart';
->>>>>>> origin/main
 import 'package:logger/logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart'; // Pour charger les variables sensibles
@@ -14,11 +10,8 @@ import 'pages/recipe_infos_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/quiz_page.dart';
 import 'pages/folder_page.dart';
-<<<<<<< HEAD
 import 'services/ecodiet_api.dart';
-=======
 import 'utils/responsive.dart';
->>>>>>> origin/main
 
 final logger = Logger(
   level: Level.debug,
@@ -74,12 +67,8 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'EcoDiet',
       theme: ThemeData(
-<<<<<<< HEAD
-        scaffoldBackgroundColor: const Color(0xFFF5ECD9),
-=======
         textTheme: mainTextTheme,
-        scaffoldBackgroundColor: const Color(0xFFF5ECD9), 
->>>>>>> origin/main
+        scaffoldBackgroundColor: const Color(0xFFF5ECD9),
         colorScheme: const ColorScheme.light(
           primary: Color(0xFF2F6B3F),
           secondary: Color(0xFFF4A259),

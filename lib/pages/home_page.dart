@@ -3,7 +3,6 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../services/ecodiet_api.dart';
 import '../models/recette.dart';
-import '../models/user.dart' as user_models;
 import '../utils/responsive.dart';
 import '../services/favorites_service.dart';
 import 'all_recipes_page.dart';
@@ -76,7 +75,7 @@ class _HomePageState extends State<HomePage> {
   
   List<RecipeDisplayModel> recommendedRecipes = [];
   List<RecipeDisplayModel> allRecipes = [];
-  List<user_models.Quiz> quizzes = [];
+  List<Quiz> quizzes = [];
   bool isLoading = true;
 
   final TextEditingController _searchController = TextEditingController();

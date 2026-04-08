@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
-<<<<<<< HEAD
+import 'package:cached_network_image/cached_network_image.dart';
 import '../services/ecodiet_api.dart';
-import '../models/recette.dart';
-=======
 import '../services/favorites_service.dart';
 import '../utils/responsive.dart';
->>>>>>> origin/main
 
 class FolderPage extends StatefulWidget {
   final String? id;
@@ -28,43 +25,34 @@ class FolderPage extends StatefulWidget {
 class _FolderPageState extends State<FolderPage> {
   final EcoDietApi _api = EcoDietApi();
   bool isLoading = true;
-<<<<<<< HEAD
-  List<Recette> recipes = [];
-=======
   List<FavoriteRecipe> recipes = [];
 
   bool get _isFavorites => widget.id == 'favorites';
->>>>>>> origin/main
 
   @override
   void initState() {
     super.initState();
     _loadFolderRecipes();
-    if (_isFavorites) FavoritesService().addListener(_onFavoritesChanged);
-  }
-
-  @override
-  void dispose() {
-    if (_isFavorites) FavoritesService().removeListener(_onFavoritesChanged);
-    super.dispose();
-  }
-
-  void _onFavoritesChanged() {
-    setState(() => recipes = List.of(FavoritesService().favorites));
   }
 
   Future<void> _loadFolderRecipes() async {
-<<<<<<< HEAD
     if (widget.id == null) {
       setState(() => isLoading = false);
       return;
     }
 
-    // Gestion spéciale pour les favoris
-    if (widget.id == 'favorites') {
+    if (_isFavorites) {
       final result = await _api.getFavorites();
       setState(() {
-        recipes = result;
+        recipes = result
+            .map((r) => FavoriteRecipe(
+                  id: r.recetteId,
+                  title: r.titre,
+                  category: 'Recette',
+                  duration: _formatDuration(r.dureeMinute),
+                  imageUrl: r.photo.isNotEmpty ? r.photo : null,
+                ))
+            .toList();
         isLoading = false;
       });
     } else {
@@ -72,90 +60,37 @@ class _FolderPageState extends State<FolderPage> {
       if (folderId == null) {
         setState(() => isLoading = false);
         return;
-=======
-    await Future.delayed(const Duration(milliseconds: 300));
-    setState(() {
-      switch (widget.id) {
-        case 'favorites':
-          recipes = List.of(FavoritesService().favorites);
-          break;
-        case '2':
-          recipes = [
-            FavoriteRecipe(
-                id: '3',
-                title: 'Smoothie vert',
-                category: 'Boisson',
-                duration: "5'"),
-          ];
-          break;
-        default:
-          recipes = [];
->>>>>>> origin/main
       }
-
       final result = await _api.getRecipesInFolder(folderId);
       setState(() {
-        recipes = result;
+        recipes = result
+            .map((r) => FavoriteRecipe(
+                  id: r.recetteId,
+                  title: r.titre,
+                  category: 'Recette',
+                  duration: _formatDuration(r.dureeMinute),
+                  imageUrl: r.photo.isNotEmpty ? r.photo : null,
+                ))
+            .toList();
         isLoading = false;
       });
     }
   }
 
-<<<<<<< HEAD
-  void _removeFromFolder(Recette recipe) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Retirer du dossier ?'),
-        content: Text(
-          'Voulez-vous retirer "${recipe.titre}" de ce dossier ?',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              
-              if (widget.id == 'favorites') {
-                await _api.removeFromFavorites(recipe.recetteId);
-              } else {
-                final folderId = int.tryParse(widget.id!);
-                if (folderId != null) {
-                  await _api.removeRecipeFromFolder(folderId, recipe.recetteId);
-                }
-              }
-              
-              setState(() {
-                recipes.removeWhere((r) => r.recetteId == recipe.recetteId);
-              });
-            },
-            child: const Text(
-              'Retirer',
-              style: TextStyle(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
-    );
-=======
   void _removeRecipe(FavoriteRecipe recipe) {
+    setState(() => recipes.removeWhere((r) => r.id == recipe.id));
     if (_isFavorites) {
-      FavoritesService().removeFavorite(recipe.id);
+      _api.removeFromFavorites(recipe.id);
     } else {
-      setState(() => recipes.removeWhere((r) => r.id == recipe.id));
+      final folderId = int.tryParse(widget.id ?? '');
+      if (folderId != null) {
+        _api.removeRecipeFromFolder(folderId, recipe.id);
+      }
     }
   }
 
   void _restoreRecipe(FavoriteRecipe recipe) {
-    if (_isFavorites) {
-      FavoritesService().addFavorite(recipe);
-    } else {
-      setState(() => recipes.add(recipe));
-    }
->>>>>>> origin/main
+    setState(() => recipes.add(recipe));
   }
 
   String _formatDuration(int minutes) {
@@ -267,19 +202,6 @@ class _FolderPageState extends State<FolderPage> {
     );
   }
 
-<<<<<<< HEAD
-  Widget _buildRecipeCard(Recette recipe) {
-    return GestureDetector(
-      onTap: () => Navigator.pushNamed(
-        context,
-        '/recipe',
-        arguments: {
-          'id': recipe.recetteId,
-          'title': recipe.titre,
-        },
-      ),
-      child: Container(
-=======
   Widget _buildDesktopCard(FavoriteRecipe recipe) {
     return Semantics(
       label: 'Recette : ${recipe.title}, ${recipe.category}',
@@ -296,120 +218,81 @@ class _FolderPageState extends State<FolderPage> {
           }),
           borderRadius: BorderRadius.circular(12),
           child: Container(
->>>>>>> origin/main
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 90,
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
                 ),
-<<<<<<< HEAD
-                image: recipe.photo.isNotEmpty
-                    ? DecorationImage(
-                        image: NetworkImage(recipe.photo),
-                        fit: BoxFit.cover,
-                      )
-=======
-                borderRadius:
-                    const BorderRadius.horizontal(left: Radius.circular(12)),
-                image: recipe.imageUrl != null
-                    ? DecorationImage(
-                        image: NetworkImage(recipe.imageUrl!),
-                        fit: BoxFit.cover)
->>>>>>> origin/main
-                    : null,
-              ),
-              child: recipe.photo.isEmpty
-                  ? Center(
-<<<<<<< HEAD
-                      child: Icon(
-                        Icons.restaurant,
-                        size: 30,
-                        color: Colors.grey[400],
-                      ),
-                    )
-=======
-                      child: Icon(Icons.eco,
-                          size: 28,
-                          color: Colors.white.withOpacity(0.5)))
->>>>>>> origin/main
-                  : null,
+              ],
             ),
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 14, vertical: 10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      recipe.titre,
-                      style: const TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F2E1F),
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+            child: Row(
+              children: [
+                Container(
+                  width: 90,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
+                      begin: Alignment.topLeft,
+                      end: Alignment.bottomRight,
                     ),
-<<<<<<< HEAD
-                    const SizedBox(height: 4),
-                    Row(
+                    borderRadius:
+                        const BorderRadius.horizontal(left: Radius.circular(12)),
+                    image: recipe.imageUrl != null
+                        ? DecorationImage(
+                            image: CachedNetworkImageProvider(recipe.imageUrl!),
+                            fit: BoxFit.cover)
+                        : null,
+                  ),
+                  child: recipe.imageUrl == null
+                      ? Center(
+                          child: Icon(Icons.eco,
+                              size: 28, color: Colors.white.withOpacity(0.5)))
+                      : null,
+                ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.access_time,
-                          size: 14,
-                          color: Colors.grey[500],
-                        ),
-                        const SizedBox(width: 4),
                         Text(
-                          _formatDuration(recipe.dureeMinute),
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.grey[500],
+                          recipe.title,
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: Color(0xFF1F2E1F),
                           ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          recipe.category,
+                          style: const TextStyle(
+                              fontSize: 12, color: Color(0xFF2F6B3F)),
                         ),
                       ],
-=======
-                    const SizedBox(height: 3),
-                    Text(
-                      recipe.category,
-                      style: const TextStyle(
-                          fontSize: 12, color: Color(0xFF2F6B3F)),
->>>>>>> origin/main
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                IconButton(
+                  icon: Icon(Icons.remove_circle_outline,
+                      color: Colors.red[300]),
+                  tooltip: 'Retirer de la liste',
+                  onPressed: () => _removeRecipe(recipe),
+                ),
+              ],
             ),
-            IconButton(
-              icon: Icon(Icons.remove_circle_outline,
-                  color: Colors.red[300]),
-              tooltip: 'Retirer de la liste',
-              onPressed: () => _removeRecipe(recipe),
-            ),
-          ],
+          ),
         ),
       ),
-    ),
-  ),
-  );
+    );
   }
 
   // ── Mobile ─────────────────────────────────────────────────────────────────
@@ -474,7 +357,6 @@ class _FolderPageState extends State<FolderPage> {
       ),
       child: Row(
         children: [
-          // Icône
           Container(
             width: 52,
             height: 52,
@@ -577,8 +459,6 @@ class _FolderPageState extends State<FolderPage> {
       ),
     );
   }
-<<<<<<< HEAD
-=======
 
   // Carte avec swipe-to-delete
   Widget _buildDismissibleCard(FavoriteRecipe recipe) {
@@ -668,7 +548,7 @@ class _FolderPageState extends State<FolderPage> {
                       : null,
                   image: recipe.imageUrl != null
                       ? DecorationImage(
-                          image: NetworkImage(recipe.imageUrl!),
+                          image: CachedNetworkImageProvider(recipe.imageUrl!),
                           fit: BoxFit.cover)
                       : null,
                 ),
@@ -761,7 +641,9 @@ class _FolderPageState extends State<FolderPage> {
               shape: BoxShape.circle,
             ),
             child: Icon(
-              _isFavorites ? Icons.favorite_border_rounded : Icons.folder_open_rounded,
+              _isFavorites
+                  ? Icons.favorite_border_rounded
+                  : Icons.folder_open_rounded,
               size: 48,
               color: _isFavorites ? Colors.red[200] : Colors.orange[200],
             ),
@@ -791,5 +673,4 @@ class _FolderPageState extends State<FolderPage> {
       ),
     );
   }
->>>>>>> origin/main
 }

@@ -1,11 +1,9 @@
 import 'package:flutter/material.dart';
-<<<<<<< HEAD
 import '../services/ecodiet_api.dart';
 import '../models/user.dart' as user_models;
-=======
 import '../utils/responsive.dart';
 
-/// Modèle pour une question de quiz
+/// Modèle local simplifié pour l'UI du quiz
 class QuizQuestion {
   final String question;
   final List<String> options;
@@ -19,7 +17,6 @@ class QuizQuestion {
     this.explanation,
   });
 }
->>>>>>> origin/main
 
 class QuizPage extends StatefulWidget {
   final String? id;
@@ -39,7 +36,7 @@ class QuizPage extends StatefulWidget {
 
 class _QuizPageState extends State<QuizPage> {
   final EcoDietApi _api = EcoDietApi();
-  
+
   int currentQuestionIndex = 0;
   int? selectedAnswerIndex;
   bool hasAnswered = false;
@@ -47,7 +44,7 @@ class _QuizPageState extends State<QuizPage> {
   bool quizCompleted = false;
   bool isLoading = true;
 
-  List<user_models.QuizQuestion> questions = [];
+  List<QuizQuestion> questions = [];
   user_models.Quiz? quiz;
 
   @override
@@ -56,7 +53,6 @@ class _QuizPageState extends State<QuizPage> {
     _loadQuestions();
   }
 
-<<<<<<< HEAD
   Future<void> _loadQuestions() async {
     if (widget.id == null) {
       setState(() => isLoading = false);
@@ -74,7 +70,14 @@ class _QuizPageState extends State<QuizPage> {
 
     setState(() {
       quiz = quizResult;
-      questions = questionsResult;
+      questions = questionsResult
+          .map((q) => QuizQuestion(
+                question: q.questionText,
+                options: q.options.map((o) => o.optionText).toList(),
+                correctAnswerIndex: q.correctAnswerIndex ?? 0,
+                explanation: q.explanation,
+              ))
+          .toList();
       isLoading = false;
     });
   }
@@ -82,23 +85,6 @@ class _QuizPageState extends State<QuizPage> {
   Future<void> _saveScore() async {
     if (quiz != null && quiz!.quizId != null) {
       await _api.saveQuizScore(quiz!.quizId!, score, questions.length);
-=======
-  void _loadQuestions() {
-    // TODO: Remplacer par un appel API qui charge les questions selon widget.id
-    // Exemple: final response = await api.getQuizQuestions(widget.id);
-
-    // Simulation de différents quiz selon l'id
-    switch (widget.id) {
-      case '1':
-        questions = _getQuiz1Questions();
-        break;
-      case '2':
-        questions = _getQuiz2Questions();
-        break;
-      default:
-        // Quiz par défaut si l'id n'est pas reconnu
-        questions = _getQuiz1Questions();
->>>>>>> origin/main
     }
   }
 
@@ -147,11 +133,7 @@ class _QuizPageState extends State<QuizPage> {
     }
 
     if (index == questions[currentQuestionIndex].correctAnswerIndex) {
-<<<<<<< HEAD
       return Colors.green.withValues(alpha: 0.2);
-=======
-      return const Color(0xFF2F6B3F).withOpacity(0.15);
->>>>>>> origin/main
     }
 
     if (index == selectedAnswerIndex) {
@@ -240,47 +222,13 @@ class _QuizPageState extends State<QuizPage> {
                       horizontal: desktop ? 32 : 16,
                       vertical: 16,
                     ),
-<<<<<<< HEAD
-                    const SizedBox(height: 12),
-
-                    // Question
-                    Text(
-                      question.questionText,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F2E1F),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Options
-                    ...question.options.asMap().entries.map((entry) {
-                      final index = entry.key;
-                      final option = entry.value;
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: 12),
-                        child: _buildOptionCard(index, option.optionText),
-                      );
-                    }),
-
-                    // Explication (après réponse)
-                    if (hasAnswered && question.explanation != null) ...[
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(16),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2F6B3F).withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: const Color(0xFF2F6B3F).withValues(alpha: 0.3),
-=======
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Numéro de question
                         Semantics(
-                          label: 'Question ${currentQuestionIndex + 1} sur ${questions.length}',
+                          label:
+                              'Question ${currentQuestionIndex + 1} sur ${questions.length}',
                           child: Text(
                             'Question ${currentQuestionIndex + 1}/${questions.length}',
                             style: TextStyle(
@@ -288,7 +236,6 @@ class _QuizPageState extends State<QuizPage> {
                               color: Colors.grey[700],
                               fontWeight: FontWeight.w500,
                             ),
->>>>>>> origin/main
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -324,8 +271,7 @@ class _QuizPageState extends State<QuizPage> {
                           ...question.options.asMap().entries.map((entry) {
                             return Padding(
                               padding: const EdgeInsets.only(bottom: 12),
-                              child:
-                                  _buildOptionCard(entry.key, entry.value),
+                              child: _buildOptionCard(entry.key, entry.value),
                             );
                           }),
 
@@ -335,12 +281,12 @@ class _QuizPageState extends State<QuizPage> {
                           Container(
                             padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color:
-                                  const Color(0xFF2F6B3F).withOpacity(0.1),
+                              color: const Color(0xFF2F6B3F)
+                                  .withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(12),
                               border: Border.all(
                                 color: const Color(0xFF2F6B3F)
-                                    .withOpacity(0.3),
+                                    .withValues(alpha: 0.3),
                               ),
                             ),
                             child: Row(
@@ -384,8 +330,7 @@ class _QuizPageState extends State<QuizPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF2F6B3F),
                           foregroundColor: Colors.white,
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),
@@ -431,7 +376,7 @@ class _QuizPageState extends State<QuizPage> {
               textAlign: TextAlign.center,
             ),
           ),
-          const SizedBox(width: 48), // Pour équilibrer le bouton close
+          const SizedBox(width: 48),
         ],
       ),
     );
@@ -444,7 +389,8 @@ class _QuizPageState extends State<QuizPage> {
       child: Column(
         children: [
           Semantics(
-            label: 'Progression : question ${currentQuestionIndex + 1} sur ${questions.length}',
+            label:
+                'Progression : question ${currentQuestionIndex + 1} sur ${questions.length}',
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: LinearProgressIndicator(
@@ -466,10 +412,14 @@ class _QuizPageState extends State<QuizPage> {
     final icon = _getOptionIcon(index);
     String semanticsLabel = option;
     if (hasAnswered) {
-      final isCorrect = index == questions[currentQuestionIndex].correctAnswerIndex;
+      final isCorrect =
+          index == questions[currentQuestionIndex].correctAnswerIndex;
       final isSelected = index == selectedAnswerIndex;
-      if (isCorrect) { semanticsLabel += ', bonne réponse'; }
-      else if (isSelected) { semanticsLabel += ', mauvaise réponse'; }
+      if (isCorrect) {
+        semanticsLabel += ', bonne réponse';
+      } else if (isSelected) {
+        semanticsLabel += ', mauvaise réponse';
+      }
     }
 
     return Semantics(
@@ -479,63 +429,65 @@ class _QuizPageState extends State<QuizPage> {
         onTap: () => _selectAnswer(index),
         borderRadius: BorderRadius.circular(12),
         child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: _getOptionColor(index),
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: _getOptionBorderColor(index),
-            width: 2,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: _getOptionColor(index),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: _getOptionBorderColor(index),
+              width: 2,
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 32,
-              height: 32,
-              decoration: BoxDecoration(
-                color: const Color(0xFFF4A259).withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.05),
+                blurRadius: 4,
+                offset: const Offset(0, 2),
               ),
-              child: Center(
-                child: Text(
-                  String.fromCharCode(65 + index), // A, B, C, D
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFFF4A259),
+            ],
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF4A259).withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Center(
+                  child: Text(
+                    String.fromCharCode(65 + index), // A, B, C, D
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFFF4A259),
+                    ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                option,
-                style: const TextStyle(
-                  fontSize: 16,
-                  color: Color(0xFF1F2E1F),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  option,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Color(0xFF1F2E1F),
+                  ),
                 ),
               ),
-            ),
-            if (icon != null)
-              Icon(
-                icon,
-                color: icon == Icons.check_circle ? const Color(0xFF2F6B3F) : Colors.red,
-                size: 24,
-              ),
-          ],
+              if (icon != null)
+                Icon(
+                  icon,
+                  color: icon == Icons.check_circle
+                      ? const Color(0xFF2F6B3F)
+                      : Colors.red,
+                  size: 24,
+                ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
   }
 
   Widget _buildResultScreen() {
@@ -677,8 +629,7 @@ class _QuizPageState extends State<QuizPage> {
                         style: ElevatedButton.styleFrom(
                           backgroundColor: const Color(0xFF2F6B3F),
                           foregroundColor: Colors.white,
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 16),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),
@@ -699,10 +650,8 @@ class _QuizPageState extends State<QuizPage> {
                         onPressed: () => Navigator.pop(context),
                         style: OutlinedButton.styleFrom(
                           foregroundColor: const Color(0xFF2F6B3F),
-                          side:
-                              const BorderSide(color: Color(0xFF2F6B3F)),
-                          padding:
-                              const EdgeInsets.symmetric(vertical: 16),
+                          side: const BorderSide(color: Color(0xFF2F6B3F)),
+                          padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(25),
                           ),
@@ -741,8 +690,8 @@ class _QuizPageState extends State<QuizPage> {
           ),
           TextButton(
             onPressed: () {
-              Navigator.pop(context); // Fermer le dialog
-              Navigator.pop(context); // Retour à l'accueil
+              Navigator.pop(context);
+              Navigator.pop(context);
             },
             child: const Text(
               'Quitter',
