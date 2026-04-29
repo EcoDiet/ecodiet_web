@@ -27,24 +27,30 @@ void main() async {
   const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
   if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
-    runApp(const _ConfigErrorApp());
+    runApp(const _ErrorApp('Configuration manquante : SUPABASE_URL ou SUPABASE_ANON_KEY non définis.'));
     return;
   }
 
-  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  try {
+    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+  } catch (e) {
+    runApp(_ErrorApp('Erreur initialisation Supabase : $e'));
+    return;
+  }
 
   runApp(const MyApp());
 }
 
-class _ConfigErrorApp extends StatelessWidget {
-  const _ConfigErrorApp();
+class _ErrorApp extends StatelessWidget {
+  final String message;
+  const _ErrorApp(this.message);
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       home: Scaffold(
         body: Center(
-          child: Text('Configuration manquante : SUPABASE_URL ou SUPABASE_ANON_KEY non définis.'),
+          child: Text(message),
         ),
       ),
     );
