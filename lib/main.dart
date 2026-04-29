@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:logger/logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart'; // Pour charger les variables sensibles
 import 'pages/login_page.dart';
 import 'pages/create_account_page.dart';
 import 'pages/home_page.dart';
@@ -24,13 +23,10 @@ final api = EcoDietApi();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Charger les variables d'environnement (.env)
-  await dotenv.load(fileName: ".env");
-
   // Initialiser Supabase
   await Supabase.initialize(
-    url: dotenv.env['SUPABASE_URL'] ?? '',
-    anonKey: dotenv.env['SUPABASE_ANON_KEY'] ?? '',
+    url: const String.fromEnvironment('SUPABASE_URL'),
+    anonKey: const String.fromEnvironment('SUPABASE_ANON_KEY'),
   );
 
   // Initialiser sqflite pour le web
