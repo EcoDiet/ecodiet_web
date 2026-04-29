@@ -23,21 +23,32 @@ final api = EcoDietApi();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialiser Supabase
-  await Supabase.initialize(
-    url: const String.fromEnvironment('SUPABASE_URL'),
-    anonKey: const String.fromEnvironment('SUPABASE_ANON_KEY'),
-  );
+  const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
+  const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
 
-  // Initialiser sqflite pour le web
-
-  // Initialiser la base de données avec les données CSV au premier lancement
-  try {
-  } catch (e) {
-    logger.w('Base de données déjà initialisée ou erreur: $e');
+  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
+    runApp(const _ConfigErrorApp());
+    return;
   }
 
+  await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
+
   runApp(const MyApp());
+}
+
+class _ConfigErrorApp extends StatelessWidget {
+  const _ConfigErrorApp();
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      home: Scaffold(
+        body: Center(
+          child: Text('Configuration manquante : SUPABASE_URL ou SUPABASE_ANON_KEY non définis.'),
+        ),
+      ),
+    );
+  }
 }
 
 class MyApp extends StatelessWidget {
