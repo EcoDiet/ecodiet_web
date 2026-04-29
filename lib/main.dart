@@ -23,8 +23,8 @@ final api = EcoDietApi();
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  const supabaseUrl = String.fromEnvironment('SUPABASE_URL');
-  const supabaseAnonKey = String.fromEnvironment('SUPABASE_ANON_KEY');
+  final supabaseUrl = const String.fromEnvironment('SUPABASE_URL').trim();
+  final supabaseAnonKey = const String.fromEnvironment('SUPABASE_ANON_KEY').trim();
 
   if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
     runApp(const _ErrorApp('Configuration manquante : SUPABASE_URL ou SUPABASE_ANON_KEY non définis.'));
