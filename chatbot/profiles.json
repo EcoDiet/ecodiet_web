@@ -1,0 +1,49 @@
+{
+  "profiles": [
+    {
+      "id": "profile_marie",
+      "name": "Marie",
+      "regime": "vegetarian",
+      "allergies": ["lactose", "gluten"],
+      "preferred_occasions": ["quotidien", "rapide"],
+      "preferred_dish_types": ["plat_principal", "dessert"],
+      "note": "Végétarienne intolérante au lactose et au gluten"
+    },
+    {
+      "id": "profile_jean",
+      "name": "Jean",
+      "regime": "carnivore",
+      "allergies": ["crustaces", "mollusques"],
+      "preferred_occasions": ["barbecue", "familial"],
+      "preferred_dish_types": ["plat_principal", "entree"],
+      "note": "Mange de tout sauf fruits de mer"
+    },
+    {
+      "id": "profile_sophie",
+      "name": "Sophie",
+      "regime": "vegan",
+      "allergies": ["soja", "sesame"],
+      "preferred_occasions": ["quotidien", "rapide"],
+      "preferred_dish_types": ["plat_principal", "petit_dejeuner"],
+      "note": "Vegan avec allergie au soja et sésame"
+    },
+    {
+      "id": "profile_lucas",
+      "name": "Lucas",
+      "regime": "pescetarian",
+      "allergies": [],
+      "preferred_occasions": ["festif", "noel"],
+      "preferred_dish_types": ["entree", "plat_principal"],
+      "note": "Pescétarien sans allergies"
+    },
+    {
+      "id": "profile_clara",
+      "name": "Clara",
+      "regime": "carnivore",
+      "allergies": ["arachide", "fruits_a_coque"],
+      "preferred_occasions": ["ete", "barbecue"],
+      "preferred_dish_types": ["plat_principal", "snack", "aperitif"],
+      "note": "Allergie aux arachides et fruits à coque"
+    }
+  ]
+}
