@@ -1,4 +1,5 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'favorites_service.dart';
 import '../models/recette.dart';
 import '../models/user.dart' as app_models;
 import '../models/user.dart' hide User;
@@ -81,6 +82,7 @@ class EcoDietApi {
         // Creer le dossier Favoris par defaut
         await createFolder(label: 'Favoris', colorValue: 0xFFE53935);
 
+        await syncLocalFavorites();
         return ApiResult.success(user);
       }
       return ApiResult.error('Erreur lors de l\'inscription');
@@ -128,12 +130,50 @@ class EcoDietApi {
           passwordHash: null,
         );
         _currentUser = user;
+        await syncLocalFavorites();
         return ApiResult.success(user);
       }
       return ApiResult.error('Email ou mot de passe incorrect');
     } catch (e) {
       return ApiResult.error('Erreur lors de la connexion: $e');
     }
+  }
+
+  /// Restaure la session applicative depuis la session Supabase persistée
+  /// (localStorage en web). À appeler au démarrage : sans ça, `_currentUser`
+  /// reste nul après un reload et les favoris ne se synchronisent plus.
+  Future<void> restoreSession() async {
+    final authUser = _supabase.auth.currentUser;
+    if (authUser == null) return;
+
+    final metadata = authUser.userMetadata ?? {};
+    String? nom = metadata['nom'] as String?;
+    String? prenom = metadata['prenom'] as String?;
+    try {
+      final userData = await _supabase
+          .from('utilisateurs')
+          .select()
+          .eq('email', (authUser.email ?? '').toLowerCase())
+          .limit(1)
+          .maybeSingle()
+          .timeout(const Duration(seconds: 5));
+      if (userData != null) {
+        nom = userData['nom'] ?? nom;
+        prenom = userData['prenom'] ?? prenom;
+      }
+    } catch (_) {
+      // RLS / table inaccessible / réseau : on garde les metadata Auth.
+    }
+
+    _currentUser = app_models.User(
+      userId: authUser.id,
+      email: authUser.email ?? '',
+      nom: nom,
+      prenom: prenom,
+      passwordHash: null,
+    );
+
+    await syncLocalFavorites();
   }
 
   /// Déconnexion
@@ -212,6 +252,22 @@ class EcoDietApi {
       return (res as List).map<String>((r) => r['recette_id'] as String).toSet();
     } catch (e) {
       return {};
+    }
+  }
+
+  /// Pousse vers Supabase les favoris ajoutés hors-ligne (stockés en mémoire
+  /// via [FavoritesService]). Appelé après connexion / restauration de session
+  /// pour que rien ne soit perdu. Ne supprime jamais côté serveur.
+  Future<void> syncLocalFavorites() async {
+    if (_currentUser == null) return;
+    final local = FavoritesService().favorites;
+    if (local.isEmpty) return;
+
+    final existing = await getFavoriteIds();
+    for (final fav in local) {
+      if (!existing.contains(fav.id)) {
+        await addToFavorites(fav.id);
+      }
     }
   }
 

@@ -38,6 +38,10 @@ void main() async {
     return;
   }
 
+  // Restaure la session utilisateur si elle existe (favoris synchronisés
+  // avec Supabase après un reload, sans avoir à se reconnecter).
+  await api.restoreSession();
+
   runApp(const MyApp());
 }
 
