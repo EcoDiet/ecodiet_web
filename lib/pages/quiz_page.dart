@@ -50,36 +50,38 @@ class _QuizPageState extends State<QuizPage> {
   @override
   void initState() {
     super.initState();
-    _loadQuestions();
+    final quizId =
+        widget.id != null ? int.tryParse(widget.id!) : null;
+    if (quizId == null) {
+      // No valid quiz id: nothing to load, show empty state immediately.
+      isLoading = false;
+    } else {
+      _loadQuestions(quizId);
+    }
   }
 
-  Future<void> _loadQuestions() async {
-    if (widget.id == null) {
+  Future<void> _loadQuestions(int quizId) async {
+    try {
+      final quizResult = await _api.getQuizById(quizId);
+      final questionsResult = await _api.getQuizQuestions(quizId);
+
+      if (!mounted) return;
+      setState(() {
+        quiz = quizResult;
+        questions = questionsResult
+            .map((q) => QuizQuestion(
+                  question: q.questionText,
+                  options: q.options.map((o) => o.optionText).toList(),
+                  correctAnswerIndex: q.correctAnswerIndex ?? 0,
+                  explanation: q.explanation,
+                ))
+            .toList();
+        isLoading = false;
+      });
+    } catch (_) {
+      if (!mounted) return;
       setState(() => isLoading = false);
-      return;
     }
-
-    final quizId = int.tryParse(widget.id!);
-    if (quizId == null) {
-      setState(() => isLoading = false);
-      return;
-    }
-
-    final quizResult = await _api.getQuizById(quizId);
-    final questionsResult = await _api.getQuizQuestions(quizId);
-
-    setState(() {
-      quiz = quizResult;
-      questions = questionsResult
-          .map((q) => QuizQuestion(
-                question: q.questionText,
-                options: q.options.map((o) => o.optionText).toList(),
-                correctAnswerIndex: q.correctAnswerIndex ?? 0,
-                explanation: q.explanation,
-              ))
-          .toList();
-      isLoading = false;
-    });
   }
 
   Future<void> _saveScore() async {

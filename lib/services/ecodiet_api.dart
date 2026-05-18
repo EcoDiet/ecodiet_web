@@ -16,7 +16,10 @@ String recetteImageUrl(String photo) {
 /// Centralise toutes les opérations entre le front-end et la base de données
 class EcoDietApi {
   static final EcoDietApi _instance = EcoDietApi._internal();
-  final SupabaseClient _supabase = Supabase.instance.client;
+
+  /// Résolu paresseusement : permet d'instancier EcoDietApi (ex. en test)
+  /// sans exiger que Supabase soit déjà initialisé.
+  SupabaseClient get _supabase => Supabase.instance.client;
   
   // Session utilisateur courante
   app_models.User? _currentUser;
