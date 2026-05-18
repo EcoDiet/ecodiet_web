@@ -66,15 +66,35 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   Future<void> _toggleFavorite() async {
     if (recette == null) return;
 
+    if (!_api.isLoggedIn) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Connecte-toi pour ajouter des recettes aux favoris.'),
+          duration: Duration(seconds: 3),
+        ),
+      );
+      return;
+    }
+
     final success = await _api.toggleFavorite(recette!.recette.recetteId);
+    if (!mounted) return;
     if (success) {
       setState(() => isFavorite = !isFavorite);
-      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content:
               Text(isFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris'),
           duration: const Duration(seconds: 2),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Impossible de modifier les favoris. Vérifie ta connexion et réessaie.',
+          ),
+          duration: Duration(seconds: 3),
         ),
       );
     }
