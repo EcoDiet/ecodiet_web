@@ -165,6 +165,7 @@ class _LoginPageState extends State<LoginPage> {
                   child: Text(
                     label,
                     overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                     style: const TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w500,

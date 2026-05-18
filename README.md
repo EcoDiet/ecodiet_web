@@ -18,7 +18,7 @@ EcoDiet est une application responsive (desktop et mobile) permettant aux utilis
 |-------------|---------|
 | Flutter | SDK >= 2.19.4 |
 | Dart | >= 2.19.4 < 4.0.0 |
-| mongo_dart | ^0.10.5 |
+| Supabase | Auth + Postgres |
 | font_awesome_flutter | ^10.7.0 |
 | flutter_svg | ^2.0.0 |
 | email_validator | ^2.1.17 |
@@ -122,6 +122,40 @@ Voir [ACCESSIBILITE.md](./ACCESSIBILITE.md) pour le detail complet.
 
 ## Lancer le projet
 
+### Configuration Supabase pour demo publique
+
+1. Creer un nouveau projet Supabase.
+2. Dans Supabase SQL Editor, executer `database/supabase_schema.sql`.
+3. Dans Authentication > Providers > Email, desactiver temporairement la confirmation email si la demo doit accepter des inscriptions immediates.
+4. Copier `.env.example` vers `.env`.
+5. Renseigner uniquement :
+   - `SUPABASE_URL`
+   - `SUPABASE_ANON_KEY`
+
+Ne jamais mettre `SUPABASE_SERVICE_KEY` dans Flutter, dans `.env`, dans Netlify/Firebase, ou dans un depot Git. Cette cle donne des droits serveur.
+
+### Import des donnees DIM/FACT
+
+Le schema cree quelques donnees de demo. Pour importer les donnees completes fournies par l'equipe :
+
+1. Executer `database/supabase_schema.sql` dans le SQL Editor Supabase.
+2. Executer ensuite `database/supabase_seed_data.sql`.
+
+Si les fichiers CSV changent, regenerer le seed :
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\generate_supabase_seed.ps1 -CsvDir "C:\chemin\vers\csv" -Output database\supabase_seed_data.sql
+```
+
+### Verifier la config Supabase
+
+Avant de lancer Flutter, verifier que le project ref existe :
+
+```powershell
+Resolve-DnsName votre-project-ref.supabase.co
+Invoke-WebRequest -Uri "https://votre-project-ref.supabase.co/auth/v1/settings" -UseBasicParsing
+```
+
 ```bash
 # Installer les dependances
 flutter pub get
@@ -132,6 +166,20 @@ flutter run -d chrome
 # Build de production
 flutter build web
 ```
+
+### Deploy web public
+
+Le build de production genere le site statique dans `build/web`.
+
+Options simples :
+- Netlify : deployer le dossier `build/web`.
+- Firebase Hosting : configurer `public` vers `build/web`, puis deployer.
+- Vercel : deployer le dossier `build/web` ou configurer la commande `flutter build web`.
+
+Le repo contient deja :
+- `web/_redirects` pour Netlify.
+- `netlify.toml` pour deploy Netlify depuis Git.
+- `firebase.json` pour Firebase Hosting.
 
 ---
 

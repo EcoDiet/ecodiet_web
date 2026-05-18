@@ -217,6 +217,33 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     return '${hours}h${remainingMinutes > 0 ? " ${remainingMinutes}min" : ""}';
   }
 
+  String get _recipeTitle =>
+      recette?.recette.titre ?? widget.title ?? 'Titre de la recette';
+
+  String? get _recipeCategory =>
+      widget.description ??
+      recette?.typePlat?.libelle ??
+      recette?.regime?.libelle;
+
+  String _cleanLabel(String value) {
+    return value
+        .replaceAll('"""', '')
+        .replaceAll('"', '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
+  List<String> _ingredientLabels() =>
+      recette?.ingredients.map((i) => _cleanLabel(i.nomIngredient)).toList() ??
+      [];
+
+  List<String> _equipmentLabels() =>
+      recette?.equipements.map((e) => _cleanLabel(e.nomEquipement)).toList() ??
+      [];
+
+  List<String> _occasionLabels() =>
+      recette?.occasions.map((o) => _cleanLabel(o.libelle)).toList() ?? [];
+
   @override
   Widget build(BuildContext context) {
     final desktop = isDesktop(context);
@@ -379,17 +406,17 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   }
 
   Widget _buildMobileContent() {
-    final ingredients = recette?.ingredients
-            .map((i) => i.nomIngredient)
-            .toList() ??
-        [];
+    final ingredients = _ingredientLabels();
+    final equipments = _equipmentLabels();
+    final occasions = _occasionLabels();
+    final category = _recipeCategory;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Titre
         Text(
-          widget.title ?? 'Titre de la recette',
+          _recipeTitle,
           style: const TextStyle(
             fontSize: 26,
             fontWeight: FontWeight.bold,
@@ -398,8 +425,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           ),
         ),
         // Catégorie pill
-        if (widget.description != null &&
-            widget.description!.isNotEmpty) ...[
+        if (category != null && category.isNotEmpty) ...[
           const SizedBox(height: 8),
           Container(
             padding:
@@ -409,7 +435,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
-              widget.description!,
+              category,
               style: const TextStyle(
                 fontSize: 13,
                 color: Color(0xFF2F6B3F),
@@ -444,9 +470,22 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         ],
 
         // Ingrédients
+        if (occasions.isNotEmpty) ...[
+          const SizedBox(height: 20),
+          _buildChipGroup(
+            title: 'Occasions',
+            items: occasions,
+            color: const Color(0xFFEA853D),
+          ),
+        ],
         if (ingredients.isNotEmpty) ...[
           const SizedBox(height: 28),
           _buildMobileSection('Ingrédients', ingredients),
+        ],
+
+        if (equipments.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _buildMobileSection('Equipements', equipments),
         ],
 
         const SizedBox(height: 32),
@@ -626,10 +665,10 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   }
 
   Widget _buildDesktopContent() {
-    final ingredients = recette?.ingredients
-            .map((i) => i.nomIngredient)
-            .toList() ??
-        [];
+    final ingredients = _ingredientLabels();
+    final equipments = _equipmentLabels();
+    final occasions = _occasionLabels();
+    final category = _recipeCategory;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -645,7 +684,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    widget.title ?? 'Titre de la recette',
+                    _recipeTitle,
                     style: const TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
@@ -654,7 +693,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    widget.description ?? 'Description',
+                    category ?? 'Detail de la recette',
                     style: TextStyle(fontSize: 15, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 20),
@@ -680,9 +719,21 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           const SizedBox(height: 24),
           _buildRegime(),
         ],
+        if (occasions.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _buildChipGroup(
+            title: 'Occasions',
+            items: occasions,
+            color: const Color(0xFFEA853D),
+          ),
+        ],
         if (ingredients.isNotEmpty) ...[
           const SizedBox(height: 32),
           _buildSection('Ingrédients', 'liste des ingrédients', ingredients),
+        ],
+        if (equipments.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _buildSection('Equipements', 'materiel conseille', equipments),
         ],
         const SizedBox(height: 24),
       ],
@@ -873,6 +924,38 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           label: Text(recette!.regime!.libelle),
           backgroundColor: Colors.green[50],
           labelStyle: TextStyle(color: Colors.green[700]),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildChipGroup({
+    required String title,
+    required List<String> items,
+    required Color color,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+            color: color,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: items
+              .map((item) => Chip(
+                    label: Text(item),
+                    backgroundColor: color.withValues(alpha: 0.10),
+                    labelStyle: TextStyle(color: color),
+                  ))
+              .toList(),
         ),
       ],
     );

@@ -188,11 +188,12 @@ class QuizOption {
   });
 
   factory QuizOption.fromMap(Map<String, dynamic> map) {
+    final rawIsCorrect = map['is_correct'];
     return QuizOption(
       optionId: map['option_id'] as int?,
       questionId: map['question_id'] as int,
       optionText: map['option_text'] as String,
-      isCorrect: (map['is_correct'] as int?) == 1,
+      isCorrect: rawIsCorrect == true || rawIsCorrect == 1,
       orderIndex: map['order_index'] as int? ?? 0,
     );
   }
@@ -202,7 +203,7 @@ class QuizOption {
       if (optionId != null) 'option_id': optionId,
       'question_id': questionId,
       'option_text': optionText,
-      'is_correct': isCorrect ? 1 : 0,
+      'is_correct': isCorrect,
       'order_index': orderIndex,
     };
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:logger/logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -20,11 +21,28 @@ final logger = Logger(
 /// Instance globale de l'API
 final api = EcoDietApi();
 
+Future<void> _loadEnvironment() async {
+  try {
+    await dotenv.load(fileName: 'assets/env.production');
+  } catch (_) {
+    await dotenv.load(fileName: '.env');
+  }
+}
+
+String _environmentValue(String name) {
+  final compileTimeValue = String.fromEnvironment(name).trim();
+  if (compileTimeValue.isNotEmpty) return compileTimeValue;
+  return dotenv.env[name]?.trim() ?? '';
+}
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  final supabaseUrl = const String.fromEnvironment('SUPABASE_URL').trim();
-  final supabaseAnonKey = const String.fromEnvironment('SUPABASE_ANON_KEY').trim();
+  // Charger la configuration Supabase depuis --dart-define ou l'asset web.
+  await _loadEnvironment();
+
+  final supabaseUrl = _environmentValue('SUPABASE_URL');
+  final supabaseAnonKey = _environmentValue('SUPABASE_ANON_KEY');
 
   if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
     runApp(const _ErrorApp('Configuration manquante : SUPABASE_URL ou SUPABASE_ANON_KEY non définis.'));
@@ -112,7 +130,7 @@ class MyApp extends StatelessWidget {
           prefixIconColor: const Color(0xFFF4A259),
         ),
       ),
-      initialRoute: '/login',
+      initialRoute: api.isLoggedIn ? '/home' : '/login',
       routes: {
         '/login': (context) => const LoginPage(),
         '/create_account': (context) => const CreateAccountPage(),
@@ -212,7 +230,11 @@ class _MyHomePageState extends State<MyHomePage> {
       button: true,
       label: 'Déconnexion',
       child: InkWell(
-        onTap: () => Navigator.pushReplacementNamed(context, '/login'),
+        onTap: () async {
+          await api.logout();
+          if (!context.mounted) return;
+          Navigator.pushReplacementNamed(context, '/login');
+        },
         borderRadius: BorderRadius.circular(10),
         child: Container(
           margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -419,29 +441,29 @@ class _MyHomePageState extends State<MyHomePage> {
               ),
             ),
             AnimatedSize(
-              duration: const Duration(milliseconds: 280),
-              curve: Curves.easeInOut,
-              child: isSelected
-                  ? Row(
-                      children: [
-                        const SizedBox(width: 7),
-                        Text(
-                          label,
-                          style: const TextStyle(
-                            color: Color(0xFFEA853D),
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            letterSpacing: 0.1,
+                duration: const Duration(milliseconds: 280),
+                curve: Curves.easeInOut,
+                child: isSelected
+                    ? Row(
+                        children: [
+                          const SizedBox(width: 7),
+                          Text(
+                            label,
+                            style: const TextStyle(
+                              color: Color(0xFFEA853D),
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.1,
+                            ),
                           ),
-                        ),
-                      ],
-                    )
-                  : const SizedBox.shrink(),
-            ),
-          ],
+                        ],
+                      )
+                    : const SizedBox.shrink(),
+              ),
+            ],
+          ),
         ),
       ),
-    ),
-  );
+    );
   }
 }

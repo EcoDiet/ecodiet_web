@@ -28,9 +28,107 @@ class EcoDietApi {
   factory EcoDietApi() => _instance;
   EcoDietApi._internal();
 
+  String _friendlyError(Object error, String action) {
+    final message = error.toString();
+    if (message.contains('Failed to fetch') ||
+        message.contains('ClientException')) {
+      return '$action: impossible de joindre Supabase. Verifiez SUPABASE_URL, SUPABASE_ANON_KEY, la connexion internet et que le projet Supabase existe toujours.';
+    }
+    if (message.contains('Invalid login credentials')) {
+      return '$action: email ou mot de passe incorrect.';
+    }
+    if (message.contains('User already registered')) {
+      return '$action: cet email est deja inscrit.';
+    }
+    return '$action: $error';
+  }
+
   /// Obtient l'utilisateur actuellement connecté
   app_models.User? get currentUser => _currentUser;
   bool get isLoggedIn => _currentUser != null;
+
+  Future<bool> restoreSession() async {
+    final authUser = _supabase.auth.currentUser;
+    if (authUser == null) {
+      _currentUser = null;
+      return false;
+    }
+
+    _currentUser = await _buildCurrentUser(authUser);
+    await syncLocalFavorites();
+    await _ensureDefaultFolder();
+    return true;
+  }
+
+  Future<app_models.User> _buildCurrentUser(User authUser) async {
+    final metadata = authUser.userMetadata ?? {};
+    String? nom = metadata['nom'] as String?;
+    String? prenom = metadata['prenom'] as String?;
+
+    try {
+      final userData = await _supabase
+          .from('utilisateurs')
+          .select()
+          .eq('user_id', authUser.id)
+          .maybeSingle();
+      if (userData != null) {
+        nom = userData['nom'] as String? ?? nom;
+        prenom = userData['prenom'] as String? ?? prenom;
+      }
+    } catch (_) {
+      // Table profil absente/inaccessible: les metadata Auth suffisent.
+    }
+
+    return app_models.User(
+      userId: authUser.id,
+      email: authUser.email ?? '',
+      nom: nom,
+      prenom: prenom,
+      passwordHash: null,
+    );
+  }
+
+  Future<void> _ensureUserProfile({
+    required User authUser,
+    String? nom,
+    String? prenom,
+  }) async {
+    try {
+      final existing = await _supabase
+          .from('utilisateurs')
+          .select('user_id')
+          .eq('user_id', authUser.id)
+          .maybeSingle();
+      if (existing == null) {
+        await _supabase.from('utilisateurs').insert({
+          'user_id': authUser.id,
+          'email': (authUser.email ?? '').toLowerCase(),
+          'nom': nom,
+          'prenom': prenom,
+        });
+      }
+    } catch (_) {
+      // Ne bloque pas l'auth si la table profil/RLS n'est pas encore prete.
+    }
+  }
+
+  Future<void> _ensureDefaultFolder() async {
+    if (_currentUser == null) return;
+
+    try {
+      final existing = await _supabase
+          .from('user_folder')
+          .select('folder_id')
+          .eq('user_id', _currentUser!.userId!)
+          .eq('label', 'Favoris')
+          .maybeSingle();
+      if (existing == null) {
+        await createFolder(label: 'Favoris', colorValue: 0xFFE53935);
+      }
+    } catch (_) {
+      // Les dossiers ne sont pas critiques pour laisser entrer l'utilisateur.
+    }
+  }
 
   // ============================================================================
   // AUTHENTIFICATION
@@ -51,6 +149,12 @@ class EcoDietApi {
       );
 
       if (res.user != null) {
+        if (res.session == null) {
+          return ApiResult.error(
+            'Compte cree. Verifiez votre email pour confirmer le compte, ou desactivez la confirmation email dans Supabase pour la demo.',
+          );
+        }
+        await _ensureUserProfile(authUser: res.user!, nom: nom, prenom: prenom);
         // Essaie d'insérer dans utilisateurs, mais ne bloque pas si RLS l'interdit
         try {
           final existing = await _supabase
@@ -87,7 +191,8 @@ class EcoDietApi {
       }
       return ApiResult.error('Erreur lors de l\'inscription');
     } catch (e) {
-      return ApiResult.error('Erreur lors de l\'inscription: $e');
+      return ApiResult.error(
+          _friendlyError(e, 'Erreur lors de l\'inscription'));
     }
   }
 
@@ -131,55 +236,19 @@ class EcoDietApi {
         );
         _currentUser = user;
         await syncLocalFavorites();
+        await _ensureDefaultFolder();
         return ApiResult.success(user);
       }
       return ApiResult.error('Email ou mot de passe incorrect');
     } catch (e) {
-      return ApiResult.error('Erreur lors de la connexion: $e');
+      return ApiResult.error(_friendlyError(e, 'Erreur lors de la connexion'));
     }
-  }
-
-  /// Restaure la session applicative depuis la session Supabase persistée
-  /// (localStorage en web). À appeler au démarrage : sans ça, `_currentUser`
-  /// reste nul après un reload et les favoris ne se synchronisent plus.
-  Future<void> restoreSession() async {
-    final authUser = _supabase.auth.currentUser;
-    if (authUser == null) return;
-
-    final metadata = authUser.userMetadata ?? {};
-    String? nom = metadata['nom'] as String?;
-    String? prenom = metadata['prenom'] as String?;
-    try {
-      final userData = await _supabase
-          .from('utilisateurs')
-          .select()
-          .eq('email', (authUser.email ?? '').toLowerCase())
-          .limit(1)
-          .maybeSingle()
-          .timeout(const Duration(seconds: 5));
-      if (userData != null) {
-        nom = userData['nom'] ?? nom;
-        prenom = userData['prenom'] ?? prenom;
-      }
-    } catch (_) {
-      // RLS / table inaccessible / réseau : on garde les metadata Auth.
-    }
-
-    _currentUser = app_models.User(
-      userId: authUser.id,
-      email: authUser.email ?? '',
-      nom: nom,
-      prenom: prenom,
-      passwordHash: null,
-    );
-
-    await syncLocalFavorites();
   }
 
   /// Déconnexion
-  void logout() {
+  Future<void> logout() async {
     _currentUser = null;
-    _supabase.auth.signOut();
+    await _supabase.auth.signOut();
   }
 
   /// Met à jour le profil utilisateur
@@ -198,7 +267,10 @@ class EcoDietApi {
       if (prenom != null) updates['prenom'] = prenom;
 
       if (updates.isNotEmpty) {
-        await _supabase.from('utilisateurs').update(updates).eq('email', _currentUser!.email);
+        await _supabase
+            .from('utilisateurs')
+            .update(updates)
+            .eq('email', _currentUser!.email);
       }
 
       _currentUser = app_models.User(
@@ -229,11 +301,13 @@ class EcoDietApi {
   }
 
   /// Retourne les recettes avec leur type de plat en une seule requête
-  Future<List<RecettePreview>> getRecettesPreview({int limit = 20, int offset = 0}) async {
+  Future<List<RecettePreview>> getRecettesPreview(
+      {int limit = 20, int offset = 0}) async {
     try {
       final res = await _supabase
           .from('fact_recette_base')
-          .select('recette_id, titre, photo, duree_minute, temps_bin_id, fact_recette_type_plat(dim_type_plat(libelle))')
+          .select(
+              'recette_id, titre, photo, duree_minute, temps_bin_id, fact_recette_type_plat(dim_type_plat(libelle))')
           .range(offset, offset + limit - 1);
       return (res as List).map((m) => RecettePreview.fromMap(m)).toList();
     } catch (e) {
@@ -249,7 +323,9 @@ class EcoDietApi {
           .from('user_favorite')
           .select('recette_id')
           .eq('user_id', _currentUser!.userId!);
-      return (res as List).map<String>((r) => r['recette_id'] as String).toSet();
+      return (res as List)
+          .map<String>((r) => r['recette_id'] as String)
+          .toSet();
     } catch (e) {
       return {};
     }
@@ -273,7 +349,12 @@ class EcoDietApi {
 
   Future<Recette?> getRecetteById(String recetteId) async {
     try {
-      final res = await _supabase.from('fact_recette_base').select().eq('recette_id', recetteId).limit(1).single();
+      final res = await _supabase
+          .from('fact_recette_base')
+          .select()
+          .eq('recette_id', recetteId)
+          .limit(1)
+          .single();
       return Recette.fromMap(res);
     } catch (e) {
       return null;
@@ -284,10 +365,15 @@ class EcoDietApi {
     if (_currentUser != null) {
       await _addToHistory(recetteId);
     }
-    
+
     try {
       // Base recette
-      final rMap = await _supabase.from('fact_recette_base').select().eq('recette_id', recetteId).limit(1).maybeSingle();
+      final rMap = await _supabase
+          .from('fact_recette_base')
+          .select()
+          .eq('recette_id', recetteId)
+          .limit(1)
+          .maybeSingle();
       if (rMap == null) return null;
       final recette = Recette.fromMap(rMap);
 
@@ -295,76 +381,95 @@ class EcoDietApi {
       TempsBin? tempsBin;
       if (rMap['temps_bin_id'] != null) {
         try {
-          final tMap = await _supabase.from('dim_temps_bin').select().eq('temps_bin_id', rMap['temps_bin_id']).limit(1).maybeSingle();
+          final tMap = await _supabase
+              .from('dim_temps_bin')
+              .select()
+              .eq('temps_bin_id', rMap['temps_bin_id'])
+              .limit(1)
+              .maybeSingle();
           if (tMap != null) tempsBin = TempsBin.fromMap(tMap);
-        } catch (ignore) { /* ignore */ }
+        } catch (ignore) {/* ignore */}
       }
 
       // Allergenes
       List<Allergene> allergenes = [];
       try {
-        final aRes = await _supabase.from('fact_recette_allergene')
+        final aRes = await _supabase
+            .from('fact_recette_allergene')
             .select('dim_allergene!inner(allergene_id, libelle)')
             .eq('recette_id', recetteId);
         for (var row in aRes) {
-          if (row['dim_allergene'] != null) allergenes.add(Allergene.fromMap(row['dim_allergene']));
+          if (row['dim_allergene'] != null)
+            allergenes.add(Allergene.fromMap(row['dim_allergene']));
         }
-      } catch (ignore) { /* ignore */ }
+      } catch (ignore) {/* ignore */}
 
       // Equipements
       List<Equipement> equipements = [];
       try {
-        final eRes = await _supabase.from('fact_recette_equipements')
+        final eRes = await _supabase
+            .from('fact_recette_equipement')
             .select('dim_equipement!inner(equipement_id, nom_equipement)')
             .eq('recette_id', recetteId);
         for (var row in eRes) {
-          if (row['dim_equipement'] != null) equipements.add(Equipement.fromMap(row['dim_equipement']));
+          if (row['dim_equipement'] != null)
+            equipements.add(Equipement.fromMap(row['dim_equipement']));
         }
-      } catch (ignore) { /* ignore */ }
+      } catch (ignore) {/* ignore */}
 
       // Ingredients
       List<Ingredient> ingredients = [];
       try {
-        final iRes = await _supabase.from('fact_ingredients_recette')
-            .select('dim_ingredients!inner(ingredient_id, nom_ingredient)')
+        final iRes = await _supabase
+            .from('fact_ingredients_recette')
+            .select('dim_ingredient!inner(ingredient_id, nom_ingredient)')
             .eq('recette_id', recetteId);
         for (var row in iRes) {
-          if (row['dim_ingredients'] != null) ingredients.add(Ingredient.fromMap(row['dim_ingredients']));
+          if (row['dim_ingredient'] != null)
+            ingredients.add(Ingredient.fromMap(row['dim_ingredient']));
         }
-      } catch (ignore) { /* ignore */ }
+      } catch (ignore) {/* ignore */}
 
       // Occasions
       List<Occasion> occasions = [];
       try {
-        final oRes = await _supabase.from('fact_recette_occasion')
+        final oRes = await _supabase
+            .from('fact_recette_occasion')
             .select('dim_occasion!inner(occasion_id, libelle)')
             .eq('recette_id', recetteId);
         for (var row in oRes) {
-          if (row['dim_occasion'] != null) occasions.add(Occasion.fromMap(row['dim_occasion']));
+          if (row['dim_occasion'] != null)
+            occasions.add(Occasion.fromMap(row['dim_occasion']));
         }
-      } catch (ignore) { /* ignore */ }
+      } catch (ignore) {/* ignore */}
 
       // Type Plat
       TypePlat? typePlat;
       try {
-        final tpRes = await _supabase.from('fact_recette_type_plat')
+        final tpRes = await _supabase
+            .from('fact_recette_type_plat')
             .select('dim_type_plat!inner(type_plat_id, libelle)')
-            .eq('recette_id', recetteId).limit(1).maybeSingle();
+            .eq('recette_id', recetteId)
+            .limit(1)
+            .maybeSingle();
         if (tpRes != null && tpRes['dim_type_plat'] != null) {
           typePlat = TypePlat.fromMap(tpRes['dim_type_plat']);
         }
-      } catch (ignore) { /* ignore */ }
+      } catch (ignore) {/* ignore */}
 
       // Regime
       Regime? regime;
       try {
-        final regRes = await _supabase.from('fact_recette_regime')
+        final regRes = await _supabase
+            .from('fact_recette_regime')
             .select('dim_regime!inner(regime_id, libelle)')
-            .eq('recette_id', recetteId).limit(1).maybeSingle();
+            .eq('recette_id', recetteId)
+            .limit(1)
+            .maybeSingle();
         if (regRes != null && regRes['dim_regime'] != null) {
           regime = Regime.fromMap(regRes['dim_regime']);
         }
-      } catch (ignore) { /* ignore */ }
+      } catch (ignore) {/* ignore */}
 
       return RecetteComplete(
         recette: recette,
@@ -383,7 +488,10 @@ class EcoDietApi {
 
   Future<List<Recette>> searchRecettes(String query) async {
     try {
-      final res = await _supabase.from('fact_recette_base').select().ilike('titre', '%$query%');
+      final res = await _supabase
+          .from('fact_recette_base')
+          .select()
+          .ilike('titre', '%$query%');
       return (res as List).map((m) => Recette.fromMap(m)).toList();
     } catch (e) {
       return [];
@@ -399,36 +507,51 @@ class EcoDietApi {
 
     try {
       // This is a naive implementation since complex recommendations require complex queries
-      final userRegimes = await _supabase.from('user_regime').select('regime_id').eq('user_id', _currentUser!.userId!);
-      
-      final userAllergenes = await _supabase.from('user_allergene').select('allergene_id').eq('user_id', _currentUser!.userId!);
+      final userRegimes = await _supabase
+          .from('user_regime')
+          .select('regime_id')
+          .eq('user_id', _currentUser!.userId!);
+
+      final userAllergenes = await _supabase
+          .from('user_allergene')
+          .select('allergene_id')
+          .eq('user_id', _currentUser!.userId!);
       final List<dynamic> uAllergenes = userAllergenes as List;
       final allergeneIds = uAllergenes.map((a) => a['allergene_id']).toList();
 
       List<Recette> recettes = [];
       if ((userRegimes as List).isNotEmpty) {
-         final regimeId = userRegimes.first['regime_id'];
-         final res = await _supabase.from('fact_recette_regime').select('recette_id').eq('regime_id', regimeId);
-         final ids = (res as List).map((r) => r['recette_id']).toList();
-         if (ids.isNotEmpty) {
-            final fRes = await _supabase.from('fact_recette_base').select().inFilter('recette_id', ids);
-            recettes = (fRes as List).map((m) => Recette.fromMap(m)).toList();
-         }
+        final regimeId = userRegimes.first['regime_id'];
+        final res = await _supabase
+            .from('fact_recette_regime')
+            .select('recette_id')
+            .eq('regime_id', regimeId);
+        final ids = (res as List).map((r) => r['recette_id']).toList();
+        if (ids.isNotEmpty) {
+          final fRes = await _supabase
+              .from('fact_recette_base')
+              .select()
+              .inFilter('recette_id', ids);
+          recettes = (fRes as List).map((m) => Recette.fromMap(m)).toList();
+        }
       } else {
         recettes = await getAllRecettes();
       }
 
       if (allergeneIds.isNotEmpty) {
-         final filtered = <Recette>[];
-         for (var rec in recettes) {
-            final aRes = await _supabase.from('fact_recette_allergene').select('allergene_id').eq('recette_id', rec.recetteId);
-            final recA = (aRes as List).map((a) => a['allergene_id']).toList();
-            bool hasAllergen = recA.any((id) => allergeneIds.contains(id));
-            if (!hasAllergen) filtered.add(rec);
-         }
-         recettes = filtered;
+        final filtered = <Recette>[];
+        for (var rec in recettes) {
+          final aRes = await _supabase
+              .from('fact_recette_allergene')
+              .select('allergene_id')
+              .eq('recette_id', rec.recetteId);
+          final recA = (aRes as List).map((a) => a['allergene_id']).toList();
+          bool hasAllergen = recA.any((id) => allergeneIds.contains(id));
+          if (!hasAllergen) filtered.add(rec);
+        }
+        recettes = filtered;
       }
-      
+
       recettes.shuffle();
       return recettes.take(limit).toList();
     } catch (e) {
@@ -446,47 +569,60 @@ class EcoDietApi {
   }) async {
     try {
       var query = _supabase.from('fact_recette_base').select();
-      
+
       if (tempsBinId != null) {
         query = query.eq('temps_bin_id', tempsBinId);
       }
-      
+
       if (maxDuration != null) {
         query = query.lte('duree_minute', maxDuration);
       }
 
       final res = await query;
-      List<Recette> recettes = (res as List).map((m) => Recette.fromMap(m)).toList();
+      List<Recette> recettes =
+          (res as List).map((m) => Recette.fromMap(m)).toList();
 
       if (regimeId != null) {
-        final bRes = await _supabase.from('fact_recette_regime').select('recette_id').eq('regime_id', regimeId);
-         final ids = (bRes as List).map((r) => r['recette_id']).toSet();
-         recettes = recettes.where((r) => ids.contains(r.recetteId)).toList();
+        final bRes = await _supabase
+            .from('fact_recette_regime')
+            .select('recette_id')
+            .eq('regime_id', regimeId);
+        final ids = (bRes as List).map((r) => r['recette_id']).toSet();
+        recettes = recettes.where((r) => ids.contains(r.recetteId)).toList();
       }
 
       if (typePlatId != null) {
-        final bRes = await _supabase.from('fact_recette_type_plat').select('recette_id').eq('type_plat_id', typePlatId);
-         final ids = (bRes as List).map((r) => r['recette_id']).toSet();
-         recettes = recettes.where((r) => ids.contains(r.recetteId)).toList();
+        final bRes = await _supabase
+            .from('fact_recette_type_plat')
+            .select('recette_id')
+            .eq('type_plat_id', typePlatId);
+        final ids = (bRes as List).map((r) => r['recette_id']).toSet();
+        recettes = recettes.where((r) => ids.contains(r.recetteId)).toList();
       }
 
       if (occasionId != null) {
-        final bRes = await _supabase.from('fact_recette_occasion').select('recette_id').eq('occasion_id', occasionId);
-         final ids = (bRes as List).map((r) => r['recette_id']).toSet();
-         recettes = recettes.where((r) => ids.contains(r.recetteId)).toList();
+        final bRes = await _supabase
+            .from('fact_recette_occasion')
+            .select('recette_id')
+            .eq('occasion_id', occasionId);
+        final ids = (bRes as List).map((r) => r['recette_id']).toSet();
+        recettes = recettes.where((r) => ids.contains(r.recetteId)).toList();
       }
 
       if (excludeAllergenes != null && excludeAllergenes.isNotEmpty) {
         final filtered = <Recette>[];
         for (var rec in recettes) {
-          final aRes = await _supabase.from('fact_recette_allergene').select('allergene_id').eq('recette_id', rec.recetteId);
+          final aRes = await _supabase
+              .from('fact_recette_allergene')
+              .select('allergene_id')
+              .eq('recette_id', rec.recetteId);
           final recA = (aRes as List).map((a) => a['allergene_id']).toList();
           bool hasAllergen = recA.any((id) => excludeAllergenes.contains(id));
           if (!hasAllergen) filtered.add(rec);
         }
         recettes = filtered;
       }
-      
+
       return recettes;
     } catch (e) {
       return [];
@@ -500,10 +636,11 @@ class EcoDietApi {
   Future<bool> isFavorite(String recetteId) async {
     if (_currentUser == null) return false;
     try {
-      final res = await _supabase.from('user_favorite')
-        .select()
-        .eq('user_id', _currentUser!.userId!)
-        .eq('recette_id', recetteId);
+      final res = await _supabase
+          .from('user_favorite')
+          .select()
+          .eq('user_id', _currentUser!.userId!)
+          .eq('recette_id', recetteId);
       return (res as List).isNotEmpty;
     } catch (e) {
       return false;
@@ -526,10 +663,11 @@ class EcoDietApi {
   Future<bool> removeFromFavorites(String recetteId) async {
     if (_currentUser == null) return false;
     try {
-      await _supabase.from('user_favorite')
-        .delete()
-        .eq('user_id', _currentUser!.userId!)
-        .eq('recette_id', recetteId);
+      await _supabase
+          .from('user_favorite')
+          .delete()
+          .eq('user_id', _currentUser!.userId!)
+          .eq('recette_id', recetteId);
       return true;
     } catch (e) {
       return false;
@@ -548,11 +686,12 @@ class EcoDietApi {
   Future<List<Recette>> getFavorites() async {
     if (_currentUser == null) return [];
     try {
-      final res = await _supabase.from('user_favorite')
-        .select('fact_recette_base(*)')
-        .eq('user_id', _currentUser!.userId!)
-        .order('added_at', ascending: false);
-      
+      final res = await _supabase
+          .from('user_favorite')
+          .select('fact_recette_base(*)')
+          .eq('user_id', _currentUser!.userId!)
+          .order('added_at', ascending: false);
+
       List<Recette> list = [];
       for (var row in (res as List)) {
         if (row['fact_recette_base'] != null) {
@@ -575,12 +714,16 @@ class EcoDietApi {
   }) async {
     if (_currentUser == null) return ApiResult.error('Non connecté');
     try {
-      final res = await _supabase.from('user_folder').insert({
-        'user_id': _currentUser!.userId,
-        'label': label,
-        'color': colorValue,
-      }).select().single();
-      
+      final res = await _supabase
+          .from('user_folder')
+          .insert({
+            'user_id': _currentUser!.userId,
+            'label': label,
+            'color': colorValue,
+          })
+          .select()
+          .single();
+
       return ApiResult.success(UserFolder.fromMap(res));
     } catch (e) {
       return ApiResult.error('Erreur: $e');
@@ -590,22 +733,24 @@ class EcoDietApi {
   Future<List<UserFolder>> getFolders() async {
     if (_currentUser == null) return [];
     try {
-      final res = await _supabase.from('user_folder')
-        .select()
-        .eq('user_id', _currentUser!.userId!)
-        .order('created_at', ascending: true);
-      
+      final res = await _supabase
+          .from('user_folder')
+          .select()
+          .eq('user_id', _currentUser!.userId!)
+          .order('created_at', ascending: true);
+
       List<UserFolder> folders = [];
       for (var f in (res as List)) {
         final folder = UserFolder.fromMap(f);
         // Get count
         try {
-          final countRes = await _supabase.from('folder_recette')
-            .select('recette_id')
-            .eq('folder_id', folder.folderId!)
-            .count(CountOption.exact);
+          final countRes = await _supabase
+              .from('folder_recette')
+              .select('recette_id')
+              .eq('folder_id', folder.folderId!)
+              .count(CountOption.exact);
           folder.recipeCount = countRes.count;
-        } catch (_) { /* ignore */ }
+        } catch (_) {/* ignore */}
         folders.add(folder);
       }
       return folders;
@@ -617,10 +762,11 @@ class EcoDietApi {
   Future<bool> deleteFolder(int folderId) async {
     if (_currentUser == null) return false;
     try {
-      await _supabase.from('user_folder')
-        .delete()
-        .eq('folder_id', folderId)
-        .eq('user_id', _currentUser!.userId!);
+      await _supabase
+          .from('user_folder')
+          .delete()
+          .eq('folder_id', folderId)
+          .eq('user_id', _currentUser!.userId!);
       return true;
     } catch (e) {
       return false;
@@ -630,10 +776,11 @@ class EcoDietApi {
   Future<bool> renameFolder(int folderId, String newLabel) async {
     if (_currentUser == null) return false;
     try {
-      await _supabase.from('user_folder')
-        .update({'label': newLabel})
-        .eq('folder_id', folderId)
-        .eq('user_id', _currentUser!.userId!);
+      await _supabase
+          .from('user_folder')
+          .update({'label': newLabel})
+          .eq('folder_id', folderId)
+          .eq('user_id', _currentUser!.userId!);
       return true;
     } catch (e) {
       return false;
@@ -656,10 +803,11 @@ class EcoDietApi {
   Future<bool> removeRecipeFromFolder(int folderId, String recetteId) async {
     if (_currentUser == null) return false;
     try {
-      await _supabase.from('folder_recette')
-        .delete()
-        .eq('folder_id', folderId)
-        .eq('recette_id', recetteId);
+      await _supabase
+          .from('folder_recette')
+          .delete()
+          .eq('folder_id', folderId)
+          .eq('recette_id', recetteId);
       return true;
     } catch (e) {
       return false;
@@ -669,11 +817,12 @@ class EcoDietApi {
   Future<List<Recette>> getRecipesInFolder(int folderId) async {
     if (_currentUser == null) return [];
     try {
-      final res = await _supabase.from('folder_recette')
-        .select('fact_recette_base(*)')
-        .eq('folder_id', folderId)
-        .order('added_at', ascending: false);
-      
+      final res = await _supabase
+          .from('folder_recette')
+          .select('fact_recette_base(*)')
+          .eq('folder_id', folderId)
+          .order('added_at', ascending: false);
+
       List<Recette> list = [];
       for (var row in (res as List)) {
         if (row['fact_recette_base'] != null) {
@@ -693,7 +842,10 @@ class EcoDietApi {
   Future<bool> setUserRegime(int regimeId) async {
     if (_currentUser == null) return false;
     try {
-      await _supabase.from('user_regime').delete().eq('user_id', _currentUser!.userId!);
+      await _supabase
+          .from('user_regime')
+          .delete()
+          .eq('user_id', _currentUser!.userId!);
       await _supabase.from('user_regime').insert({
         'user_id': _currentUser!.userId!,
         'regime_id': regimeId,
@@ -707,12 +859,13 @@ class EcoDietApi {
   Future<Regime?> getUserRegime() async {
     if (_currentUser == null) return null;
     try {
-      final res = await _supabase.from('user_regime')
-        .select('dim_regime(*)')
-        .eq('user_id', _currentUser!.userId!)
-        .limit(1)
-        .maybeSingle();
-      
+      final res = await _supabase
+          .from('user_regime')
+          .select('dim_regime(*)')
+          .eq('user_id', _currentUser!.userId!)
+          .limit(1)
+          .maybeSingle();
+
       if (res != null && res['dim_regime'] != null) {
         return Regime.fromMap(res['dim_regime']);
       }
@@ -738,10 +891,11 @@ class EcoDietApi {
   Future<bool> removeUserAllergene(int allergeneId) async {
     if (_currentUser == null) return false;
     try {
-      await _supabase.from('user_allergene')
-        .delete()
-        .eq('user_id', _currentUser!.userId!)
-        .eq('allergene_id', allergeneId);
+      await _supabase
+          .from('user_allergene')
+          .delete()
+          .eq('user_id', _currentUser!.userId!)
+          .eq('allergene_id', allergeneId);
       return true;
     } catch (e) {
       return false;
@@ -751,10 +905,11 @@ class EcoDietApi {
   Future<List<Allergene>> getUserAllergenes() async {
     if (_currentUser == null) return [];
     try {
-      final res = await _supabase.from('user_allergene')
-        .select('dim_allergene(*)')
-        .eq('user_id', _currentUser!.userId!);
-      
+      final res = await _supabase
+          .from('user_allergene')
+          .select('dim_allergene(*)')
+          .eq('user_id', _currentUser!.userId!);
+
       List<Allergene> list = [];
       for (var row in (res as List)) {
         if (row['dim_allergene'] != null) {
@@ -794,18 +949,19 @@ class EcoDietApi {
         'user_id': _currentUser!.userId!,
         'recette_id': recetteId,
       });
-    } catch (ignore) { /* ignore */ }
+    } catch (ignore) {/* ignore */}
   }
 
   Future<List<Recette>> getHistory({int limit = 20}) async {
     if (_currentUser == null) return [];
     try {
-      final res = await _supabase.from('user_history')
-        .select('fact_recette_base(*)')
-        .eq('user_id', _currentUser!.userId!)
-        .order('viewed_at', ascending: false)
-        .limit(limit);
-      
+      final res = await _supabase
+          .from('user_history')
+          .select('fact_recette_base(*)')
+          .eq('user_id', _currentUser!.userId!)
+          .order('viewed_at', ascending: false)
+          .limit(limit);
+
       List<Recette> list = [];
       // To remove duplicates if any
       Set<String> seen = {};
@@ -827,7 +983,10 @@ class EcoDietApi {
   Future<bool> clearHistory() async {
     if (_currentUser == null) return false;
     try {
-      await _supabase.from('user_history').delete().eq('user_id', _currentUser!.userId!);
+      await _supabase
+          .from('user_history')
+          .delete()
+          .eq('user_id', _currentUser!.userId!);
       return true;
     } catch (e) {
       return false;
@@ -849,7 +1008,12 @@ class EcoDietApi {
 
   Future<Quiz?> getQuizById(int quizId) async {
     try {
-      final res = await _supabase.from('quiz').select().eq('quiz_id', quizId).limit(1).maybeSingle();
+      final res = await _supabase
+          .from('quiz')
+          .select()
+          .eq('quiz_id', quizId)
+          .limit(1)
+          .maybeSingle();
       if (res == null) return null;
       return Quiz.fromMap(res);
     } catch (e) {
@@ -859,20 +1023,23 @@ class EcoDietApi {
 
   Future<List<QuizQuestion>> getQuizQuestions(int quizId) async {
     try {
-      final qRes = await _supabase.from('quiz_question')
-        .select()
-        .eq('quiz_id', quizId)
-        .order('order_index');
-      
+      final qRes = await _supabase
+          .from('quiz_question')
+          .select()
+          .eq('quiz_id', quizId)
+          .order('order_index');
+
       final questions = <QuizQuestion>[];
       for (final qMap in (qRes as List)) {
         final question = QuizQuestion.fromMap(qMap);
-        final oRes = await _supabase.from('quiz_option')
-          .select()
-          .eq('question_id', question.questionId!)
-          .order('order_index');
-        
-        question.options = (oRes as List).map((o) => QuizOption.fromMap(o)).toList();
+        final oRes = await _supabase
+            .from('quiz_option')
+            .select()
+            .eq('question_id', question.questionId!)
+            .order('order_index');
+
+        question.options =
+            (oRes as List).map((o) => QuizOption.fromMap(o)).toList();
         questions.add(question);
       }
       return questions;
@@ -899,10 +1066,11 @@ class EcoDietApi {
   Future<List<QuizScore>> getUserQuizScores() async {
     if (_currentUser == null) return [];
     try {
-      final res = await _supabase.from('user_quiz_score')
-        .select()
-        .eq('user_id', _currentUser!.userId!)
-        .order('completed_at', ascending: false);
+      final res = await _supabase
+          .from('user_quiz_score')
+          .select()
+          .eq('user_id', _currentUser!.userId!)
+          .order('completed_at', ascending: false);
       return (res as List).map((m) => QuizScore.fromMap(m)).toList();
     } catch (e) {
       return [];
@@ -912,13 +1080,14 @@ class EcoDietApi {
   Future<QuizScore?> getBestQuizScore(int quizId) async {
     if (_currentUser == null) return null;
     try {
-      final res = await _supabase.from('user_quiz_score')
-        .select()
-        .eq('user_id', _currentUser!.userId!)
-        .eq('quiz_id', quizId)
-        .order('score', ascending: false)
-        .limit(1)
-        .maybeSingle();
+      final res = await _supabase
+          .from('user_quiz_score')
+          .select()
+          .eq('user_id', _currentUser!.userId!)
+          .eq('quiz_id', quizId)
+          .order('score', ascending: false)
+          .limit(1)
+          .maybeSingle();
       if (res == null) return null;
       return QuizScore.fromMap(res);
     } catch (e) {
@@ -934,42 +1103,54 @@ class EcoDietApi {
     try {
       final res = await _supabase.from('dim_allergene').select();
       return (res as List).map((m) => Allergene.fromMap(m)).toList();
-    } catch (e) { return []; }
+    } catch (e) {
+      return [];
+    }
   }
 
   Future<List<Regime>> getAllRegimes() async {
     try {
       final res = await _supabase.from('dim_regime').select();
       return (res as List).map((m) => Regime.fromMap(m)).toList();
-    } catch (e) { return []; }
+    } catch (e) {
+      return [];
+    }
   }
 
   Future<List<TypePlat>> getAllTypesPlat() async {
     try {
       final res = await _supabase.from('dim_type_plat').select();
       return (res as List).map((m) => TypePlat.fromMap(m)).toList();
-    } catch (e) { return []; }
+    } catch (e) {
+      return [];
+    }
   }
 
   Future<List<Occasion>> getAllOccasions() async {
     try {
       final res = await _supabase.from('dim_occasion').select();
       return (res as List).map((m) => Occasion.fromMap(m)).toList();
-    } catch (e) { return []; }
+    } catch (e) {
+      return [];
+    }
   }
 
   Future<List<Equipement>> getAllEquipements() async {
     try {
       final res = await _supabase.from('dim_equipement').select();
       return (res as List).map((m) => Equipement.fromMap(m)).toList();
-    } catch (e) { return []; }
+    } catch (e) {
+      return [];
+    }
   }
 
   Future<List<TempsBin>> getAllTempsBins() async {
     try {
       final res = await _supabase.from('dim_temps_bin').select();
       return (res as List).map((m) => TempsBin.fromMap(m)).toList();
-    } catch (e) { return []; }
+    } catch (e) {
+      return [];
+    }
   }
 }
 
@@ -982,5 +1163,6 @@ class ApiResult<T> {
   ApiResult._({this.data, this.error, required this.isSuccess});
 
   factory ApiResult.success(T data) => ApiResult._(data: data, isSuccess: true);
-  factory ApiResult.error(String error) => ApiResult._(error: error, isSuccess: false);
+  factory ApiResult.error(String error) =>
+      ApiResult._(error: error, isSuccess: false);
 }

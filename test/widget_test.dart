@@ -12,6 +12,9 @@ import 'package:eco_diet_v0/main.dart';
 
 void main() {
   testWidgets('App smoke test', (WidgetTester tester) async {
+    await tester.binding.setSurfaceSize(const Size(1440, 900));
+    addTearDown(() => tester.binding.setSurfaceSize(null));
+
     // Build our app and trigger a frame.
     await tester.pumpWidget(const MyApp());
 
