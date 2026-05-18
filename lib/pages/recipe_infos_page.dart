@@ -324,7 +324,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               ),
               child: Center(
                 child: Icon(Icons.eco_rounded,
-                    size: 80, color: Colors.white.withOpacity(0.12)),
+                    size: 80, color: Colors.white.withValues(alpha: 0.12)),
               ),
             ),
             if (photo != null && photo.isNotEmpty)
@@ -346,7 +346,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                     begin: Alignment.bottomCenter,
                     end: Alignment.topCenter,
                     colors: [
-                      Colors.black.withOpacity(0.55),
+                      Colors.black.withValues(alpha: 0.55),
                       Colors.transparent,
                     ],
                   ),
@@ -386,7 +386,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
             padding:
                 const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
-              color: const Color(0xFF2F6B3F).withOpacity(0.1),
+              color: const Color(0xFF2F6B3F).withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(20),
             ),
             child: Text(
@@ -449,7 +449,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -515,7 +515,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               padding:
                   const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: const Color(0xFF2F6B3F).withOpacity(0.1),
+                color: const Color(0xFF2F6B3F).withValues(alpha: 0.1),
                 borderRadius: BorderRadius.circular(12),
               ),
               child: Text(
@@ -691,7 +691,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                 ),
               ),
               child: Center(
-                child: Icon(Icons.eco, size: 60, color: Colors.white.withOpacity(0.3)),
+                child: Icon(Icons.eco, size: 60, color: Colors.white.withValues(alpha: 0.3)),
               ),
             ),
             if (photo != null && photo.isNotEmpty)

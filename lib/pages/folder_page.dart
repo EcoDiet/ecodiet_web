@@ -250,7 +250,7 @@ class _FolderPageState extends State<FolderPage> {
                   child: recipe.imageUrl == null
                       ? Center(
                           child: Icon(Icons.eco,
-                              size: 28, color: Colors.white.withOpacity(0.5)))
+                              size: 28, color: Colors.white.withValues(alpha: 0.5)))
                       : null,
                 ),
                 Expanded(
@@ -361,7 +361,7 @@ class _FolderPageState extends State<FolderPage> {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               shape: BoxShape.circle,
             ),
             child: Icon(
@@ -390,7 +390,7 @@ class _FolderPageState extends State<FolderPage> {
                       : '${recipes.length} recette${recipes.length > 1 ? 's' : ''}',
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.white.withOpacity(0.75),
+                    color: Colors.white.withValues(alpha: 0.75),
                   ),
                 ),
               ],
@@ -516,7 +516,7 @@ class _FolderPageState extends State<FolderPage> {
         borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 10,
             offset: const Offset(0, 2),
           ),
@@ -556,7 +556,7 @@ class _FolderPageState extends State<FolderPage> {
                     ? Center(
                         child: Icon(Icons.eco_rounded,
                             size: 32,
-                            color: Colors.white.withOpacity(0.45)))
+                            color: Colors.white.withValues(alpha: 0.45)))
                     : null,
               ),
               // Contenu
@@ -585,7 +585,7 @@ class _FolderPageState extends State<FolderPage> {
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 3),
                             decoration: BoxDecoration(
-                              color: const Color(0xFF2F6B3F).withOpacity(0.1),
+                              color: const Color(0xFF2F6B3F).withValues(alpha: 0.1),
                               borderRadius: BorderRadius.circular(20),
                             ),
                             child: Text(
@@ -637,7 +637,7 @@ class _FolderPageState extends State<FolderPage> {
             decoration: BoxDecoration(
               color: _isFavorites
                   ? Colors.red[50]
-                  : const Color(0xFFF4A259).withOpacity(0.1),
+                  : const Color(0xFFF4A259).withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(

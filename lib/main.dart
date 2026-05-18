@@ -176,7 +176,7 @@ class _MyHomePageState extends State<MyHomePage> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: isSelected
-                ? Colors.white.withOpacity(0.10)
+                ? Colors.white.withValues(alpha: 0.10)
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
           ),
@@ -334,12 +334,12 @@ class _MyHomePageState extends State<MyHomePage> {
             borderRadius: BorderRadius.circular(32),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.10),
+                color: Colors.black.withValues(alpha: 0.10),
                 blurRadius: 30,
                 offset: const Offset(0, 8),
               ),
               BoxShadow(
-                color: Colors.black.withOpacity(0.04),
+                color: Colors.black.withValues(alpha: 0.04),
                 blurRadius: 6,
                 offset: const Offset(0, 2),
               ),
@@ -396,7 +396,7 @@ class _MyHomePageState extends State<MyHomePage> {
         ),
         decoration: BoxDecoration(
           color: isSelected
-              ? const Color(0xFFEA853D).withOpacity(0.12)
+              ? const Color(0xFFEA853D).withValues(alpha: 0.12)
               : Colors.transparent,
           borderRadius: BorderRadius.circular(24),
         ),

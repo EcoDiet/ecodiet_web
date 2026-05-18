@@ -594,9 +594,9 @@ class _HomePageState extends State<HomePage> {
     if (desktop) {
       return Row(
         children: [
-          Column(
+          const Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
+            children: [
               Text(
                 'Bonjour 👋',
                 style: TextStyle(
@@ -707,7 +707,7 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.06),
+            color: Colors.black.withValues(alpha: 0.06),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -980,7 +980,7 @@ class _HomePageState extends State<HomePage> {
                         ),
                         child: Center(
                           child: Icon(Icons.eco,
-                              size: 40, color: Colors.white.withOpacity(0.6)),
+                              size: 40, color: Colors.white.withValues(alpha: 0.6)),
                         ),
                       ),
                       if (recipe.imageUrl != null)
@@ -998,7 +998,7 @@ class _HomePageState extends State<HomePage> {
                           padding: const EdgeInsets.symmetric(
                               horizontal: 8, vertical: 3),
                           decoration: BoxDecoration(
-                            color: Colors.black.withOpacity(0.35),
+                            color: Colors.black.withValues(alpha: 0.35),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Row(
@@ -1114,7 +1114,7 @@ class _HomePageState extends State<HomePage> {
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
+                  color: Colors.black.withValues(alpha: 0.05),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -1237,7 +1237,7 @@ class _HomePageState extends State<HomePage> {
                 child: quiz.imageUrl == null
                     ? Center(
                         child: Icon(quiz.icon,
-                            size: 36, color: Colors.white.withOpacity(0.7)),
+                            size: 36, color: Colors.white.withValues(alpha: 0.7)),
                       )
                     : null,
               ),

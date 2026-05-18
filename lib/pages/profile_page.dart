@@ -126,7 +126,7 @@ class _ProfilePageState extends State<ProfilePage> {
               shape: BoxShape.circle,
               color: const Color(0xFF63A96E),
               border: Border.all(
-                  color: Colors.white.withOpacity(0.25), width: 3),
+                  color: Colors.white.withValues(alpha: 0.25), width: 3),
             ),
             child: const Center(
               child: Text(
@@ -151,7 +151,7 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 10),
           // Bouton modifier
           Material(
-            color: Colors.white.withOpacity(0.12),
+            color: Colors.white.withValues(alpha: 0.12),
             borderRadius: BorderRadius.circular(20),
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
@@ -239,7 +239,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   height: 180,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.04),
+                    color: Colors.white.withValues(alpha: 0.04),
                   ),
                 ),
               ),
@@ -251,7 +251,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   height: 120,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: Colors.white.withOpacity(0.03),
+                    color: Colors.white.withValues(alpha: 0.03),
                   ),
                 ),
               ),
@@ -270,7 +270,7 @@ class _ProfilePageState extends State<ProfilePage> {
               borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08),
+                  color: Colors.black.withValues(alpha: 0.08),
                   blurRadius: 24,
                   offset: const Offset(0, 8),
                 ),
@@ -294,7 +294,7 @@ class _ProfilePageState extends State<ProfilePage> {
                         color: const Color(0xFFF5ECD9), width: 4),
                     boxShadow: [
                       BoxShadow(
-                        color: const Color(0xFF2F6B3F).withOpacity(0.3),
+                        color: const Color(0xFF2F6B3F).withValues(alpha: 0.3),
                         blurRadius: 12,
                         offset: const Offset(0, 4),
                       ),
@@ -385,9 +385,9 @@ class _ProfilePageState extends State<ProfilePage> {
       padding:
           const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.08),
+        color: color.withValues(alpha: 0.08),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withOpacity(0.2)),
+        border: Border.all(color: color.withValues(alpha: 0.2)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -493,7 +493,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     width: 40,
                     height: 40,
                     decoration: BoxDecoration(
-                      color: folder.color.withOpacity(0.15),
+                      color: folder.color.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
@@ -630,7 +630,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 width: 36,
                 height: 36,
                 decoration: BoxDecoration(
-                  color: colors[idx].withOpacity(0.1),
+                  color: colors[idx].withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(icons[idx], color: colors[idx], size: 18),
@@ -860,7 +860,7 @@ class _ProfilePageState extends State<ProfilePage> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -887,7 +887,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   width: 40,
                   height: 40,
                   decoration: BoxDecoration(
-                    color: folder.color.withOpacity(0.15),
+                    color: folder.color.withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -959,7 +959,7 @@ class _ProfilePageState extends State<ProfilePage> {
         borderRadius: BorderRadius.circular(14),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 8,
             offset: const Offset(0, 2),
           ),
@@ -979,7 +979,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   width: 36,
                   height: 36,
                   decoration: BoxDecoration(
-                    color: const Color(0xFFF4A259).withOpacity(0.15),
+                    color: const Color(0xFFF4A259).withValues(alpha: 0.15),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: const Icon(Icons.tune, color: Color(0xFFF4A259), size: 18),

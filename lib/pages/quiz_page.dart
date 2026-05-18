@@ -528,7 +528,7 @@ class _QuizPageState extends State<QuizPage> {
                   Container(
                     padding: const EdgeInsets.all(24),
                     decoration: BoxDecoration(
-                      color: messageColor.withOpacity(0.1),
+                      color: messageColor.withValues(alpha: 0.1),
                       shape: BoxShape.circle,
                     ),
                     child: Icon(

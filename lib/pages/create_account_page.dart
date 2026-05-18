@@ -928,7 +928,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: selected
-              ? const Color(0xFF2F6B3F).withOpacity(0.06)
+              ? const Color(0xFF2F6B3F).withValues(alpha: 0.06)
               : Colors.white,
           border: Border.all(
             color: selected
@@ -939,7 +939,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 4,
               offset: const Offset(0, 2),
             ),
@@ -952,8 +952,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
               height: 44,
               decoration: BoxDecoration(
                 color: selected
-                    ? const Color(0xFF2F6B3F).withOpacity(0.12)
-                    : const Color(0xFF8FBF97).withOpacity(0.18),
+                    ? const Color(0xFF2F6B3F).withValues(alpha: 0.12)
+                    : const Color(0xFF8FBF97).withValues(alpha: 0.18),
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -1050,7 +1050,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 4,
             ),
           ],
@@ -1165,7 +1165,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.04),
+              color: Colors.black.withValues(alpha: 0.04),
               blurRadius: 4,
             ),
           ],

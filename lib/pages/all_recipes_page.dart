@@ -110,7 +110,7 @@ class _AllRecipesPageState extends State<AllRecipesPage> {
             borderRadius: BorderRadius.circular(12),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.05),
+                color: Colors.black.withValues(alpha: 0.05),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -145,7 +145,7 @@ class _AllRecipesPageState extends State<AllRecipesPage> {
                         child: Icon(
                           Icons.eco,
                           size: 40,
-                          color: Colors.white.withOpacity(0.6),
+                          color: Colors.white.withValues(alpha: 0.6),
                         ),
                       ),
                     Positioned(
@@ -154,7 +154,7 @@ class _AllRecipesPageState extends State<AllRecipesPage> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.35),
+                          color: Colors.black.withValues(alpha: 0.35),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Row(
