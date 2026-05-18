@@ -366,11 +366,33 @@ class _HomePageState extends State<HomePage> {
   }
 
   Future<void> _toggleFavorite(RecipeDisplayModel recipe) async {
+    // Bascule locale immédiate : l'UI répond toujours, même hors ligne.
+    setState(() => recipe.isFavorite = !recipe.isFavorite);
+
+    if (recipe.isFavorite) {
+      FavoritesService().addFavorite(FavoriteRecipe(
+        id: recipe.id,
+        title: recipe.title,
+        category: recipe.category,
+        duration: recipe.duration,
+        imageUrl: recipe.imageUrl,
+      ));
+    } else {
+      FavoritesService().removeFavorite(recipe.id);
+    }
+
+    // Synchronisation backend au mieux (nécessite une session active).
     final success = await _api.toggleFavorite(recipe.id);
-    if (success) {
-      setState(() {
-        recipe.isFavorite = !recipe.isFavorite;
-      });
+    if (!mounted) return;
+    if (recipe.isFavorite && !success && !_api.isLoggedIn) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Favori enregistré sur cet appareil. Connecte-toi pour le synchroniser.',
+          ),
+          duration: Duration(seconds: 3),
+        ),
+      );
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/ecodiet_api.dart';
+import '../services/favorites_service.dart';
 import '../models/recette.dart';
 import '../models/user.dart';
 import '../utils/responsive.dart';
@@ -54,7 +55,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
 
       setState(() {
         recette = result;
-        isFavorite = favResult;
+        isFavorite = favResult || FavoritesService().isFavorite(recetteId);
         _folders = foldersResult;
         isLoading = false;
       });
@@ -66,33 +67,31 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   Future<void> _toggleFavorite() async {
     if (recette == null) return;
 
-    if (!_api.isLoggedIn) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Connecte-toi pour ajouter des recettes aux favoris.'),
-          duration: Duration(seconds: 3),
-        ),
-      );
-      return;
+    final r = recette!.recette;
+
+    // Bascule locale immédiate : l'UI répond toujours, même hors ligne.
+    setState(() => isFavorite = !isFavorite);
+
+    if (isFavorite) {
+      FavoritesService().addFavorite(FavoriteRecipe(
+        id: r.recetteId,
+        title: r.titre,
+        category: 'Recette',
+        duration: r.dureeMinute > 0 ? '${r.dureeMinute} min' : '',
+        imageUrl: r.photo.isNotEmpty ? recetteImageUrl(r.photo) : null,
+      ));
+    } else {
+      FavoritesService().removeFavorite(r.recetteId);
     }
 
-    final success = await _api.toggleFavorite(recette!.recette.recetteId);
+    // Synchronisation backend au mieux (nécessite une session active).
+    final success = await _api.toggleFavorite(r.recetteId);
     if (!mounted) return;
-    if (success) {
-      setState(() => isFavorite = !isFavorite);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content:
-              Text(isFavorite ? 'Ajouté aux favoris' : 'Retiré des favoris'),
-          duration: const Duration(seconds: 2),
-        ),
-      );
-    } else {
+    if (isFavorite && !success && !_api.isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Impossible de modifier les favoris. Vérifie ta connexion et réessaie.',
+            'Favori enregistré sur cet appareil. Connecte-toi pour le synchroniser.',
           ),
           duration: Duration(seconds: 3),
         ),
