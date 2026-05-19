@@ -43,7 +43,7 @@ class RecipeDisplayModel {
       id: recette.recetteId,
       title: recette.titre,
       category: recette.typePlatLibelle ?? 'Recette',
-      ingredients: recette.ingredients.take(4).join(', '),
+      ingredients: recette.ingredients.join(', '),
       utensils: recette.equipements.join(', '),
       diets: recette.regimeLibelle ?? '',
       allergens: recette.allergenes.join(', '),
@@ -171,7 +171,7 @@ class _HomePageState extends State<HomePage> {
   List<String> get _ingredientOptions {
     final fromData = _recipeSource
         .expand((r) => r.ingredients.split(','))
-        .map((e) => e.trim())
+        .map(_ingredientFilterLabel)
         .where((e) => e.isNotEmpty)
         .toSet()
         .toList();
@@ -214,6 +214,164 @@ class _HomePageState extends State<HomePage> {
         .toList();
     fromData.sort();
     return fromData.isNotEmpty ? fromData : _fallbackAllergens;
+  }
+
+  String _ingredientFilterLabel(String raw) {
+    final cleaned = raw
+        .toLowerCase()
+        .replaceAll('"', ' ')
+        .replaceAll(RegExp(r'[0-9]+([.,][0-9]+)?'), ' ')
+        .replaceAll(RegExp(r'[^a-zàâäçéèêëîïôöùûüÿñæœ\s-]'), ' ')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+
+    final canonicalIngredients = <String, String>{
+      'pommes de terre': 'Pomme de terre',
+      'pomme de terre': 'Pomme de terre',
+      'pois chiches': 'Pois chiches',
+      'haricots verts': 'Haricots verts',
+      'huile olive': 'Huile d olive',
+      'huile dolive': 'Huile d olive',
+      'pates': 'Pates',
+      'pâtes': 'Pates',
+      'nouilles': 'Nouilles',
+      'spaghetti': 'Pates',
+      'tagliatelles': 'Pates',
+      'riz': 'Riz',
+      'farine': 'Farine',
+      'pain': 'Pain',
+      'poulet': 'Poulet',
+      'dinde': 'Dinde',
+      'canard': 'Canard',
+      'boeuf': 'Boeuf',
+      'bœuf': 'Boeuf',
+      'veau': 'Veau',
+      'porc': 'Porc',
+      'agneau': 'Agneau',
+      'jambon': 'Jambon',
+      'lardons': 'Lardons',
+      'saucisse': 'Saucisse',
+      'saumon': 'Saumon',
+      'thon': 'Thon',
+      'cabillaud': 'Cabillaud',
+      'poisson': 'Poisson',
+      'crevettes': 'Crevettes',
+      'crevette': 'Crevettes',
+      'oeufs': 'Oeuf',
+      'oeuf': 'Oeuf',
+      'œufs': 'Oeuf',
+      'œuf': 'Oeuf',
+      'tomates': 'Tomate',
+      'tomate': 'Tomate',
+      'courgettes': 'Courgette',
+      'courgette': 'Courgette',
+      'carottes': 'Carotte',
+      'carotte': 'Carotte',
+      'oignons': 'Oignon',
+      'oignon': 'Oignon',
+      'ail': 'Ail',
+      'champignons': 'Champignon',
+      'champignon': 'Champignon',
+      'lentilles': 'Lentilles',
+      'poireaux': 'Poireau',
+      'poireau': 'Poireau',
+      'aubergines': 'Aubergine',
+      'aubergine': 'Aubergine',
+      'poivrons': 'Poivron',
+      'poivron': 'Poivron',
+      'fromage': 'Fromage',
+      'mozzarella': 'Mozzarella',
+      'parmesan': 'Parmesan',
+      'gruyère': 'Gruyere',
+      'gruyere': 'Gruyere',
+      'lait': 'Lait',
+      'crème': 'Creme',
+      'creme': 'Creme',
+      'beurre': 'Beurre',
+      'citron': 'Citron',
+      'curry': 'Curry',
+    };
+
+    for (final entry in canonicalIngredients.entries) {
+      final pattern = RegExp(
+        '(^|\\s)${RegExp.escape(entry.key)}(\\s|\$)',
+        caseSensitive: false,
+      );
+      if (pattern.hasMatch(cleaned)) return entry.value;
+    }
+
+    final stopWords = {
+      'a',
+      'au',
+      'aux',
+      'd',
+      'de',
+      'des',
+      'du',
+      'en',
+      'et',
+      'la',
+      'le',
+      'les',
+      'ou',
+      'un',
+      'une',
+      'g',
+      'kg',
+      'l',
+      'cl',
+      'ml',
+      'cm',
+      'cuillère',
+      'cuillères',
+      'café',
+      'soupe',
+      'verre',
+      'verres',
+      'bol',
+      'bols',
+      'boîte',
+      'boîtes',
+      'bouteille',
+      'bouteilles',
+      'bouquet',
+      'branche',
+      'branches',
+      'gousse',
+      'gousses',
+      'pincée',
+      'pincées',
+      'sachet',
+      'tranche',
+      'tranches',
+      'morceau',
+      'morceaux',
+      'environ',
+      'denviron',
+      'selon',
+      'goût',
+      'facultatif',
+      'frais',
+      'fraîche',
+      'haché',
+      'hachée',
+      'émincé',
+      'émincée',
+      'fermier',
+      'fermière',
+      'coupé',
+      'coupée',
+    };
+
+    final words = cleaned
+        .split(' ')
+        .map((word) => word.trim())
+        .where((word) => word.length > 1 && !stopWords.contains(word))
+        .toList();
+
+    if (words.isEmpty) return '';
+    final label = words.take(2).join(' ');
+    return label[0].toUpperCase() + label.substring(1);
   }
 
   @override
@@ -1184,6 +1342,8 @@ class _HomePageState extends State<HomePage> {
                               fontSize: 12,
                               color: Color(0xFF2F6B3F),
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
                           Text(
@@ -1192,6 +1352,8 @@ class _HomePageState extends State<HomePage> {
                               fontSize: 11,
                               color: Colors.grey[700],
                             ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
                           ),
                         ],
                       ),
@@ -1480,10 +1642,10 @@ class RecipeFilters {
 
   int get activeCount {
     var count = 0;
-    if (ingredients.isNotEmpty) count++;
-    if (utensils.isNotEmpty) count++;
-    if (diets.isNotEmpty) count++;
-    if (allergens.isNotEmpty) count++;
+    count += ingredients.length;
+    count += utensils.length;
+    count += diets.length;
+    count += allergens.length;
     if (minTimeMinutes != null || maxTimeMinutes != null) count++;
     if (minBudget > 0 || maxBudget < 100) count++;
     return count;
@@ -1622,6 +1784,122 @@ class _FilterPanelState extends State<_FilterPanel> {
     });
   }
 
+  void _setTimeRange(int? min, int? max) {
+    setState(() {
+      _draft.minTimeMinutes = min;
+      _draft.maxTimeMinutes = max;
+      _minTimeController.text = min?.toString() ?? '';
+      _maxTimeController.text = max?.toString() ?? '';
+    });
+  }
+
+  String _timeRangeLabel() {
+    final min = _draft.minTimeMinutes;
+    final max = _draft.maxTimeMinutes;
+    if (min == null && max == null) return '';
+    if (min == null) return '< ${max! + 1} min';
+    if (max == null) return '> ${min - 1} min';
+    if (min == 30 && max == 60) return '30-60 min';
+    if (min == 61 && max == 120) return '1-2 h';
+    return '$min-$max min';
+  }
+
+  bool _isSelectedTimeRange(int? min, int? max) {
+    return _draft.minTimeMinutes == min && _draft.maxTimeMinutes == max;
+  }
+
+  Widget _activeFilterChip(String label, VoidCallback onDeleted) {
+    return InputChip(
+      label: Text(label),
+      onDeleted: onDeleted,
+      visualDensity: VisualDensity.compact,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+      backgroundColor: const Color(0xFFE9F2E6),
+      side: BorderSide.none,
+      deleteIconColor: const Color(0xFF2F6B3F),
+      labelStyle: const TextStyle(
+        color: Color(0xFF1F2E1F),
+        fontSize: 12,
+        fontWeight: FontWeight.w600,
+      ),
+    );
+  }
+
+  Widget _buildActiveFilters() {
+    if (_draft.activeCount == 0) return const SizedBox.shrink();
+
+    final chips = <Widget>[
+      ..._draft.ingredients.map(
+        (value) => _activeFilterChip(value, () {
+          setState(() => _draft.ingredients.remove(value));
+        }),
+      ),
+      ..._draft.diets.map(
+        (value) => _activeFilterChip(value, () {
+          setState(() => _draft.diets.remove(value));
+        }),
+      ),
+      ..._draft.allergens.map(
+        (value) => _activeFilterChip('Sans $value', () {
+          setState(() => _draft.allergens.remove(value));
+        }),
+      ),
+      ..._draft.utensils.map(
+        (value) => _activeFilterChip(value, () {
+          setState(() => _draft.utensils.remove(value));
+        }),
+      ),
+    ];
+
+    if (_draft.minTimeMinutes != null || _draft.maxTimeMinutes != null) {
+      chips.add(
+        _activeFilterChip(_timeRangeLabel(), () => _setTimeRange(null, null)),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+      child: Wrap(spacing: 8, runSpacing: 8, children: chips),
+    );
+  }
+
+  Widget _buildTimeFilterCard() {
+    return _FilterCard(
+      title: 'Temps de cuisine',
+      child: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          _TimeFilterChip(
+            label: 'Tous',
+            selected: _isSelectedTimeRange(null, null),
+            onSelected: () => _setTimeRange(null, null),
+          ),
+          _TimeFilterChip(
+            label: '< 30 min',
+            selected: _isSelectedTimeRange(null, 29),
+            onSelected: () => _setTimeRange(null, 29),
+          ),
+          _TimeFilterChip(
+            label: '30-60 min',
+            selected: _isSelectedTimeRange(30, 60),
+            onSelected: () => _setTimeRange(30, 60),
+          ),
+          _TimeFilterChip(
+            label: '1-2 h',
+            selected: _isSelectedTimeRange(61, 120),
+            onSelected: () => _setTimeRange(61, 120),
+          ),
+          _TimeFilterChip(
+            label: '> 2 h',
+            selected: _isSelectedTimeRange(121, null),
+            onSelected: () => _setTimeRange(121, null),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _apply() {
     final min = int.tryParse(_minTimeController.text.trim());
     final max = int.tryParse(_maxTimeController.text.trim());
@@ -1680,6 +1958,7 @@ class _FilterPanelState extends State<_FilterPanel> {
             ],
           ),
         ),
+        _buildActiveFilters(),
         const Divider(height: 1),
         Expanded(
           child: ListView(
@@ -1687,107 +1966,56 @@ class _FilterPanelState extends State<_FilterPanel> {
             children: [
               _FilterMultiSelectCard(
                 title: 'Ingrédients',
-                hintText: 'Rechercher un ingrédient',
+                hintText: 'Ex: poulet, riz, tomate',
                 options: widget.ingredientOptions,
                 selected: _draft.ingredients,
                 onChanged: (values) =>
                     setState(() => _draft.ingredients = values),
               ),
               const SizedBox(height: 12),
-              _FilterMultiSelectCard(
-                title: 'Ustensiles',
-                hintText: 'Rechercher un ustensile',
-                options: widget.utensilOptions,
-                selected: _draft.utensils,
-                onChanged: (values) => setState(() => _draft.utensils = values),
-              ),
-              const SizedBox(height: 12),
-              _FilterCard(
-                title: 'Temps de cuisine (min)',
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _minTimeController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'De',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: TextField(
-                        controller: _maxTimeController,
-                        keyboardType: TextInputType.number,
-                        decoration: const InputDecoration(
-                          labelText: 'A',
-                          border: OutlineInputBorder(),
-                          isDense: true,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              _FilterCard(
-                title: 'Budget (EUR)',
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    RangeSlider(
-                      values: RangeValues(_draft.minBudget, _draft.maxBudget),
-                      min: 0,
-                      max: 100,
-                      divisions: 20,
-                      labels: RangeLabels(
-                        '${_draft.minBudget.round()} EUR',
-                        '${_draft.maxBudget.round()} EUR',
-                      ),
-                      activeColor: const Color(0xFF2F6B3F),
-                      onChanged: (values) {
-                        setState(() {
-                          _draft.minBudget = values.start;
-                          _draft.maxBudget = values.end;
-                        });
-                      },
-                    ),
-                    Text(
-                      'De ${_draft.minBudget.round()} EUR a ${_draft.maxBudget.round()} EUR',
-                      style: TextStyle(
-                        color: Colors.grey[800],
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              _buildTimeFilterCard(),
               const SizedBox(height: 12),
               _FilterMultiSelectCard(
-                title: 'Type de régime',
-                hintText: 'Rechercher un régime',
+                title: 'Type de plat / régime',
+                hintText: 'Plat principal, vegan, dessert...',
                 options: widget.dietOptions,
                 selected: _draft.diets,
                 onChanged: (values) => setState(() => _draft.diets = values),
               ),
               const SizedBox(height: 12),
               _FilterMultiSelectCard(
-                title: 'Allergènes à éviter',
-                hintText: 'Rechercher un allergène',
+                title: 'Allergènes à exclure',
+                hintText: 'Gluten, lactose, soja...',
                 options: widget.allergenOptions,
                 selected: _draft.allergens,
                 onChanged: (values) =>
                     setState(() => _draft.allergens = values),
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Note : filtres en partie basés sur des valeurs temporaires, en attente des distincts API.',
-                style: TextStyle(
-                  color: Colors.grey[700],
-                  fontSize: 12,
+              const SizedBox(height: 12),
+              Theme(
+                data: Theme.of(context).copyWith(
+                  dividerColor: Colors.transparent,
+                ),
+                child: ExpansionTile(
+                  tilePadding: const EdgeInsets.symmetric(horizontal: 4),
+                  childrenPadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Plus de filtres',
+                    style: TextStyle(
+                      color: Color(0xFF1F2E1F),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  children: [
+                    _FilterMultiSelectCard(
+                      title: 'Ustensiles',
+                      hintText: 'Four, poele, casserole...',
+                      options: widget.utensilOptions,
+                      selected: _draft.utensils,
+                      onChanged: (values) =>
+                          setState(() => _draft.utensils = values),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1866,6 +2094,37 @@ class _FilterCard extends StatelessWidget {
   }
 }
 
+class _TimeFilterChip extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  const _TimeFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ChoiceChip(
+      label: Text(label),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      selectedColor: const Color(0xFF2F6B3F),
+      labelStyle: TextStyle(
+        color: selected ? Colors.white : const Color(0xFF1F2E1F),
+        fontWeight: FontWeight.w600,
+      ),
+      side: BorderSide(
+        color: selected ? const Color(0xFF2F6B3F) : const Color(0xFFE6DCC9),
+      ),
+      backgroundColor: Colors.white,
+      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+    );
+  }
+}
+
 class _FilterMultiSelectCard extends StatefulWidget {
   final String title;
   final String hintText;
@@ -1890,9 +2149,12 @@ class _FilterMultiSelectCardState extends State<_FilterMultiSelectCard> {
 
   @override
   Widget build(BuildContext context) {
+    final q = _query.trim().toLowerCase();
     final visible = widget.options
-        .where((o) => o.toLowerCase().contains(_query.toLowerCase()))
-        .take(8)
+        .where((o) =>
+            !widget.selected.contains(o) &&
+            (q.isEmpty || o.toLowerCase().contains(q)))
+        .take(10)
         .toList();
 
     return _FilterCard(
@@ -1917,6 +2179,7 @@ class _FilterMultiSelectCardState extends State<_FilterMultiSelectCard> {
             onSelected: (choice) {
               final next = {...widget.selected, choice};
               widget.onChanged(next);
+              setState(() => _query = '');
             },
             fieldViewBuilder:
                 (context, controller, focusNode, onFieldSubmitted) {
@@ -1934,10 +2197,10 @@ class _FilterMultiSelectCardState extends State<_FilterMultiSelectCard> {
             },
           ),
           if (widget.selected.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Wrap(
-              spacing: 6,
-              runSpacing: 6,
+              spacing: 8,
+              runSpacing: 8,
               children: widget.selected
                   .map((s) => InputChip(
                         label: Text(s),
@@ -1949,25 +2212,25 @@ class _FilterMultiSelectCardState extends State<_FilterMultiSelectCard> {
                   .toList(),
             ),
           ],
-          const SizedBox(height: 8),
-          ...visible.map(
-            (option) => CheckboxListTile(
-              value: widget.selected.contains(option),
-              controlAffinity: ListTileControlAffinity.leading,
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              title: Text(option, style: const TextStyle(fontSize: 13)),
-              onChanged: (checked) {
-                final next = {...widget.selected};
-                if (checked == true) {
-                  next.add(option);
-                } else {
-                  next.remove(option);
-                }
-                widget.onChanged(next);
-              },
+          if (visible.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: visible
+                  .map(
+                    (option) => ActionChip(
+                      label: Text(option),
+                      avatar: const Icon(Icons.add_rounded, size: 16),
+                      onPressed: () {
+                        final next = {...widget.selected, option};
+                        widget.onChanged(next);
+                      },
+                    ),
+                  )
+                  .toList(),
             ),
-          ),
+          ],
         ],
       ),
     );
