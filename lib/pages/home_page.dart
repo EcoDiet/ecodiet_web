@@ -333,7 +333,7 @@ class _HomePageState extends State<HomePage> {
     try {
       // 2 requêtes au lieu de ~120 : previews + favoris en parallèle
       final results = await Future.wait([
-        _api.getRecettesPreview(limit: 20),
+        _api.getAllRecettesPreview(),
         _api.getFavoriteIds(),
         _api.getAllQuizzes(),
       ]);

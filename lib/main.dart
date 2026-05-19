@@ -30,37 +30,82 @@ Future<void> _loadEnvironment() async {
 }
 
 String _environmentValue(String name) {
-  final compileTimeValue = String.fromEnvironment(name).trim();
+  var compileTimeValue = '';
+  if (name == 'SUPABASE_URL') {
+    compileTimeValue = const String.fromEnvironment('SUPABASE_URL').trim();
+  } else if (name == 'SUPABASE_ANON_KEY') {
+    compileTimeValue =
+        const String.fromEnvironment('SUPABASE_ANON_KEY').trim();
+  }
   if (compileTimeValue.isNotEmpty) return compileTimeValue;
   return dotenv.env[name]?.trim() ?? '';
 }
 
-void main() async {
+void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  runApp(const BootstrapApp());
+}
 
-  // Charger la configuration Supabase depuis --dart-define ou l'asset web.
-  await _loadEnvironment();
+class BootstrapApp extends StatefulWidget {
+  const BootstrapApp({super.key});
 
-  final supabaseUrl = _environmentValue('SUPABASE_URL');
-  final supabaseAnonKey = _environmentValue('SUPABASE_ANON_KEY');
+  @override
+  State<BootstrapApp> createState() => _BootstrapAppState();
+}
 
-  if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
-    runApp(const _ErrorApp('Configuration manquante : SUPABASE_URL ou SUPABASE_ANON_KEY non définis.'));
-    return;
+class _BootstrapAppState extends State<BootstrapApp> {
+  late final Future<void> _startup = _initialize();
+
+  Future<void> _initialize() async {
+    await _loadEnvironment().timeout(const Duration(seconds: 5));
+
+    final supabaseUrl = _environmentValue('SUPABASE_URL');
+    final supabaseAnonKey = _environmentValue('SUPABASE_ANON_KEY');
+
+    if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
+      throw StateError(
+          'Configuration manquante : SUPABASE_URL ou SUPABASE_ANON_KEY non definis.');
   }
 
-  try {
-    await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey);
-  } catch (e) {
-    runApp(_ErrorApp('Erreur initialisation Supabase : $e'));
-    return;
+    try {
+      await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey)
+          .timeout(const Duration(seconds: 10));
+    } catch (e) {
+      throw StateError('Erreur initialisation Supabase : $e');
   }
 
   // Restaure la session utilisateur si elle existe (favoris synchronisés
   // avec Supabase après un reload, sans avoir à se reconnecter).
-  await api.restoreSession();
+  try {
+    await api.restoreSession().timeout(const Duration(seconds: 5));
+  } catch (e) {
+    logger.w('Session non restauree au demarrage: $e');
+  }
 
-  runApp(const MyApp());
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<void>(
+      future: _startup,
+      builder: (context, snapshot) {
+        if (snapshot.hasError) {
+          return _ErrorApp('Erreur demarrage EcoDiet : ${snapshot.error}');
+        }
+        if (snapshot.connectionState == ConnectionState.done) {
+          return const MyApp();
+        }
+        return const MaterialApp(
+          home: Scaffold(
+            backgroundColor: Color(0xFFF5ECD9),
+            body: Center(
+              child: CircularProgressIndicator(color: Color(0xFF2F6B3F)),
+            ),
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _ErrorApp extends StatelessWidget {

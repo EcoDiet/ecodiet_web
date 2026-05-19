@@ -315,6 +315,21 @@ class EcoDietApi {
     }
   }
 
+  Future<List<RecettePreview>> getAllRecettesPreview(
+      {int pageSize = 1000}) async {
+    final recettes = <RecettePreview>[];
+    var offset = 0;
+
+    while (true) {
+      final page = await getRecettesPreview(limit: pageSize, offset: offset);
+      recettes.addAll(page);
+      if (page.length < pageSize) break;
+      offset += pageSize;
+    }
+
+    return recettes;
+  }
+
   /// Retourne les IDs des recettes favorites de l'utilisateur courant
   Future<Set<String>> getFavoriteIds() async {
     if (_currentUser == null) return {};
