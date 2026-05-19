@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:logger/logger.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 import 'pages/login_page.dart';
 import 'pages/create_account_page.dart';
 import 'pages/home_page.dart';
@@ -44,12 +43,7 @@ Future<void> _loadEnvironment() async {
 
 String _environmentValue(String name) {
   var compileTimeValue = '';
-  if (name == 'SUPABASE_URL') {
-    compileTimeValue = const String.fromEnvironment('SUPABASE_URL').trim();
-  } else if (name == 'SUPABASE_ANON_KEY') {
-    compileTimeValue =
-        const String.fromEnvironment('SUPABASE_ANON_KEY').trim();
-  } else if (name == 'DATA_PROVIDER') {
+  if (name == 'DATA_PROVIDER') {
     compileTimeValue = const String.fromEnvironment('DATA_PROVIDER').trim();
   } else if (name == 'GCP_BRIDGE_URL') {
     compileTimeValue = const String.fromEnvironment('GCP_BRIDGE_URL').trim();
@@ -78,11 +72,9 @@ class _BootstrapAppState extends State<BootstrapApp> {
   Future<void> _initialize() async {
     await _loadEnvironment().timeout(const Duration(seconds: 5));
 
-    final dataProvider = _environmentValue('DATA_PROVIDER').toLowerCase();
     final bridgeUrl = _environmentValue('GCP_BRIDGE_URL');
     final bridgeApiKey = _environmentValue('GCP_BRIDGE_API_KEY');
-    final useGcpBridge = bridgeUrl.isNotEmpty &&
-        (dataProvider == 'gcp_bridge' || dataProvider.isEmpty);
+    final useGcpBridge = bridgeUrl.isNotEmpty;
 
     api.configureDataBridge(
       enabled: useGcpBridge,
@@ -91,31 +83,17 @@ class _BootstrapAppState extends State<BootstrapApp> {
     );
     kDisableNetworkImages = false;
     logger.i(
-      'Data provider: ${useGcpBridge ? 'gcp_bridge' : 'supabase'} '
-      '(debug: $kDebugMode)',
+      'Data provider: gcp_bridge (debug: $kDebugMode)',
     );
 
     if (!useGcpBridge) {
-      final supabaseUrl = _environmentValue('SUPABASE_URL');
-      final supabaseAnonKey = _environmentValue('SUPABASE_ANON_KEY');
-
-      if (supabaseUrl.isEmpty || supabaseAnonKey.isEmpty) {
-        throw StateError(
-            'Configuration manquante : SUPABASE_URL ou SUPABASE_ANON_KEY non definis.');
-      }
-
-      try {
-        await Supabase.initialize(url: supabaseUrl, anonKey: supabaseAnonKey)
-            .timeout(const Duration(seconds: 10));
-      } catch (e) {
-        throw StateError('Erreur initialisation Supabase : $e');
-      }
-    } else {
-      logger.i('Supabase desactive: mode gcp_bridge strict');
+      throw StateError(
+        'Configuration manquante : GCP_BRIDGE_URL non defini.',
+      );
     }
+    logger.i('Supabase desactive: mode gcp_bridge strict');
 
-  // Restaure la session utilisateur si elle existe (favoris synchronisés
-  // avec Supabase après un reload, sans avoir à se reconnecter).
+  // Restaure la session utilisateur si elle existe.
   try {
     await api.restoreSession().timeout(const Duration(seconds: 5));
   } catch (e) {
