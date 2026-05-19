@@ -144,7 +144,7 @@ Variables a ajouter dans `.env` (ou via `--dart-define`) :
 - `GCP_BRIDGE_URL=https://<votre-service>.a.run.app`
 - `GCP_BRIDGE_API_KEY=<cle_api_optionnelle>`
 
-Le front garde Supabase pour l'auth/session, mais lit les donnees data via Cloud Run quand `DATA_PROVIDER=gcp_bridge`.
+Le front fonctionne en mode `gcp_bridge` et passe par Cloud Run pour les lectures/inscriptions.
 
 Endpoints attendus par le front :
 
