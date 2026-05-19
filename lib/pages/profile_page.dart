@@ -157,7 +157,7 @@ class _ProfilePageState extends State<ProfilePage> {
             child: Center(
               child: Text(
                 _avatarLetter,
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 34,
                   fontWeight: FontWeight.bold,
                   color: Colors.white,
@@ -168,7 +168,7 @@ class _ProfilePageState extends State<ProfilePage> {
           const SizedBox(height: 14),
           Text(
             _displayName,
-            style: TextStyle(
+            style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
               color: Colors.white,
@@ -327,7 +327,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Center(
                     child: Text(
                       _avatarLetter,
-                      style: TextStyle(
+                      style: const TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
                         color: Colors.white,
@@ -344,7 +344,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     children: [
                       Text(
                         _displayName,
-                        style: TextStyle(
+                        style: const TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                           color: Color(0xFF1F2E1F),
