@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:email_validator/email_validator.dart';
@@ -119,11 +121,20 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   // Étape 1 — Compte
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
+  final _pseudoController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmController = TextEditingController();
   bool _obscurePassword = true;
   bool _obscureConfirm = true;
+  Timer? _pseudoDebounce;
+  Timer? _emailDebounce;
+  bool _isCheckingPseudo = false;
+  bool? _isPseudoAvailable;
+  String? _pseudoCheckMessage;
+  bool _isCheckingEmail = false;
+  bool? _isEmailAvailable;
+  String? _emailCheckMessage;
 
   // Étape 2 — Profil
   String? _gender;
@@ -144,6 +155,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   @override
   void initState() {
     super.initState();
+    _pseudoController.addListener(_onPseudoChanged);
+    _emailController.addListener(_onEmailChanged);
   }
 
   @override
@@ -151,13 +164,76 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     _pageController.dispose();
     _firstNameController.dispose();
     _lastNameController.dispose();
+    _pseudoController.dispose();
     _emailController.dispose();
     _passwordController.dispose();
     _confirmController.dispose();
     _heightController.dispose();
     _weightController.dispose();
     _targetWeightController.dispose();
+    _pseudoDebounce?.cancel();
+    _emailDebounce?.cancel();
     super.dispose();
+  }
+
+  void _onPseudoChanged() {
+    _pseudoDebounce?.cancel();
+    final raw = _pseudoController.text.trim();
+    if (raw.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _isCheckingPseudo = false;
+        _isPseudoAvailable = null;
+        _pseudoCheckMessage = null;
+      });
+      return;
+    }
+
+    _pseudoDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (!mounted) return;
+      setState(() {
+        _isCheckingPseudo = true;
+        _pseudoCheckMessage = null;
+      });
+      final available = await _api.isPseudoAvailable(raw);
+      if (!mounted) return;
+      setState(() {
+        _isCheckingPseudo = false;
+        _isPseudoAvailable = available;
+        _pseudoCheckMessage =
+            available ? 'Pseudo disponible' : 'Pseudo deja utilise';
+      });
+    });
+  }
+
+  void _onEmailChanged() {
+    _emailDebounce?.cancel();
+    final raw = _emailController.text.trim();
+    if (raw.isEmpty) {
+      if (!mounted) return;
+      setState(() {
+        _isCheckingEmail = false;
+        _isEmailAvailable = null;
+        _emailCheckMessage = null;
+      });
+      return;
+    }
+
+    _emailDebounce = Timer(const Duration(milliseconds: 450), () async {
+      if (!mounted) return;
+      setState(() {
+        _isCheckingEmail = true;
+        _emailCheckMessage = null;
+      });
+      final available = await _api.isEmailAvailable(raw);
+      if (!mounted) return;
+      setState(() {
+        _isCheckingEmail = false;
+        _isEmailAvailable = available;
+        _emailCheckMessage =
+            available ? 'Email disponible' : 'Email deja utilise';
+      });
+    });
   }
 
   // ── Navigation ─────────────────────────────────────────────────────────────
@@ -181,6 +257,27 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
 
   Future<void> _finishOnboarding() async {
     setState(() => _isLoading = true);
+    final height = _heightController.text.trim().isNotEmpty
+        ? double.tryParse(_heightController.text.trim())
+        : null;
+    final weight = _weightController.text.trim().isNotEmpty
+        ? double.tryParse(_weightController.text.trim())
+        : null;
+    final targetWeight = _targetWeightController.text.trim().isNotEmpty
+        ? double.tryParse(_targetWeightController.text.trim())
+        : null;
+    final profile = <String, dynamic>{
+      if (_dietType != null) 'regime': _dietType,
+      if (_mainGoal != null) 'objectif': _mainGoal,
+      if (_gender != null) 'genre': _gender,
+      if (_birthDate != null)
+        'date_naissance':
+            '${_birthDate!.year.toString().padLeft(4, '0')}-${_birthDate!.month.toString().padLeft(2, '0')}-${_birthDate!.day.toString().padLeft(2, '0')}',
+      if (height != null) 'taille_cm': height,
+      if (weight != null) 'poids_kg': weight,
+      if (targetWeight != null) 'poids_cible_kg': targetWeight,
+      if (_allergies.isNotEmpty) 'allergies': _allergies.join(','),
+    };
     final result = await _api.register(
       email: _emailController.text.trim(),
       password: _passwordController.text,
@@ -190,11 +287,15 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       prenom: _firstNameController.text.trim().isNotEmpty
           ? _firstNameController.text.trim()
           : null,
+      pseudo: _pseudoController.text.trim().isNotEmpty
+          ? _pseudoController.text.trim()
+          : null,
+      profile: profile,
     );
     setState(() => _isLoading = false);
     if (!mounted) return;
     if (result.isSuccess) {
-      Navigator.pushReplacementNamed(context, '/home');
+      Navigator.pushReplacementNamed(context, '/login');
     } else {
       _showError(result.error ?? 'Erreur lors de la création du compte');
     }
@@ -211,7 +312,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     );
   }
 
-  void _validateStep1() {
+  Future<void> _validateStep1() async {
     if (_firstNameController.text.trim().isEmpty) {
       _showError('Le prénom est requis');
       return;
@@ -222,6 +323,44 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     }
     if (!EmailValidator.validate(_emailController.text.trim())) {
       _showError('Adresse email invalide');
+      return;
+    }
+    if (_isCheckingEmail) {
+      _showError('Verification de l email en cours...');
+      return;
+    }
+    if (_isEmailAvailable == null) {
+      final available = await _api.isEmailAvailable(_emailController.text.trim());
+      if (!mounted) return;
+      setState(() {
+        _isEmailAvailable = available;
+        _emailCheckMessage = available ? 'Email disponible' : 'Email deja utilise';
+      });
+    }
+    if (_isEmailAvailable == false) {
+      _showError('Cet email existe deja');
+      return;
+    }
+    if (_pseudoController.text.trim().isEmpty) {
+      _showError('Le pseudo est requis');
+      return;
+    }
+    if (_isCheckingPseudo) {
+      _showError('Verification du pseudo en cours...');
+      return;
+    }
+    if (_isPseudoAvailable == null) {
+      final available =
+          await _api.isPseudoAvailable(_pseudoController.text.trim());
+      if (!mounted) return;
+      setState(() {
+        _isPseudoAvailable = available;
+        _pseudoCheckMessage =
+            available ? 'Pseudo disponible' : 'Pseudo deja utilise';
+      });
+    }
+    if (_isPseudoAvailable == false) {
+      _showError('Ce pseudo existe deja');
       return;
     }
     if (_passwordController.text.length < 8) {
@@ -611,6 +750,71 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
             ),
             keyboardType: TextInputType.emailAddress,
           ),
+          if (_isCheckingEmail || _emailCheckMessage != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                if (_isCheckingEmail)
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                if (_isCheckingEmail) const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    _isCheckingEmail
+                        ? 'Verification de l email...'
+                        : (_emailCheckMessage ?? ''),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: (_isEmailAvailable ?? false)
+                          ? const Color(0xFF2F6B3F)
+                          : const Color(0xFFB3261E),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 12),
+
+          _buildLabel('Pseudo'),
+          TextField(
+            controller: _pseudoController,
+            decoration: _fieldDecoration(
+              'Ex : jean_du_94',
+              prefixIcon: Icon(Icons.alternate_email,
+                  size: 18, color: Colors.grey[400]),
+            ),
+          ),
+          if (_isCheckingPseudo || _pseudoCheckMessage != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                if (_isCheckingPseudo)
+                  const SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                if (_isCheckingPseudo) const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    _isCheckingPseudo
+                        ? 'Verification du pseudo...'
+                        : (_pseudoCheckMessage ?? ''),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: (_isPseudoAvailable ?? false)
+                          ? const Color(0xFF2F6B3F)
+                          : const Color(0xFFB3261E),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 12),
 
           _buildLabel('Mot de passe'),
@@ -663,7 +867,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           _buildPasswordStrength(),
           const SizedBox(height: 24),
 
-          _buildPrimaryButton('Continuer', _validateStep1),
+          _buildPrimaryButton('Continuer', () => _validateStep1()),
           const SizedBox(height: 16),
 
           Row(

@@ -18,6 +18,32 @@ class _ProfilePageState extends State<ProfilePage> {
   List<UserPreference> preferences = [];
   int favoriteCount = 0;
 
+  User? get _currentUser => _api.currentUser;
+
+  String get _displayName {
+    final user = _currentUser;
+    if (user == null) return 'Utilisateur';
+    final prenom = (user.prenom ?? '').trim();
+    final nom = (user.nom ?? '').trim();
+    if (prenom.isNotEmpty || nom.isNotEmpty) {
+      return '$prenom $nom'.trim();
+    }
+    final email = (user.email).trim();
+    if (email.isNotEmpty) return email.split('@').first;
+    return 'Utilisateur';
+  }
+
+  String get _displayEmail {
+    final email = (_currentUser?.email ?? '').trim();
+    return email.isEmpty ? 'utilisateur@ecodiet.fr' : email;
+  }
+
+  String get _avatarLetter {
+    final name = _displayName.trim();
+    if (name.isEmpty) return 'U';
+    return name.substring(0, 1).toUpperCase();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -128,9 +154,9 @@ class _ProfilePageState extends State<ProfilePage> {
               border: Border.all(
                   color: Colors.white.withValues(alpha: 0.25), width: 3),
             ),
-            child: const Center(
+            child: Center(
               child: Text(
-                'U',
+                _avatarLetter,
                 style: TextStyle(
                   fontSize: 34,
                   fontWeight: FontWeight.bold,
@@ -140,8 +166,8 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
           ),
           const SizedBox(height: 14),
-          const Text(
-            'Utilisateur',
+          Text(
+            _displayName,
             style: TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
@@ -298,9 +324,9 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ],
                   ),
-                  child: const Center(
+                  child: Center(
                     child: Text(
-                      'U',
+                      _avatarLetter,
                       style: TextStyle(
                         fontSize: 32,
                         fontWeight: FontWeight.bold,
@@ -316,8 +342,8 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
-                        'Utilisateur',
+                      Text(
+                        _displayName,
                         style: TextStyle(
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
@@ -326,7 +352,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        'utilisateur@ecodiet.fr',
+                        _displayEmail,
                         style: TextStyle(fontSize: 13, color: Colors.grey[700]),
                       ),
                       const SizedBox(height: 14),

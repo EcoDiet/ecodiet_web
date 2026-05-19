@@ -1,3 +1,7 @@
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
+import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'favorites_service.dart';
 import '../models/recette.dart';
@@ -5,11 +9,21 @@ import '../models/user.dart' as app_models;
 import '../models/user.dart' hide User;
 
 const String kMarmitonImageBaseUrl = 'https://assets.afcdn.com/recipe/';
+const String kGcpImageBaseUrl =
+    'https://storage.googleapis.com/gcs_dataiku/dataiku/staging/node_7e227912/ECODIETYNOV/0RUJIdkr/';
+bool kDisableNetworkImages = true;
 
 /// Retourne l'URL complète d'une image recette à partir du nom de fichier stocké en BDD.
 String recetteImageUrl(String photo) {
+  if (kDisableNetworkImages) return '';
   if (photo.isEmpty) return '';
   if (photo.startsWith('http')) return photo;
+  if (photo.toLowerCase().endsWith('.jpg') ||
+      photo.toLowerCase().endsWith('.jpeg') ||
+      photo.toLowerCase().endsWith('.png') ||
+      photo.toLowerCase().endsWith('.webp')) {
+    return '$kGcpImageBaseUrl$photo';
+  }
   return '$kMarmitonImageBaseUrl$photo';
 }
 
@@ -20,13 +34,396 @@ class EcoDietApi {
 
   /// Résolu paresseusement : permet d'instancier EcoDietApi (ex. en test)
   /// sans exiger que Supabase soit déjà initialisé.
-  SupabaseClient get _supabase => Supabase.instance.client;
+  SupabaseClient get _supabase {
+    if (_useGcpBridge) {
+      throw StateError('Supabase desactive en mode gcp_bridge');
+    }
+    return Supabase.instance.client;
+  }
   
   // Session utilisateur courante
   app_models.User? _currentUser;
+  bool _useGcpBridge = false;
+  String _gcpBridgeBaseUrl = '';
+  String? _gcpBridgeApiKey;
+  List<Map<String, dynamic>>? _bridgeRecettesCache;
 
   factory EcoDietApi() => _instance;
   EcoDietApi._internal();
+  bool get isBridgeMode => _useGcpBridge;
+
+  void configureDataBridge({
+    required bool enabled,
+    required String baseUrl,
+    String? apiKey,
+  }) {
+    _useGcpBridge = enabled && baseUrl.trim().isNotEmpty;
+    _gcpBridgeBaseUrl = baseUrl.trim().replaceAll(RegExp(r'/$'), '');
+    _gcpBridgeApiKey = apiKey?.trim().isEmpty ?? true ? null : apiKey?.trim();
+    _bridgeRecettesCache = null;
+  }
+
+  Map<String, String> _bridgeHeaders() {
+    final headers = <String, String>{'Accept': 'application/json'};
+    if (_gcpBridgeApiKey != null) {
+      headers['x-api-key'] = _gcpBridgeApiKey!;
+    }
+    return headers;
+  }
+
+  Future<dynamic> _bridgeGet(String path, {Map<String, String>? query}) async {
+    final uri = Uri.parse('$_gcpBridgeBaseUrl$path').replace(
+      queryParameters: query?.isEmpty ?? true ? null : query,
+    );
+    final response = await http.get(uri, headers: _bridgeHeaders());
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      throw Exception(
+        'Bridge HTTP ${response.statusCode} ${response.reasonPhrase ?? ''}',
+      );
+    }
+    if (response.body.isEmpty) return null;
+    return _decodeBridgeBody(response.body);
+  }
+
+  Future<dynamic> _bridgePost(String path, Map<String, dynamic> body) async {
+    final uri = Uri.parse('$_gcpBridgeBaseUrl$path');
+    final headers = <String, String>{
+      ..._bridgeHeaders(),
+      'Content-Type': 'application/json',
+    };
+    final response =
+        await http.post(uri, headers: headers, body: jsonEncode(body));
+    if (response.statusCode < 200 || response.statusCode >= 300) {
+      final bodyPreview = response.body.trim().isEmpty
+          ? '(empty body)'
+          : response.body.trim();
+      throw Exception(
+        'Bridge HTTP ${response.statusCode} ${response.reasonPhrase ?? ''} - $bodyPreview',
+      );
+    }
+    if (response.body.isEmpty) return null;
+    return _decodeBridgeBody(response.body);
+  }
+
+  Map<String, dynamic> _stripNulls(Map<String, dynamic> input) {
+    final out = <String, dynamic>{};
+    input.forEach((key, value) {
+      if (value == null) return;
+      if (value is Map<String, dynamic>) {
+        final nested = _stripNulls(value);
+        if (nested.isNotEmpty) out[key] = nested;
+        return;
+      }
+      out[key] = value;
+    });
+    return out;
+  }
+
+  String _hashPassword(String plainPassword) {
+    final bytes = utf8.encode(plainPassword);
+    return sha256.convert(bytes).toString();
+  }
+
+  String _hashPasswordMd5(String plainPassword) {
+    final bytes = utf8.encode(plainPassword);
+    return md5.convert(bytes).toString();
+  }
+
+  String _hashPasswordSha1(String plainPassword) {
+    final bytes = utf8.encode(plainPassword);
+    return sha1.convert(bytes).toString();
+  }
+
+  bool _matchesStoredPasswordHash({
+    required String plainPassword,
+    required String storedHash,
+  }) {
+    final normalizedStored = storedHash.trim().toLowerCase();
+    if (normalizedStored.isEmpty) return false;
+
+    final sha256Hash = _hashPassword(plainPassword).toLowerCase();
+    if (normalizedStored == sha256Hash) return true;
+
+    // Compat legacy: certains jeux de donnees historiques utilisaient md5/sha1.
+    final md5Hash = _hashPasswordMd5(plainPassword).toLowerCase();
+    if (normalizedStored == md5Hash) return true;
+
+    final sha1Hash = _hashPasswordSha1(plainPassword).toLowerCase();
+    if (normalizedStored == sha1Hash) return true;
+
+    return false;
+  }
+
+  dynamic _decodeBridgeBody(String body) {
+    final trimmed = body.trim();
+    if (trimmed.isEmpty) return null;
+
+    try {
+      return jsonDecode(trimmed);
+    } catch (_) {
+      // Some bridge implementations return concatenated JSON objects
+      // without an outer array. Try lenient decoding.
+      if (!trimmed.startsWith('[') && trimmed.contains('},{')) {
+        try {
+          return jsonDecode('[$trimmed]');
+        } catch (_) {}
+      }
+
+      // NDJSON / one object per line fallback.
+      final lines = trimmed
+          .split(RegExp(r'\r?\n'))
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty)
+          .toList();
+      if (lines.isNotEmpty && lines.every((l) => l.startsWith('{') && l.endsWith('}'))) {
+        try {
+          return lines.map((l) => jsonDecode(l)).toList();
+        } catch (_) {}
+      }
+
+      rethrow;
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _bridgeGetRecettesFromRoot() async {
+    if (_bridgeRecettesCache != null) return _bridgeRecettesCache!;
+
+    final root = await _bridgeGet('', query: {'table': 'fact_recette_base'});
+    List rawRows;
+    if (root is List) {
+      rawRows = root;
+    } else if (root is Map) {
+      final payload = Map<String, dynamic>.from(root);
+      final fromWrapper = payload['donneesBigQuery'];
+      if (fromWrapper is! List) {
+        throw Exception('Format bridge invalide: donneesBigQuery[] manquant');
+      }
+      rawRows = fromWrapper;
+    } else {
+      throw Exception('Format bridge invalide: liste ou objet JSON attendu');
+    }
+
+    final normalized = rawRows
+        .whereType<Map>()
+        .map((row) => _normalizeBridgeRecetteRow(Map<String, dynamic>.from(row)))
+        .toList();
+    _bridgeRecettesCache = normalized;
+    return normalized;
+  }
+
+  Future<List<Map<String, dynamic>>> _bridgeGetTable(String table) async {
+    final res = await _bridgeGet('', query: {'table': table});
+    if (res is List) {
+      return res
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+    }
+    if (res is Map) {
+      final rows = res['donneesBigQuery'];
+      if (rows is List) {
+        return rows
+            .whereType<Map>()
+            .map((m) => Map<String, dynamic>.from(m))
+            .toList();
+      }
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> _bridgeGetTableAny(
+      List<String> tableNames) async {
+    for (final name in tableNames) {
+      try {
+        final rows = await _bridgeGetTable(name);
+        if (rows.isNotEmpty) return rows;
+      } catch (_) {}
+    }
+    return [];
+  }
+
+  int _toInt(dynamic value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('$value') ?? 0;
+  }
+
+  Future<List<RecettePreview>> _bridgeBuildPreviewsFromBase(
+    List<Map<String, dynamic>> baseRows,
+  ) async {
+    final dimIng = await _bridgeGetTableAny(['dim_ingredients', 'dim_ingredient']);
+    final factIng = await _bridgeGetTableAny(['fact_ingredients_recette']);
+    final dimEq = await _bridgeGetTableAny(['dim_equipement']);
+    final factEq = await _bridgeGetTableAny(['fact_recette_equipements', 'fact_recette_equipement']);
+    final dimReg = await _bridgeGetTableAny(['dim_regime']);
+    final factReg = await _bridgeGetTableAny(['fact_recette_regime']);
+    final dimAll = await _bridgeGetTableAny(['dim_allergene']);
+    final factAll = await _bridgeGetTableAny(['fact_recette_allergene']);
+    final dimOcc = await _bridgeGetTableAny(['dim_occasion']);
+    final factOcc = await _bridgeGetTableAny(['fact_recette_occasion']);
+    final dimType = await _bridgeGetTableAny(['dim_type_plat']);
+    final factType = await _bridgeGetTableAny(['fact_recette_type_plat']);
+
+    final ingById = {for (final r in dimIng) _toInt(r['ingredient_id']): '${r['nom_ingredient'] ?? ''}'};
+    final eqById = {for (final r in dimEq) _toInt(r['equipement_id']): '${r['nom_equipement'] ?? ''}'};
+    final regById = {for (final r in dimReg) _toInt(r['regime_id']): '${r['libelle'] ?? ''}'};
+    final allById = {for (final r in dimAll) _toInt(r['allergene_id']): '${r['libelle'] ?? ''}'};
+    final occById = {for (final r in dimOcc) _toInt(r['occasion_id']): '${r['libelle'] ?? ''}'};
+    final typeById = {for (final r in dimType) _toInt(r['type_plat_id']): '${r['libelle'] ?? ''}'};
+
+    final ingsByRecette = <String, List<String>>{};
+    for (final r in factIng) {
+      final id = '${r['recette_id'] ?? ''}';
+      final v = ingById[_toInt(r['ingredient_id'])] ?? '';
+      if (id.isNotEmpty && v.trim().isNotEmpty) {
+        (ingsByRecette[id] ??= []).add(v);
+      }
+    }
+    final eqsByRecette = <String, List<String>>{};
+    for (final r in factEq) {
+      final id = '${r['recette_id'] ?? ''}';
+      final v = eqById[_toInt(r['equipement_id'])] ?? '';
+      if (id.isNotEmpty && v.trim().isNotEmpty) {
+        (eqsByRecette[id] ??= []).add(v);
+      }
+    }
+    final allsByRecette = <String, List<String>>{};
+    for (final r in factAll) {
+      final id = '${r['recette_id'] ?? ''}';
+      final v = allById[_toInt(r['allergene_id'])] ?? '';
+      if (id.isNotEmpty && v.trim().isNotEmpty) {
+        (allsByRecette[id] ??= []).add(v);
+      }
+    }
+    final occsByRecette = <String, List<String>>{};
+    for (final r in factOcc) {
+      final id = '${r['recette_id'] ?? ''}';
+      final v = occById[_toInt(r['occasion_id'])] ?? '';
+      if (id.isNotEmpty && v.trim().isNotEmpty) {
+        (occsByRecette[id] ??= []).add(v);
+      }
+    }
+    final regByRecette = <String, String>{};
+    for (final r in factReg) {
+      final id = '${r['recette_id'] ?? ''}';
+      final v = regById[_toInt(r['regime_id'])] ?? '';
+      if (id.isNotEmpty && v.trim().isNotEmpty) regByRecette[id] = v;
+    }
+    final typeByRecette = <String, String>{};
+    for (final r in factType) {
+      final id = '${r['recette_id'] ?? ''}';
+      final v = typeById[_toInt(r['type_plat_id'])] ?? '';
+      if (id.isNotEmpty && v.trim().isNotEmpty) typeByRecette[id] = v;
+    }
+
+    return baseRows.map((m) {
+      final rid = '${m['recette_id'] ?? ''}';
+      return RecettePreview(
+        recetteId: rid,
+        titre: '${m['titre'] ?? ''}',
+        photo: '${m['photo'] ?? ''}',
+        dureeMinute: _toInt(m['duree_minute']),
+        tempsBinId: _toInt(m['temps_bin_id']),
+        typePlatLibelle: typeByRecette[rid],
+        ingredients: (ingsByRecette[rid] ?? const []).toSet().toList(),
+        equipements: (eqsByRecette[rid] ?? const []).toSet().toList(),
+        allergenes: (allsByRecette[rid] ?? const []).toSet().toList(),
+        occasions: (occsByRecette[rid] ?? const []).toSet().toList(),
+        regimeLibelle: regByRecette[rid],
+      );
+    }).toList();
+  }
+
+  List<String> _splitRawListText(String raw) {
+    var text = raw.trim();
+    if (text.isEmpty) return const [];
+    if (text.startsWith('[') && text.endsWith(']')) {
+      text = text.substring(1, text.length - 1);
+    }
+    return text
+        .split(RegExp(r'''['"]\s*,\s*['"]|,\s*'''))
+        .map((s) => s.replaceAll(RegExp(r'''^['"]+|['"]+$'''), '').trim())
+        .where((s) => s.isNotEmpty)
+        .toList();
+  }
+
+  Map<String, dynamic> _normalizeBridgeRecetteRow(Map<String, dynamic> row) {
+    int toInt(dynamic value) {
+      if (value is int) return value;
+      if (value is num) return value.toInt();
+      return int.tryParse('$value') ?? 0;
+    }
+
+    String pick(List<String> keys, [String fallback = '']) {
+      for (final key in keys) {
+        final value = row[key];
+        if (value != null && '$value'.trim().isNotEmpty) return '$value';
+      }
+      return fallback;
+    }
+
+    return {
+      'recette_id': pick(['recette_id', 'id', 'recipe_id', 'recetteId']),
+      'titre': pick(['titre', 'title', 'nom', 'name']),
+      'photo': pick(['photo', 'image_url', 'image', 'photo_url']),
+      'etapes': pick(['etapes', 'steps', 'description']),
+      'duree_minute': toInt(
+        row['duree_minute'] ??
+            row['duration'] ??
+            row['duree'] ??
+            row['duration_minutes'],
+      ),
+      'temps_bin_id': toInt(row['temps_bin_id'] ?? row['tempsBinId']),
+    };
+  }
+
+  RecetteComplete _recetteCompleteFromBridgeMap(Map<String, dynamic> map) {
+    final recette = Recette.fromMap(
+      (map['recette'] ?? map) as Map<String, dynamic>,
+    );
+
+    TempsBin? tempsBin;
+    if (map['temps_bin'] is Map<String, dynamic>) {
+      tempsBin = TempsBin.fromMap(map['temps_bin'] as Map<String, dynamic>);
+    }
+
+    final allergenes = (map['allergenes'] as List? ?? const [])
+        .whereType<Map>()
+        .map((m) => Allergene.fromMap(Map<String, dynamic>.from(m)))
+        .toList();
+    final equipements = (map['equipements'] as List? ?? const [])
+        .whereType<Map>()
+        .map((m) => Equipement.fromMap(Map<String, dynamic>.from(m)))
+        .toList();
+    final ingredients = (map['ingredients'] as List? ?? const [])
+        .whereType<Map>()
+        .map((m) => Ingredient.fromMap(Map<String, dynamic>.from(m)))
+        .toList();
+    final occasions = (map['occasions'] as List? ?? const [])
+        .whereType<Map>()
+        .map((m) => Occasion.fromMap(Map<String, dynamic>.from(m)))
+        .toList();
+
+    Regime? regime;
+    if (map['regime'] is Map<String, dynamic>) {
+      regime = Regime.fromMap(map['regime'] as Map<String, dynamic>);
+    }
+    TypePlat? typePlat;
+    if (map['type_plat'] is Map<String, dynamic>) {
+      typePlat = TypePlat.fromMap(map['type_plat'] as Map<String, dynamic>);
+    }
+
+    return RecetteComplete(
+      recette: recette,
+      tempsBin: tempsBin,
+      allergenes: allergenes,
+      equipements: equipements,
+      ingredients: ingredients,
+      occasions: occasions,
+      regime: regime,
+      typePlat: typePlat,
+    );
+  }
 
   String _friendlyError(Object error, String action) {
     final message = error.toString();
@@ -48,6 +445,10 @@ class EcoDietApi {
   bool get isLoggedIn => _currentUser != null;
 
   Future<bool> restoreSession() async {
+    if (_useGcpBridge) {
+      return _currentUser != null;
+    }
+
     final authUser = _supabase.auth.currentUser;
     if (authUser == null) {
       _currentUser = null;
@@ -140,7 +541,70 @@ class EcoDietApi {
     required String password,
     String? nom,
     String? prenom,
+    String? pseudo,
+    Map<String, dynamic>? profile,
   }) async {
+    if (_useGcpBridge) {
+      final normalizedEmail = email.toLowerCase().trim();
+      final safeNom = (nom ?? '').trim();
+      final safePrenom = (prenom ?? '').trim();
+      final safePassword = password.trim();
+      final safePseudo = (pseudo ?? '').trim();
+      if (normalizedEmail.isEmpty ||
+          safePassword.isEmpty ||
+          safeNom.isEmpty ||
+          safePrenom.isEmpty ||
+          safePseudo.isEmpty) {
+        return ApiResult.error(
+          'Nom, prenom, pseudo, email et mot de passe sont requis.',
+        );
+      }
+      final emailAvailable = await isEmailAvailable(normalizedEmail);
+      if (!emailAvailable) {
+        return ApiResult.error('Cet email est deja inscrit.');
+      }
+
+      final hashedPassword = _hashPassword(safePassword);
+
+      final richPayload = _stripNulls(<String, dynamic>{
+        'email': normalizedEmail,
+        'password': hashedPassword,
+        'mdp': hashedPassword,
+        'mot_de_passe': hashedPassword,
+        'nom': safeNom,
+        'prenom': safePrenom,
+        'pseudo': safePseudo,
+        if (profile != null) ...profile,
+        // Defaults to avoid null-typed BigQuery parameters on fragile backends.
+        'budget_par_repas': profile?['budget_par_repas'] ?? 0.0,
+        'tolerance_epice': profile?['tolerance_epice'] ?? 0,
+        'cuisine_preferee': profile?['cuisine_preferee'] ?? '',
+        'fenetre_temps_soir_min': profile?['fenetre_temps_soir_min'] ?? 0,
+      });
+
+      String userId = 'bridge_${DateTime.now().microsecondsSinceEpoch}';
+      try {
+        final res = await _bridgePost('/users', richPayload);
+        if (res is Map && res['user_id'] != null) {
+          userId = '${res['user_id']}';
+        }
+      } catch (e) {
+        return ApiResult.error(
+          'Inscription en base impossible via Cloud Run: $e',
+        );
+      }
+
+      final user = app_models.User(
+        userId: userId,
+        email: normalizedEmail,
+        nom: safeNom,
+        prenom: safePrenom,
+        passwordHash: null,
+      );
+      _currentUser = null;
+      return ApiResult.success(user);
+    }
+
     try {
       final res = await _supabase.auth.signUp(
         email: email,
@@ -201,6 +665,56 @@ class EcoDietApi {
     required String email,
     required String password,
   }) async {
+    if (_useGcpBridge) {
+      final normalizedEmail = email.toLowerCase().trim();
+      final rawPassword = password.trim();
+      try {
+        final rows = await _bridgeGetTableAny(['dim_utilisateur']);
+        final row = rows.cast<Map<String, dynamic>?>().firstWhere(
+              (r) {
+                if (r == null) return false;
+                final rowEmail =
+                    (r['email'] ?? '').toString().trim().toLowerCase();
+                final rowPassword = (r['mdp'] ??
+                        r['mot_de_passe'] ??
+                        r['password'] ??
+                        '')
+                    .toString()
+                    .trim();
+                return rowEmail == normalizedEmail &&
+                    rowPassword.isNotEmpty &&
+                    _matchesStoredPasswordHash(
+                      plainPassword: rawPassword,
+                      storedHash: rowPassword,
+                    );
+              },
+              orElse: () => null,
+            );
+
+        if (row == null) {
+          return ApiResult.error(
+            'Erreur lors de la connexion: identifiants invalides.',
+          );
+        }
+
+        final user = app_models.User(
+          userId: (row['user_id'] ?? row['id'] ?? '').toString().isEmpty
+              ? null
+              : (row['user_id'] ?? row['id']).toString(),
+          email: normalizedEmail,
+          nom: row['nom']?.toString(),
+          prenom: row['prenom']?.toString(),
+          passwordHash: null,
+        );
+        _currentUser = user;
+        return ApiResult.success(user);
+      } catch (e) {
+        return ApiResult.error(
+          'Erreur lors de la connexion bridge: $e',
+        );
+      }
+    }
+
     try {
       final res = await _supabase.auth.signInWithPassword(
         email: email.toLowerCase(),
@@ -247,6 +761,10 @@ class EcoDietApi {
 
   /// Déconnexion
   Future<void> logout() async {
+    if (_useGcpBridge) {
+      _currentUser = null;
+      return;
+    }
     _currentUser = null;
     await _supabase.auth.signOut();
   }
@@ -292,6 +810,19 @@ class EcoDietApi {
   // ============================================================================
 
   Future<List<Recette>> getAllRecettes() async {
+    if (_useGcpBridge) {
+      try {
+        final res = await _bridgeGet('/v1/recettes');
+        return (res as List).map((m) => Recette.fromMap(m)).toList();
+      } catch (_) {}
+      try {
+        final rows = await _bridgeGetRecettesFromRoot();
+        return rows.map(Recette.fromMap).toList();
+      } catch (_) {}
+      throw Exception(
+        'Mode gcp_bridge actif, mais impossible de recuperer les recettes depuis Cloud Run.',
+      );
+    }
     try {
       final res = await _supabase.from('fact_recette_base').select();
       return (res as List).map((m) => Recette.fromMap(m)).toList();
@@ -303,6 +834,25 @@ class EcoDietApi {
   /// Retourne les recettes avec leur type de plat en une seule requête
   Future<List<RecettePreview>> getRecettesPreview(
       {int limit = 20, int offset = 0}) async {
+    if (_useGcpBridge) {
+      try {
+        final rows = await _bridgeGetRecettesFromRoot();
+        if (offset >= rows.length) return [];
+        final end = (offset + limit) > rows.length ? rows.length : offset + limit;
+        final page = rows.sublist(offset, end);
+        return await _bridgeBuildPreviewsFromBase(page);
+      } catch (_) {}
+      try {
+        final res = await _bridgeGet(
+          '/v1/recettes/preview',
+          query: {'limit': '$limit', 'offset': '$offset'},
+        );
+        return (res as List).map((m) => RecettePreview.fromMap(m)).toList();
+      } catch (_) {}
+      throw Exception(
+        'Mode gcp_bridge actif, mais impossible de recuperer les previews recettes depuis Cloud Run.',
+      );
+    }
     try {
       final res = await _supabase
           .from('fact_recette_base')
@@ -379,6 +929,17 @@ class EcoDietApi {
   }
 
   Future<Recette?> getRecetteById(String recetteId) async {
+    if (_useGcpBridge) {
+      try {
+        final rows = await _bridgeGetRecettesFromRoot();
+        final match = rows.where((row) => row['recette_id'] == recetteId);
+        if (match.isNotEmpty) return Recette.fromMap(match.first);
+      } catch (_) {}
+      try {
+        final res = await _bridgeGet('/v1/recettes/$recetteId');
+        return Recette.fromMap(res as Map<String, dynamic>);
+      } catch (_) {}
+    }
     try {
       final res = await _supabase
           .from('fact_recette_base')
@@ -395,6 +956,200 @@ class EcoDietApi {
   Future<RecetteComplete?> getRecetteComplete(String recetteId) async {
     if (_currentUser != null) {
       await _addToHistory(recetteId);
+    }
+
+    if (_useGcpBridge) {
+      try {
+        final recette = await getRecetteById(recetteId);
+        if (recette == null) return null;
+
+        final stgRows = await _bridgeGetTable('stg_recettes');
+        final stg = stgRows.cast<Map<String, dynamic>?>().firstWhere(
+              (r) => r?['recette_id'] == recetteId,
+              orElse: () => null,
+            );
+
+        final enrichedRecette = Recette(
+          recetteId: recette.recetteId,
+          titre: recette.titre,
+          photo: recette.photo,
+          etapes: (recette.etapes.trim().isNotEmpty
+                  ? recette.etapes
+                  : (stg?['etapes'] ?? ''))
+              .toString(),
+          dureeMinute: recette.dureeMinute,
+          tempsBinId: recette.tempsBinId,
+        );
+
+        final factIng = await _bridgeGetTableAny(
+          ['fact_ingredients_recette'],
+        );
+        final dimIng = await _bridgeGetTableAny(
+          ['dim_ingredients', 'dim_ingredient'],
+        );
+        final ingById = <int, String>{
+          for (final d in dimIng)
+            ((d['ingredient_id'] as num?)?.toInt() ?? -1):
+                (d['nom_ingredient'] ?? '').toString()
+        };
+        final ingredientIds = factIng
+            .where((r) => r['recette_id'] == recetteId)
+            .map((r) => (r['ingredient_id'] as num?)?.toInt())
+            .whereType<int>()
+            .toSet()
+            .toList();
+        final ingredients = ingredientIds
+            .where((id) => ingById.containsKey(id) && ingById[id]!.isNotEmpty)
+            .map((id) => Ingredient(ingredientId: id, nomIngredient: ingById[id]!))
+            .toList();
+
+        if (ingredients.isEmpty) {
+          final rawIngredients = (stg?['ingredients'] ?? '').toString();
+          final parsed = _splitRawListText(rawIngredients);
+          for (var i = 0; i < parsed.length; i++) {
+            ingredients.add(
+              Ingredient(ingredientId: -(i + 1), nomIngredient: parsed[i]),
+            );
+          }
+        }
+
+        final factEq = await _bridgeGetTableAny(
+          ['fact_recette_equipements', 'fact_recette_equipement'],
+        );
+        final dimEq = await _bridgeGetTable('dim_equipement');
+        final eqById = <int, String>{
+          for (final d in dimEq)
+            ((d['equipement_id'] as num?)?.toInt() ?? -1):
+                (d['nom_equipement'] ?? '').toString()
+        };
+        final equipementIds = factEq
+            .where((r) => r['recette_id'] == recetteId)
+            .map((r) => (r['equipement_id'] as num?)?.toInt())
+            .whereType<int>()
+            .toSet()
+            .toList();
+        final equipements = equipementIds
+            .where((id) => eqById.containsKey(id) && eqById[id]!.isNotEmpty)
+            .map((id) => Equipement(equipementId: id, nomEquipement: eqById[id]!))
+            .toList();
+
+        if (equipements.isEmpty) {
+          final rawUstensiles = (stg?['ustensiles'] ?? '').toString();
+          final parsed = _splitRawListText(rawUstensiles);
+          for (var i = 0; i < parsed.length; i++) {
+            equipements.add(
+              Equipement(equipementId: -(i + 1), nomEquipement: parsed[i]),
+            );
+          }
+        }
+
+        final factAll = await _bridgeGetTableAny(
+          ['fact_recette_allergene'],
+        );
+        final dimAll = await _bridgeGetTableAny(
+          ['dim_allergene'],
+        );
+        final allergeneById = <int, String>{
+          for (final d in dimAll)
+            ((d['allergene_id'] as num?)?.toInt() ?? -1):
+                (d['libelle'] ?? '').toString()
+        };
+        final allergeneIds = factAll
+            .where((r) => r['recette_id'] == recetteId)
+            .map((r) => (r['allergene_id'] as num?)?.toInt())
+            .whereType<int>()
+            .toSet()
+            .toList();
+        final allergenes = allergeneIds
+            .where((id) =>
+                allergeneById.containsKey(id) && allergeneById[id]!.isNotEmpty)
+            .map((id) => Allergene(allergeneId: id, libelle: allergeneById[id]!))
+            .toList();
+
+        final factOcc = await _bridgeGetTableAny(
+          ['fact_recette_occasion'],
+        );
+        final dimOcc = await _bridgeGetTableAny(
+          ['dim_occasion'],
+        );
+        final occasionById = <int, String>{
+          for (final d in dimOcc)
+            ((d['occasion_id'] as num?)?.toInt() ?? -1):
+                (d['libelle'] ?? '').toString()
+        };
+        final occasionIds = factOcc
+            .where((r) => r['recette_id'] == recetteId)
+            .map((r) => (r['occasion_id'] as num?)?.toInt())
+            .whereType<int>()
+            .toSet()
+            .toList();
+        final occasions = occasionIds
+            .where((id) =>
+                occasionById.containsKey(id) && occasionById[id]!.isNotEmpty)
+            .map((id) => Occasion(occasionId: id, libelle: occasionById[id]!))
+            .toList();
+
+        final factReg = await _bridgeGetTableAny(
+          ['fact_recette_regime'],
+        );
+        final dimReg = await _bridgeGetTableAny(
+          ['dim_regime'],
+        );
+        final regimeById = <int, String>{
+          for (final d in dimReg)
+            ((d['regime_id'] as num?)?.toInt() ?? -1):
+                (d['libelle'] ?? '').toString()
+        };
+        final regimeId = factReg
+            .where((r) => r['recette_id'] == recetteId)
+            .map((r) => (r['regime_id'] as num?)?.toInt())
+            .whereType<int>()
+            .cast<int?>()
+            .firstWhere((_) => true, orElse: () => null);
+        final regime = (regimeId != null &&
+                regimeById.containsKey(regimeId) &&
+                regimeById[regimeId]!.isNotEmpty)
+            ? Regime(regimeId: regimeId, libelle: regimeById[regimeId]!)
+            : null;
+
+        final factType = await _bridgeGetTableAny(
+          ['fact_recette_type_plat'],
+        );
+        final dimType = await _bridgeGetTableAny(
+          ['dim_type_plat'],
+        );
+        final typeById = <int, String>{
+          for (final d in dimType)
+            ((d['type_plat_id'] as num?)?.toInt() ?? -1):
+                (d['libelle'] ?? '').toString()
+        };
+        final typePlatId = factType
+            .where((r) => r['recette_id'] == recetteId)
+            .map((r) => (r['type_plat_id'] as num?)?.toInt())
+            .whereType<int>()
+            .cast<int?>()
+            .firstWhere((_) => true, orElse: () => null);
+        final typePlat = (typePlatId != null &&
+                typeById.containsKey(typePlatId) &&
+                typeById[typePlatId]!.isNotEmpty)
+            ? TypePlat(typePlatId: typePlatId, libelle: typeById[typePlatId]!)
+            : null;
+
+        return RecetteComplete(
+          recette: enrichedRecette,
+          ingredients: ingredients,
+          equipements: equipements,
+          allergenes: allergenes,
+          occasions: occasions,
+          regime: regime,
+          typePlat: typePlat,
+        );
+      } catch (_) {}
+      try {
+        final res = await _bridgeGet('/v1/recettes/$recetteId/complete');
+        return _recetteCompleteFromBridgeMap(res as Map<String, dynamic>);
+      } catch (_) {}
+      return null;
     }
 
     try {
@@ -1080,6 +1835,9 @@ class EcoDietApi {
   // ============================================================================
 
   Future<List<Quiz>> getAllQuizzes() async {
+    if (_useGcpBridge) {
+      return [];
+    }
     try {
       final res = await _supabase.from('quiz').select().order('quiz_id');
       return (res as List).map((m) => Quiz.fromMap(m)).toList();
@@ -1089,6 +1847,9 @@ class EcoDietApi {
   }
 
   Future<Quiz?> getQuizById(int quizId) async {
+    if (_useGcpBridge) {
+      return null;
+    }
     try {
       final res = await _supabase
           .from('quiz')
@@ -1104,6 +1865,9 @@ class EcoDietApi {
   }
 
   Future<List<QuizQuestion>> getQuizQuestions(int quizId) async {
+    if (_useGcpBridge) {
+      return [];
+    }
     try {
       final qRes = await _supabase
           .from('quiz_question')
@@ -1131,6 +1895,7 @@ class EcoDietApi {
   }
 
   Future<bool> saveQuizScore(int quizId, int score, int totalQuestions) async {
+    if (_useGcpBridge) return false;
     if (_currentUser == null) return false;
     try {
       await _supabase.from('user_quiz_score').insert({
@@ -1146,6 +1911,7 @@ class EcoDietApi {
   }
 
   Future<List<QuizScore>> getUserQuizScores() async {
+    if (_useGcpBridge) return [];
     if (_currentUser == null) return [];
     try {
       final res = await _supabase
@@ -1160,6 +1926,7 @@ class EcoDietApi {
   }
 
   Future<QuizScore?> getBestQuizScore(int quizId) async {
+    if (_useGcpBridge) return null;
     if (_currentUser == null) return null;
     try {
       final res = await _supabase
@@ -1182,6 +1949,9 @@ class EcoDietApi {
   // ============================================================================
 
   Future<List<Allergene>> getAllAllergenes() async {
+    if (_useGcpBridge) {
+      return [];
+    }
     try {
       final res = await _supabase.from('dim_allergene').select();
       return (res as List).map((m) => Allergene.fromMap(m)).toList();
@@ -1190,7 +1960,90 @@ class EcoDietApi {
     }
   }
 
+  Future<List<Ingredient>> getAllIngredients() async {
+    if (_useGcpBridge) {
+      try {
+        final rows = await _bridgeGetTableAny(
+          ['dim_ingredients', 'dim_ingredient'],
+        );
+        return rows.map((m) => Ingredient.fromMap(m)).toList();
+      } catch (_) {
+        return [];
+      }
+    }
+    try {
+      final res = await _supabase.from('dim_ingredient').select();
+      return (res as List).map((m) => Ingredient.fromMap(m)).toList();
+    } catch (e) {
+      return [];
+    }
+  }
+
+  Future<bool> isPseudoAvailable(String pseudo) async {
+    final normalized = pseudo.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+
+    if (_useGcpBridge) {
+      try {
+        final rows = await _bridgeGetTableAny(['dim_utilisateur']);
+        final exists = rows.any((row) {
+          final value = (row['pseudo'] ?? '').toString().trim().toLowerCase();
+          return value.isNotEmpty && value == normalized;
+        });
+        return !exists;
+      } catch (_) {
+        // En cas d'erreur backend, on reste permissif pour ne pas bloquer l'UX.
+        return true;
+      }
+    }
+
+    try {
+      final existing = await _supabase
+          .from('utilisateurs')
+          .select('email')
+          .eq('pseudo', normalized)
+          .limit(1)
+          .maybeSingle();
+      return existing == null;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  Future<bool> isEmailAvailable(String email) async {
+    final normalized = email.trim().toLowerCase();
+    if (normalized.isEmpty) return false;
+
+    if (_useGcpBridge) {
+      try {
+        final rows = await _bridgeGetTableAny(['dim_utilisateur']);
+        final exists = rows.any((row) {
+          final value = (row['email'] ?? '').toString().trim().toLowerCase();
+          return value.isNotEmpty && value == normalized;
+        });
+        return !exists;
+      } catch (_) {
+        return true;
+      }
+    }
+
+    try {
+      final existing = await _supabase
+          .from('utilisateurs')
+          .select('email')
+          .eq('email', normalized)
+          .limit(1)
+          .maybeSingle();
+      return existing == null;
+    } catch (_) {
+      return true;
+    }
+  }
+
   Future<List<Regime>> getAllRegimes() async {
+    if (_useGcpBridge) {
+      return [];
+    }
     try {
       final res = await _supabase.from('dim_regime').select();
       return (res as List).map((m) => Regime.fromMap(m)).toList();
@@ -1200,6 +2053,9 @@ class EcoDietApi {
   }
 
   Future<List<TypePlat>> getAllTypesPlat() async {
+    if (_useGcpBridge) {
+      return [];
+    }
     try {
       final res = await _supabase.from('dim_type_plat').select();
       return (res as List).map((m) => TypePlat.fromMap(m)).toList();
@@ -1209,6 +2065,9 @@ class EcoDietApi {
   }
 
   Future<List<Occasion>> getAllOccasions() async {
+    if (_useGcpBridge) {
+      return [];
+    }
     try {
       final res = await _supabase.from('dim_occasion').select();
       return (res as List).map((m) => Occasion.fromMap(m)).toList();
@@ -1218,6 +2077,9 @@ class EcoDietApi {
   }
 
   Future<List<Equipement>> getAllEquipements() async {
+    if (_useGcpBridge) {
+      return [];
+    }
     try {
       final res = await _supabase.from('dim_equipement').select();
       return (res as List).map((m) => Equipement.fromMap(m)).toList();
@@ -1227,6 +2089,9 @@ class EcoDietApi {
   }
 
   Future<List<TempsBin>> getAllTempsBins() async {
+    if (_useGcpBridge) {
+      return [];
+    }
     try {
       final res = await _supabase.from('dim_temps_bin').select();
       return (res as List).map((m) => TempsBin.fromMap(m)).toList();
@@ -1234,6 +2099,7 @@ class EcoDietApi {
       return [];
     }
   }
+
 }
 
 /// Classe représentant le résultat d'une opération API
@@ -1248,3 +2114,4 @@ class ApiResult<T> {
   factory ApiResult.error(String error) =>
       ApiResult._(error: error, isSuccess: false);
 }
+

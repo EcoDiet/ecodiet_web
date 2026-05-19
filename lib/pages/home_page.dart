@@ -83,8 +83,6 @@ enum RecipeSortMode {
   titreDesc,
   tempsAsc,
   tempsDesc,
-  budgetAsc,
-  budgetDesc,
 }
 
 class HomePage extends StatefulWidget {
@@ -107,6 +105,11 @@ class _HomePageState extends State<HomePage> {
   int _recipePage = 0;
   int _filteredRecipeCount = 0;
   bool _hasNextRecipePage = false;
+  String? _loadWarning;
+  List<String> _ingredientOptionsFromRef = [];
+  List<String> _utensilOptionsFromRef = [];
+  List<String> _dietOptionsFromRef = [];
+  List<String> _allergenOptionsFromRef = [];
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -169,6 +172,7 @@ class _HomePageState extends State<HomePage> {
       _filteredRecipeCount == 0 ? 1 : ((_filteredRecipeCount - 1) ~/ _recipesPerPage) + 1;
 
   List<String> get _ingredientOptions {
+    if (_ingredientOptionsFromRef.isNotEmpty) return _ingredientOptionsFromRef;
     final fromData = _recipeSource
         .expand((r) => r.ingredients.split(','))
         .map(_ingredientFilterLabel)
@@ -180,6 +184,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<String> get _utensilOptions {
+    if (_utensilOptionsFromRef.isNotEmpty) return _utensilOptionsFromRef;
     final fromData = _recipeSource
         .expand((r) => r.utensils.split(','))
         .map((e) => e.trim())
@@ -191,6 +196,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<String> get _dietOptions {
+    if (_dietOptionsFromRef.isNotEmpty) return _dietOptionsFromRef;
     final categoryText = _recipeSource
         .expand((r) => [r.category, r.diets])
         .map((e) => e.trim())
@@ -206,6 +212,7 @@ class _HomePageState extends State<HomePage> {
   }
 
   List<String> get _allergenOptions {
+    if (_allergenOptionsFromRef.isNotEmpty) return _allergenOptionsFromRef;
     final fromData = _recipeSource
         .expand((r) => r.allergens.split(','))
         .map((e) => e.trim())
@@ -214,6 +221,14 @@ class _HomePageState extends State<HomePage> {
         .toList();
     fromData.sort();
     return fromData.isNotEmpty ? fromData : _fallbackAllergens;
+  }
+
+  String _cleanLabel(String value) {
+    return value
+        .replaceAll('"""', '')
+        .replaceAll('"', '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   String _ingredientFilterLabel(String raw) {
@@ -226,6 +241,13 @@ class _HomePageState extends State<HomePage> {
         .trim();
 
     final canonicalIngredients = <String, String>{
+      'poivre en grains': 'Poivre',
+      'grains de poivre': 'Poivre',
+      'grain poivre': 'Poivre',
+      'grains poivre': 'Poivre',
+      'poivre noir': 'Poivre',
+      'poivre blanc': 'Poivre',
+      'poivre': 'Poivre',
       'pommes de terre': 'Pomme de terre',
       'pomme de terre': 'Pomme de terre',
       'pois chiches': 'Pois chiches',
@@ -411,14 +433,19 @@ class _HomePageState extends State<HomePage> {
   }
 
   bool _matchesFilters(RecipeDisplayModel recipe) {
-    final ingredientText = recipe.ingredients.toLowerCase();
+    final ingredientTags = recipe.ingredients
+        .split(',')
+        .map(_ingredientFilterLabel)
+        .where((v) => v.isNotEmpty)
+        .map((v) => v.toLowerCase())
+        .toSet();
     final utensilText = recipe.utensils.toLowerCase();
     final dietText = '${recipe.category} ${recipe.diets}'.toLowerCase();
     final allergenText = recipe.allergens.toLowerCase();
 
     if (_filters.ingredients.isNotEmpty &&
         !_filters.ingredients
-            .any((v) => ingredientText.contains(v.toLowerCase()))) {
+            .any((v) => ingredientTags.contains(_ingredientFilterLabel(v).toLowerCase()))) {
       return false;
     }
 
@@ -485,26 +512,6 @@ class _HomePageState extends State<HomePage> {
           return bMin.compareTo(aMin);
         });
         return sorted;
-      case RecipeSortMode.budgetAsc:
-        sorted.sort((a, b) {
-          final aPrice = a.budgetEur;
-          final bPrice = b.budgetEur;
-          if (aPrice == null && bPrice == null) return 0;
-          if (aPrice == null) return 1;
-          if (bPrice == null) return -1;
-          return aPrice.compareTo(bPrice);
-        });
-        return sorted;
-      case RecipeSortMode.budgetDesc:
-        sorted.sort((a, b) {
-          final aPrice = a.budgetEur;
-          final bPrice = b.budgetEur;
-          if (aPrice == null && bPrice == null) return 0;
-          if (aPrice == null) return 1;
-          if (bPrice == null) return -1;
-          return bPrice.compareTo(aPrice);
-        });
-        return sorted;
     }
   }
 
@@ -520,10 +527,6 @@ class _HomePageState extends State<HomePage> {
         return 'Temps croissant';
       case RecipeSortMode.tempsDesc:
         return 'Temps décroissant';
-      case RecipeSortMode.budgetAsc:
-        return 'Moins cher';
-      case RecipeSortMode.budgetDesc:
-        return 'Plus cher';
     }
   }
 
@@ -561,18 +564,54 @@ class _HomePageState extends State<HomePage> {
         _api.getAllRecettesPreview(),
         _api.getFavoriteIds(),
         _api.getAllQuizzes(),
+        _api.getAllIngredients(),
+        _api.getAllEquipements(),
+        _api.getAllRegimes(),
+        _api.getAllTypesPlat(),
+        _api.getAllAllergenes(),
       ]);
 
       final previews = results[0] as List<RecettePreview>;
       final favoriteIds = results[1] as Set<String>;
       final loadedQuizzes = results[2] as List;
+      final ingredientRefs = results[3] as List<Ingredient>;
+      final equipementRefs = results[4] as List<Equipement>;
+      final regimeRefs = results[5] as List<Regime>;
+      final typePlatRefs = results[6] as List<TypePlat>;
+      final allergeneRefs = results[7] as List<Allergene>;
 
       final models = previews
           .map((r) => RecipeDisplayModel.fromPreview(r, favoriteIds))
           .toList();
 
       setState(() {
+        _loadWarning = (_api.isBridgeMode && models.isEmpty)
+            ? 'Aucune recette recue depuis l API Cloud Run. Verifie le service et son JSON.'
+            : null;
         _recipeSource = models;
+        _ingredientOptionsFromRef = ingredientRefs
+            .map((i) => _ingredientFilterLabel(i.nomIngredient))
+            .where((v) => v.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+        _utensilOptionsFromRef = equipementRefs
+            .map((e) => _cleanLabel(e.nomEquipement).replaceFirst(RegExp(r'^\d+\s+'), ''))
+            .where((v) => v.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
+        _dietOptionsFromRef = [
+          ...regimeRefs.map((r) => _cleanLabel(r.libelle)),
+          ...typePlatRefs.map((t) => _cleanLabel(t.libelle)),
+        ].where((v) => v.isNotEmpty).toSet().toList()
+          ..sort();
+        _allergenOptionsFromRef = allergeneRefs
+            .map((a) => _cleanLabel(a.libelle))
+            .where((v) => v.isNotEmpty)
+            .toSet()
+            .toList()
+          ..sort();
         recommendedRecipes = models.take(5).toList();
         _recomputeVisibleRecipes();
         quizzes = loadedQuizzes
@@ -586,7 +625,10 @@ class _HomePageState extends State<HomePage> {
         isLoading = false;
       });
     } catch (e) {
-      setState(() => isLoading = false);
+      setState(() {
+        isLoading = false;
+        _loadWarning = 'Erreur chargement data bridge: $e';
+      });
       debugPrint('Erreur chargement données: $e');
     }
   }
@@ -638,6 +680,22 @@ class _HomePageState extends State<HomePage> {
           child: Semantics(
             label: 'Chargement en cours',
             child: const CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
+    if (_loadWarning != null && _recipeSource.isEmpty) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFF5ECD9),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Text(
+              _loadWarning!,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Color(0xFF7A2E2E), fontSize: 15),
+            ),
           ),
         ),
       );
@@ -1600,8 +1658,6 @@ class RecipeFilters {
   Set<String> allergens;
   int? minTimeMinutes;
   int? maxTimeMinutes;
-  double minBudget;
-  double maxBudget;
 
   RecipeFilters({
     required this.ingredients,
@@ -1610,8 +1666,6 @@ class RecipeFilters {
     required this.allergens,
     this.minTimeMinutes,
     this.maxTimeMinutes,
-    this.minBudget = 0,
-    this.maxBudget = 100,
   });
 
   factory RecipeFilters.empty() {
@@ -1620,8 +1674,6 @@ class RecipeFilters {
       utensils: <String>{},
       diets: <String>{},
       allergens: <String>{},
-      minBudget: 0,
-      maxBudget: 100,
     );
   }
 
@@ -1633,8 +1685,6 @@ class RecipeFilters {
       allergens: {...allergens},
       minTimeMinutes: minTimeMinutes,
       maxTimeMinutes: maxTimeMinutes,
-      minBudget: minBudget,
-      maxBudget: maxBudget,
     );
   }
 
@@ -1647,7 +1697,6 @@ class RecipeFilters {
     count += diets.length;
     count += allergens.length;
     if (minTimeMinutes != null || maxTimeMinutes != null) count++;
-    if (minBudget > 0 || maxBudget < 100) count++;
     return count;
   }
 
@@ -1658,8 +1707,6 @@ class RecipeFilters {
     allergens.clear();
     minTimeMinutes = null;
     maxTimeMinutes = null;
-    minBudget = 0;
-    maxBudget = 100;
   }
 }
 
@@ -1856,7 +1903,6 @@ class _FilterPanelState extends State<_FilterPanel> {
         _activeFilterChip(_timeRangeLabel(), () => _setTimeRange(null, null)),
       );
     }
-
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
       child: Wrap(spacing: 8, runSpacing: 8, children: chips),
@@ -2288,3 +2334,4 @@ class _FavoriteButtonState extends State<FavoriteButton> {
     );
   }
 }
+

@@ -134,6 +134,43 @@ Voir [ACCESSIBILITE.md](./ACCESSIBILITE.md) pour le detail complet.
 
 Ne jamais mettre `SUPABASE_SERVICE_KEY` dans Flutter, dans `.env`, dans Netlify/Firebase, ou dans un depot Git. Cette cle donne des droits serveur.
 
+### Configuration GCP Cloud Run (pont data)
+
+Pour eviter un acces direct base depuis le front, l'application peut consommer la data via un service Cloud Run.
+
+Variables a ajouter dans `.env` (ou via `--dart-define`) :
+
+- `DATA_PROVIDER=gcp_bridge`
+- `GCP_BRIDGE_URL=https://<votre-service>.a.run.app`
+- `GCP_BRIDGE_API_KEY=<cle_api_optionnelle>`
+
+Le front garde Supabase pour l'auth/session, mais lit les donnees data via Cloud Run quand `DATA_PROVIDER=gcp_bridge`.
+
+Endpoints attendus par le front :
+
+- `GET /v1/recettes`
+- `GET /v1/recettes/preview?limit=<n>&offset=<n>`
+- `GET /v1/recettes/{recetteId}`
+- `GET /v1/recettes/{recetteId}/complete`
+- `GET /v1/quizzes`
+- `GET /v1/quizzes/{quizId}`
+- `GET /v1/quizzes/{quizId}/questions`
+- `GET /v1/references/allergenes`
+- `GET /v1/references/regimes`
+- `GET /v1/references/types-plat`
+- `GET /v1/references/occasions`
+- `GET /v1/references/equipements`
+- `GET /v1/references/temps-bins`
+
+Compatibilite endpoint unique :
+
+- Si votre service expose uniquement `GET /` avec un JSON contenant `donneesBigQuery`, l'app l'accepte aussi (mode compatibilite).
+
+Headers transmis par le front vers le bridge :
+
+- `x-api-key` (si configure)
+- `x-user-id` (si utilisateur connecte)
+
 ### Import des donnees DIM/FACT
 
 Le schema cree quelques donnees de demo. Pour importer les donnees completes fournies par l'equipe :

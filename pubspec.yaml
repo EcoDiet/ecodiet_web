@@ -33,4 +33,5 @@ flutter:
   assets:
     - lib/assets/logo/EcoDiet-Logo.png
     - lib/assets/logo/EcoDiet-Logo-beige.png
+    - assets/env.development
     - assets/env.production
