@@ -414,8 +414,9 @@ class EcoDietApi {
             .select('dim_allergene!inner(allergene_id, libelle)')
             .eq('recette_id', recetteId);
         for (var row in aRes) {
-          if (row['dim_allergene'] != null)
+          if (row['dim_allergene'] != null) {
             allergenes.add(Allergene.fromMap(row['dim_allergene']));
+          }
         }
       } catch (ignore) {/* ignore */}
 
@@ -427,8 +428,9 @@ class EcoDietApi {
             .select('dim_equipement!inner(equipement_id, nom_equipement)')
             .eq('recette_id', recetteId);
         for (var row in eRes) {
-          if (row['dim_equipement'] != null)
+          if (row['dim_equipement'] != null) {
             equipements.add(Equipement.fromMap(row['dim_equipement']));
+          }
         }
       } catch (ignore) {/* ignore */}
 
@@ -440,8 +442,9 @@ class EcoDietApi {
             .select('dim_ingredient!inner(ingredient_id, nom_ingredient)')
             .eq('recette_id', recetteId);
         for (var row in iRes) {
-          if (row['dim_ingredient'] != null)
+          if (row['dim_ingredient'] != null) {
             ingredients.add(Ingredient.fromMap(row['dim_ingredient']));
+          }
         }
       } catch (ignore) {/* ignore */}
 
@@ -453,8 +456,9 @@ class EcoDietApi {
             .select('dim_occasion!inner(occasion_id, libelle)')
             .eq('recette_id', recetteId);
         for (var row in oRes) {
-          if (row['dim_occasion'] != null)
+          if (row['dim_occasion'] != null) {
             occasions.add(Occasion.fromMap(row['dim_occasion']));
+          }
         }
       } catch (ignore) {/* ignore */}
 
