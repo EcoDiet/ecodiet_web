@@ -90,6 +90,9 @@ class _HomePageState extends State<HomePage> {
   List<RecipeDisplayModel> allRecipes = [];
   List<Quiz> quizzes = [];
   bool isLoading = true;
+  static const int _recipesPerPage = 25;
+  int _recipePage = 0;
+  bool _hasNextRecipePage = false;
 
   final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
@@ -333,22 +336,27 @@ class _HomePageState extends State<HomePage> {
     try {
       // 2 requêtes au lieu de ~120 : previews + favoris en parallèle
       final results = await Future.wait([
-        _api.getAllRecettesPreview(),
+        _api.getRecettesPreview(
+          limit: _recipesPerPage + 1,
+          offset: _recipePage * _recipesPerPage,
+        ),
         _api.getFavoriteIds(),
         _api.getAllQuizzes(),
       ]);
 
       final previews = results[0] as List<RecettePreview>;
+      final pagePreviews = previews.take(_recipesPerPage).toList();
       final favoriteIds = results[1] as Set<String>;
       final loadedQuizzes = results[2] as List;
 
-      final models = previews
+      final models = pagePreviews
           .map((r) => RecipeDisplayModel.fromPreview(r, favoriteIds))
           .toList();
 
       setState(() {
         recommendedRecipes = models.take(5).toList();
         allRecipes = models;
+        _hasNextRecipePage = previews.length > _recipesPerPage;
         quizzes = loadedQuizzes
             .map((q) => Quiz(
                   id: q.quizId?.toString() ?? '',
@@ -363,6 +371,12 @@ class _HomePageState extends State<HomePage> {
       setState(() => isLoading = false);
       debugPrint('Erreur chargement données: $e');
     }
+  }
+
+  Future<void> _goToRecipePage(int page) async {
+    if (page < 0 || page == _recipePage || isLoading) return;
+    setState(() => _recipePage = page);
+    await _loadData();
   }
 
   Future<void> _toggleFavorite(RecipeDisplayModel recipe) async {
@@ -537,17 +551,9 @@ class _HomePageState extends State<HomePage> {
                           // Section "Nos recettes"
                           if (_filteredAll.isNotEmpty) ...[
                             _buildSectionTitle(
-                              'Nos recettes',
+                              'Nos recettes - page ${_recipePage + 1}',
                               icon: Icons.restaurant_rounded,
-                              onViewAll: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => AllRecipesPage(
-                                    title: 'Nos recettes',
-                                    recipes: _filteredAll,
-                                  ),
-                                ),
-                              ),
+                              showViewAll: false,
                             ),
                             const SizedBox(height: 12),
                             if (desktop)
@@ -568,6 +574,8 @@ class _HomePageState extends State<HomePage> {
                                   },
                                 ),
                               ),
+                            const SizedBox(height: 12),
+                            _buildRecipePagination(),
                             const SizedBox(height: 24),
                           ],
 
@@ -903,6 +911,38 @@ class _HomePageState extends State<HomePage> {
           child: _buildRecipeCard(context, recipe),
         );
       },
+    );
+  }
+
+  Widget _buildRecipePagination() {
+    final canGoPrevious = _recipePage > 0 && !isLoading;
+    final canGoNext = _hasNextRecipePage && !isLoading;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        OutlinedButton.icon(
+          onPressed:
+              canGoPrevious ? () => _goToRecipePage(_recipePage - 1) : null,
+          icon: const Icon(Icons.chevron_left_rounded),
+          label: const Text('Précédent'),
+        ),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          child: Text(
+            'Page ${_recipePage + 1}',
+            style: const TextStyle(
+              color: Color(0xFF1F2E1F),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        OutlinedButton.icon(
+          onPressed: canGoNext ? () => _goToRecipePage(_recipePage + 1) : null,
+          icon: const Icon(Icons.chevron_right_rounded),
+          label: const Text('Suivant'),
+        ),
+      ],
     );
   }
 
