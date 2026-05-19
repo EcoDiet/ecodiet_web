@@ -43,6 +43,11 @@ class RecettePreview {
   final int dureeMinute;
   final int tempsBinId;
   final String? typePlatLibelle;
+  final List<String> ingredients;
+  final List<String> equipements;
+  final List<String> allergenes;
+  final List<String> occasions;
+  final String? regimeLibelle;
 
   RecettePreview({
     required this.recetteId,
@@ -51,15 +56,25 @@ class RecettePreview {
     required this.dureeMinute,
     required this.tempsBinId,
     this.typePlatLibelle,
+    this.ingredients = const [],
+    this.equipements = const [],
+    this.allergenes = const [],
+    this.occasions = const [],
+    this.regimeLibelle,
   });
 
   factory RecettePreview.fromMap(Map<String, dynamic> map) {
-    String? typePlat;
-    final tpList = map['fact_recette_type_plat'];
-    if (tpList is List && tpList.isNotEmpty) {
-      final dim = tpList.first['dim_type_plat'];
-      if (dim is Map) typePlat = dim['libelle'] as String?;
-    }
+    final typePlat = _firstNestedString(
+      map['fact_recette_type_plat'],
+      'dim_type_plat',
+      'libelle',
+    );
+    final regime = _firstNestedString(
+      map['fact_recette_regime'],
+      'dim_regime',
+      'libelle',
+    );
+
     return RecettePreview(
       recetteId: map['recette_id'] as String,
       titre: map['titre'] as String,
@@ -67,7 +82,60 @@ class RecettePreview {
       dureeMinute: (map['duree_minute'] as num?)?.toInt() ?? 0,
       tempsBinId: (map['temps_bin_id'] as num?)?.toInt() ?? 0,
       typePlatLibelle: typePlat,
+      ingredients: _nestedStrings(
+        map['fact_ingredients_recette'],
+        'dim_ingredient',
+        'nom_ingredient',
+      ),
+      equipements: _nestedStrings(
+        map['fact_recette_equipement'],
+        'dim_equipement',
+        'nom_equipement',
+      ),
+      allergenes: _nestedStrings(
+        map['fact_recette_allergene'],
+        'dim_allergene',
+        'libelle',
+      ),
+      occasions: _nestedStrings(
+        map['fact_recette_occasion'],
+        'dim_occasion',
+        'libelle',
+      ),
+      regimeLibelle: regime,
     );
+  }
+
+  static String? _firstNestedString(
+    dynamic value,
+    String relationKey,
+    String fieldKey,
+  ) {
+    final values = _nestedStrings(value, relationKey, fieldKey);
+    return values.isEmpty ? null : values.first;
+  }
+
+  static List<String> _nestedStrings(
+    dynamic value,
+    String relationKey,
+    String fieldKey,
+  ) {
+    if (value is! List) return const [];
+
+    return value
+        .map((row) {
+          if (row is! Map) return null;
+          final nested = row[relationKey];
+          if (nested is Map) return nested[fieldKey]?.toString();
+          if (nested is List && nested.isNotEmpty && nested.first is Map) {
+            return (nested.first as Map)[fieldKey]?.toString();
+          }
+          return null;
+        })
+        .whereType<String>()
+        .map((value) => value.trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
   }
 }
 

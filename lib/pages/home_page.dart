@@ -13,6 +13,10 @@ class RecipeDisplayModel {
   final String title;
   final String category;
   final String ingredients;
+  final String utensils;
+  final String diets;
+  final String allergens;
+  final String occasions;
   final String duration;
   final double? budgetEur;
   final String? imageUrl;
@@ -23,6 +27,10 @@ class RecipeDisplayModel {
     required this.title,
     required this.category,
     required this.ingredients,
+    this.utensils = '',
+    this.diets = '',
+    this.allergens = '',
+    this.occasions = '',
     required this.duration,
     this.budgetEur,
     this.imageUrl,
@@ -35,7 +43,11 @@ class RecipeDisplayModel {
       id: recette.recetteId,
       title: recette.titre,
       category: recette.typePlatLibelle ?? 'Recette',
-      ingredients: '',
+      ingredients: recette.ingredients.take(4).join(', '),
+      utensils: recette.equipements.join(', '),
+      diets: recette.regimeLibelle ?? '',
+      allergens: recette.allergenes.join(', '),
+      occasions: recette.occasions.join(', '),
       duration: recette.dureeMinute > 0 ? "${recette.dureeMinute} min" : '',
       budgetEur: null,
       imageUrl:
@@ -86,12 +98,14 @@ class _HomePageState extends State<HomePage> {
   final EcoDietApi _api = EcoDietApi();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
+  List<RecipeDisplayModel> _recipeSource = [];
   List<RecipeDisplayModel> recommendedRecipes = [];
   List<RecipeDisplayModel> allRecipes = [];
   List<Quiz> quizzes = [];
   bool isLoading = true;
   static const int _recipesPerPage = 25;
   int _recipePage = 0;
+  int _filteredRecipeCount = 0;
   bool _hasNextRecipePage = false;
 
   final TextEditingController _searchController = TextEditingController();
@@ -142,18 +156,20 @@ class _HomePageState extends State<HomePage> {
     'Poisson',
   ];
 
-  List<Recipe> get _filteredRecommended => _sortRecipes(
-      recommendedRecipes.where(_matchesSearch).where(_matchesFilters).toList());
+  List<Recipe> get _filteredRecommended =>
+      (_searchQuery.isEmpty && !_hasActiveFilters) ? recommendedRecipes : [];
 
-  List<Recipe> get _filteredAll => _sortRecipes(
-      allRecipes.where(_matchesSearch).where(_matchesFilters).toList());
+  List<Recipe> get _filteredAll => allRecipes;
 
   bool get _hasActiveFilters => _filters.hasAny;
 
   int get _activeFiltersCount => _filters.activeCount;
 
+  int get _totalRecipePages =>
+      _filteredRecipeCount == 0 ? 1 : ((_filteredRecipeCount - 1) ~/ _recipesPerPage) + 1;
+
   List<String> get _ingredientOptions {
-    final fromData = allRecipes
+    final fromData = _recipeSource
         .expand((r) => r.ingredients.split(','))
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
@@ -163,11 +179,21 @@ class _HomePageState extends State<HomePage> {
     return fromData.isNotEmpty ? fromData : _fallbackIngredients;
   }
 
-  List<String> get _utensilOptions => _fallbackUtensils;
+  List<String> get _utensilOptions {
+    final fromData = _recipeSource
+        .expand((r) => r.utensils.split(','))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
+    fromData.sort();
+    return fromData.isNotEmpty ? fromData : _fallbackUtensils;
+  }
 
   List<String> get _dietOptions {
-    final categoryText = allRecipes
-        .map((r) => r.category.trim())
+    final categoryText = _recipeSource
+        .expand((r) => [r.category, r.diets])
+        .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
         .toSet()
         .toList();
@@ -179,7 +205,16 @@ class _HomePageState extends State<HomePage> {
       ..sort();
   }
 
-  List<String> get _allergenOptions => _fallbackAllergens;
+  List<String> get _allergenOptions {
+    final fromData = _recipeSource
+        .expand((r) => r.allergens.split(','))
+        .map((e) => e.trim())
+        .where((e) => e.isNotEmpty)
+        .toSet()
+        .toList();
+    fromData.sort();
+    return fromData.isNotEmpty ? fromData : _fallbackAllergens;
+  }
 
   @override
   void initState() {
@@ -197,7 +232,11 @@ class _HomePageState extends State<HomePage> {
   void _onSearchChanged(String value) {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      if (mounted) setState(() => _searchQuery = value.toLowerCase().trim());
+      if (!mounted) return;
+      setState(() {
+        _searchQuery = value.toLowerCase().trim();
+        _recomputeVisibleRecipes(resetPage: true);
+      });
     });
   }
 
@@ -206,20 +245,28 @@ class _HomePageState extends State<HomePage> {
     final q = _searchQuery;
     return recipe.title.toLowerCase().contains(q) ||
         recipe.category.toLowerCase().contains(q) ||
-        recipe.ingredients.toLowerCase().contains(q);
+        recipe.ingredients.toLowerCase().contains(q) ||
+        recipe.utensils.toLowerCase().contains(q) ||
+        recipe.diets.toLowerCase().contains(q) ||
+        recipe.allergens.toLowerCase().contains(q) ||
+        recipe.occasions.toLowerCase().contains(q);
   }
 
   bool _matchesFilters(RecipeDisplayModel recipe) {
-    final haystack = '${recipe.title} ${recipe.category} ${recipe.ingredients}'
-        .toLowerCase();
+    final ingredientText = recipe.ingredients.toLowerCase();
+    final utensilText = recipe.utensils.toLowerCase();
+    final dietText = '${recipe.category} ${recipe.diets}'.toLowerCase();
+    final allergenText = recipe.allergens.toLowerCase();
 
     if (_filters.ingredients.isNotEmpty &&
-        !_filters.ingredients.any((v) => haystack.contains(v.toLowerCase()))) {
+        !_filters.ingredients
+            .any((v) => ingredientText.contains(v.toLowerCase()))) {
       return false;
     }
 
-    if (_filters.utensils.isNotEmpty) {
-      // En attendant les métadonnées ustensiles depuis l'API, on ne bloque pas les résultats.
+    if (_filters.utensils.isNotEmpty &&
+        !_filters.utensils.any((v) => utensilText.contains(v.toLowerCase()))) {
+      return false;
     }
 
     final duration = _parseDurationMinutes(recipe.duration);
@@ -235,12 +282,12 @@ class _HomePageState extends State<HomePage> {
     }
 
     if (_filters.diets.isNotEmpty &&
-        !_filters.diets.any((v) => haystack.contains(v.toLowerCase()))) {
+        !_filters.diets.any((v) => dietText.contains(v.toLowerCase()))) {
       return false;
     }
 
     if (_filters.allergens.isNotEmpty &&
-        _filters.allergens.any((v) => haystack.contains(v.toLowerCase()))) {
+        _filters.allergens.any((v) => allergenText.contains(v.toLowerCase()))) {
       return false;
     }
 
@@ -322,6 +369,23 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _recomputeVisibleRecipes({bool resetPage = false}) {
+    if (resetPage) _recipePage = 0;
+
+    final matching = _sortRecipes(
+      _recipeSource.where(_matchesSearch).where(_matchesFilters).toList(),
+    );
+
+    final maxPage =
+        matching.isEmpty ? 0 : (matching.length - 1) ~/ _recipesPerPage;
+    if (_recipePage > maxPage) _recipePage = maxPage;
+
+    final start = _recipePage * _recipesPerPage;
+    allRecipes = matching.skip(start).take(_recipesPerPage).toList();
+    _filteredRecipeCount = matching.length;
+    _hasNextRecipePage = start + _recipesPerPage < matching.length;
+  }
+
   void _openFilters() {
     if (isDesktop(context)) {
       _scaffoldKey.currentState?.openEndDrawer();
@@ -334,29 +398,25 @@ class _HomePageState extends State<HomePage> {
     setState(() => isLoading = true);
 
     try {
-      // 2 requêtes au lieu de ~120 : previews + favoris en parallèle
+      // Previews legeres: on filtre toute la data puis on affiche 25 cartes.
       final results = await Future.wait([
-        _api.getRecettesPreview(
-          limit: _recipesPerPage + 1,
-          offset: _recipePage * _recipesPerPage,
-        ),
+        _api.getAllRecettesPreview(),
         _api.getFavoriteIds(),
         _api.getAllQuizzes(),
       ]);
 
       final previews = results[0] as List<RecettePreview>;
-      final pagePreviews = previews.take(_recipesPerPage).toList();
       final favoriteIds = results[1] as Set<String>;
       final loadedQuizzes = results[2] as List;
 
-      final models = pagePreviews
+      final models = previews
           .map((r) => RecipeDisplayModel.fromPreview(r, favoriteIds))
           .toList();
 
       setState(() {
+        _recipeSource = models;
         recommendedRecipes = models.take(5).toList();
-        allRecipes = models;
-        _hasNextRecipePage = previews.length > _recipesPerPage;
+        _recomputeVisibleRecipes();
         quizzes = loadedQuizzes
             .map((q) => Quiz(
                   id: q.quizId?.toString() ?? '',
@@ -375,8 +435,10 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _goToRecipePage(int page) async {
     if (page < 0 || page == _recipePage || isLoading) return;
-    setState(() => _recipePage = page);
-    await _loadData();
+    setState(() {
+      _recipePage = page;
+      _recomputeVisibleRecipes();
+    });
   }
 
   Future<void> _toggleFavorite(RecipeDisplayModel recipe) async {
@@ -446,7 +508,10 @@ class _HomePageState extends State<HomePage> {
                   dietOptions: _dietOptions,
                   allergenOptions: _allergenOptions,
                   onApply: (filters) {
-                    setState(() => _filters = filters);
+                    setState(() {
+                      _filters = filters;
+                      _recomputeVisibleRecipes(resetPage: true);
+                    });
                     Navigator.of(context).maybePop();
                   },
                 ),
@@ -551,7 +616,7 @@ class _HomePageState extends State<HomePage> {
                           // Section "Nos recettes"
                           if (_filteredAll.isNotEmpty) ...[
                             _buildSectionTitle(
-                              'Nos recettes - page ${_recipePage + 1}',
+                              'Nos recettes ($_filteredRecipeCount)',
                               icon: Icons.restaurant_rounded,
                               showViewAll: false,
                             ),
@@ -716,10 +781,7 @@ class _HomePageState extends State<HomePage> {
     return Row(
       children: [
         Expanded(
-          child: _buildSearchField(
-            onChanged: (value) =>
-                setState(() => _searchQuery = value.toLowerCase().trim()),
-          ),
+          child: _buildSearchField(onChanged: _onSearchChanged),
         ),
         const SizedBox(width: 8),
         _buildFilterButton(),
@@ -754,8 +816,12 @@ class _HomePageState extends State<HomePage> {
               ? IconButton(
                   icon: Icon(Icons.close, size: 16, color: Colors.grey[400]),
                   onPressed: () {
+                    _debounceTimer?.cancel();
                     _searchController.clear();
-                    setState(() => _searchQuery = '');
+                    setState(() {
+                      _searchQuery = '';
+                      _recomputeVisibleRecipes(resetPage: true);
+                    });
                   },
                 )
               : null,
@@ -823,7 +889,10 @@ class _HomePageState extends State<HomePage> {
     return PopupMenuButton<RecipeSortMode>(
       tooltip: 'Trier les recettes',
       initialValue: _sortMode,
-      onSelected: (value) => setState(() => _sortMode = value),
+      onSelected: (value) => setState(() {
+        _sortMode = value;
+        _recomputeVisibleRecipes(resetPage: true);
+      }),
       itemBuilder: (context) => RecipeSortMode.values
           .map(
             (mode) => PopupMenuItem<RecipeSortMode>(
@@ -875,7 +944,10 @@ class _HomePageState extends State<HomePage> {
                 dietOptions: _dietOptions,
                 allergenOptions: _allergenOptions,
                 onApply: (filters) {
-                  setState(() => _filters = filters);
+                  setState(() {
+                    _filters = filters;
+                    _recomputeVisibleRecipes(resetPage: true);
+                  });
                   Navigator.of(context).maybePop();
                 },
               ),
@@ -930,7 +1002,7 @@ class _HomePageState extends State<HomePage> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Text(
-            'Page ${_recipePage + 1}',
+            'Page ${_recipePage + 1} / $_totalRecipePages',
             style: const TextStyle(
               color: Color(0xFF1F2E1F),
               fontWeight: FontWeight.w600,

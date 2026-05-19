@@ -307,11 +307,27 @@ class EcoDietApi {
       final res = await _supabase
           .from('fact_recette_base')
           .select(
-              'recette_id, titre, photo, duree_minute, temps_bin_id, fact_recette_type_plat(dim_type_plat(libelle))')
+              'recette_id, titre, photo, duree_minute, temps_bin_id, '
+              'fact_recette_type_plat(dim_type_plat(libelle)), '
+              'fact_ingredients_recette(dim_ingredient(nom_ingredient)), '
+              'fact_recette_equipement(dim_equipement(nom_equipement)), '
+              'fact_recette_regime(dim_regime(libelle)), '
+              'fact_recette_allergene(dim_allergene(libelle)), '
+              'fact_recette_occasion(dim_occasion(libelle))')
           .range(offset, offset + limit - 1);
       return (res as List).map((m) => RecettePreview.fromMap(m)).toList();
     } catch (e) {
-      return [];
+      try {
+        final res = await _supabase
+            .from('fact_recette_base')
+            .select(
+                'recette_id, titre, photo, duree_minute, temps_bin_id, '
+                'fact_recette_type_plat(dim_type_plat(libelle))')
+            .range(offset, offset + limit - 1);
+        return (res as List).map((m) => RecettePreview.fromMap(m)).toList();
+      } catch (_) {
+        return [];
+      }
     }
   }
 
@@ -434,19 +450,7 @@ class EcoDietApi {
         }
       } catch (ignore) {/* ignore */}
 
-      // Ingredients
-      List<Ingredient> ingredients = [];
-      try {
-        final iRes = await _supabase
-            .from('fact_ingredients_recette')
-            .select('dim_ingredient!inner(ingredient_id, nom_ingredient)')
-            .eq('recette_id', recetteId);
-        for (var row in iRes) {
-          if (row['dim_ingredient'] != null) {
-            ingredients.add(Ingredient.fromMap(row['dim_ingredient']));
-          }
-        }
-      } catch (ignore) {/* ignore */}
+      final ingredients = await _getRecipeIngredients(recetteId);
 
       // Occasions
       List<Occasion> occasions = [];
@@ -503,6 +507,65 @@ class EcoDietApi {
     } catch (e) {
       return null;
     }
+  }
+
+  Future<List<Ingredient>> _getRecipeIngredients(String recetteId) async {
+    try {
+      final rows = await _supabase
+          .from('fact_ingredients_recette')
+          .select('dim_ingredient!inner(ingredient_id, nom_ingredient)')
+          .eq('recette_id', recetteId);
+      final ingredients = _nestedObjects(rows, 'dim_ingredient')
+          .map(Ingredient.fromMap)
+          .toList();
+      if (ingredients.isNotEmpty) return ingredients;
+    } catch (_) {
+      // Fallback below handles projects where PostgREST cannot infer nesting.
+    }
+
+    try {
+      final linkRows = await _supabase
+          .from('fact_ingredients_recette')
+          .select('ingredient_id')
+          .eq('recette_id', recetteId);
+      final ids = (linkRows as List)
+          .map((row) => row is Map ? (row['ingredient_id'] as num?)?.toInt() : null)
+          .whereType<int>()
+          .toSet()
+          .toList();
+      if (ids.isEmpty) return [];
+
+      final ingredientRows = await _supabase
+          .from('dim_ingredient')
+          .select('ingredient_id, nom_ingredient')
+          .inFilter('ingredient_id', ids);
+      return (ingredientRows as List)
+          .whereType<Map>()
+          .map((row) => Ingredient.fromMap(Map<String, dynamic>.from(row)))
+          .toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  List<Map<String, dynamic>> _nestedObjects(dynamic rows, String key) {
+    if (rows is! List) return const [];
+
+    return rows
+        .map((row) {
+          if (row is! Map) return null;
+          final value = row[key];
+          if (value is Map<String, dynamic>) return value;
+          if (value is Map) return Map<String, dynamic>.from(value);
+          if (value is List && value.isNotEmpty) {
+            final first = value.first;
+            if (first is Map<String, dynamic>) return first;
+            if (first is Map) return Map<String, dynamic>.from(first);
+          }
+          return null;
+        })
+        .whereType<Map<String, dynamic>>()
+        .toList();
   }
 
   Future<List<Recette>> searchRecettes(String query) async {
