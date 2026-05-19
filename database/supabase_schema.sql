@@ -70,6 +70,7 @@ create table fact_recette_base (
   recette_id text primary key,
   titre text not null,
   photo text default '',
+  etapes text default '',
   duree_minute integer not null,
   temps_bin_id integer references dim_temps_bin(temps_bin_id)
 );

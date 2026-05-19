@@ -244,6 +244,44 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   List<String> _occasionLabels() =>
       recette?.occasions.map((o) => _cleanLabel(o.libelle)).toList() ?? [];
 
+  List<String> _instructionLabels() {
+    final raw = recette?.recette.etapes ?? '';
+    if (raw.trim().isEmpty) return [];
+
+    final text = _cleanEtapesText(raw);
+    return text
+        .split(RegExp(r'\n+'))
+        .map(_cleanLabel)
+        .where((value) => value.isNotEmpty)
+        .where((value) =>
+            !RegExp(r'^pr[ée]paration', caseSensitive: false)
+                .hasMatch(value))
+        .map((value) => value
+            .replaceFirst(
+              RegExp(r'^(étape|etape)\s+\d+\s*', caseSensitive: false),
+              '',
+            )
+            .trim())
+        .where((value) => value.isNotEmpty)
+        .toList();
+  }
+
+  String _cleanEtapesText(String raw) {
+    var text = raw.trim();
+    if (text.startsWith('[') && text.endsWith(']')) {
+      text = text.substring(1, text.length - 1).trim();
+    }
+
+    return text
+        .replaceAll('\r\n', '\n')
+        .replaceAll(r'\n', '\n')
+        .replaceAll(RegExp(r'''['"]\s*,\s*['"]'''), '\n')
+        .replaceAll('""', '"')
+        .replaceAll(RegExp(r'''^\s*['"]+'''), '')
+        .replaceAll(RegExp(r'''['"]+\s*$'''), '')
+        .trim();
+  }
+
   @override
   Widget build(BuildContext context) {
     final desktop = isDesktop(context);
@@ -409,6 +447,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     final ingredients = _ingredientLabels();
     final equipments = _equipmentLabels();
     final occasions = _occasionLabels();
+    final instructions = _instructionLabels();
     final category = _recipeCategory;
 
     return Column(
@@ -486,6 +525,11 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         if (equipments.isNotEmpty) ...[
           const SizedBox(height: 24),
           _buildMobileSection('Equipements', equipments),
+        ],
+
+        if (instructions.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _buildMobileSection('Etapes', instructions, numbered: true),
         ],
 
         const SizedBox(height: 32),
@@ -668,6 +712,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     final ingredients = _ingredientLabels();
     final equipments = _equipmentLabels();
     final occasions = _occasionLabels();
+    final instructions = _instructionLabels();
     final category = _recipeCategory;
 
     return Column(
@@ -734,6 +779,11 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         if (equipments.isNotEmpty) ...[
           const SizedBox(height: 24),
           _buildSection('Equipements', 'materiel conseille', equipments),
+        ],
+        if (instructions.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          _buildSection('Etapes', 'preparation', instructions,
+              numbered: true),
         ],
         const SizedBox(height: 24),
       ],

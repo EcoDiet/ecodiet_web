@@ -76,6 +76,7 @@ CREATE TABLE fact_recette_base (
     recette_id TEXT PRIMARY KEY,
     titre TEXT NOT NULL,
     photo TEXT,
+    etapes TEXT DEFAULT '',
     duree_minute INTEGER NOT NULL,
     temps_bin_id INTEGER,
     FOREIGN KEY (temps_bin_id) REFERENCES dim_temps_bin(temps_bin_id)

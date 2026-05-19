@@ -3,6 +3,7 @@ class Recette {
   final String recetteId;
   final String titre;
   final String photo;
+  final String etapes;
   final int dureeMinute;
   final int tempsBinId;
 
@@ -10,6 +11,7 @@ class Recette {
     required this.recetteId,
     required this.titre,
     required this.photo,
+    this.etapes = '',
     required this.dureeMinute,
     required this.tempsBinId,
   });
@@ -18,9 +20,10 @@ class Recette {
     return Recette(
       recetteId: map['recette_id'] as String,
       titre: map['titre'] as String,
-      photo: map['photo'] as String,
-      dureeMinute: map['duree_minute'] as int,
-      tempsBinId: map['temps_bin_id'] as int,
+      photo: map['photo'] as String? ?? '',
+      etapes: map['etapes'] as String? ?? '',
+      dureeMinute: (map['duree_minute'] as num?)?.toInt() ?? 0,
+      tempsBinId: (map['temps_bin_id'] as num?)?.toInt() ?? 0,
     );
   }
 
@@ -29,6 +32,7 @@ class Recette {
       'recette_id': recetteId,
       'titre': titre,
       'photo': photo,
+      'etapes': etapes,
       'duree_minute': dureeMinute,
       'temps_bin_id': tempsBinId,
     };
