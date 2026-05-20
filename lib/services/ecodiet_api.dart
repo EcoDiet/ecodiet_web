@@ -56,8 +56,6 @@ class EcoDietApi {
   final Map<String, RecetteComplete> _bridgeRecetteCompleteCache = {};
   final Map<String, DateTime> _bridgeRecetteCompleteCacheAt = {};
   bool? _bridgeFavoritesEndpointAvailable = false;
-  bool? _bridgeFoldersEndpointAvailable = false;
-  bool? _bridgeFolderRecetteEndpointAvailable = false;
   static const bool _debugFolders = true;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   static const Duration _bridgeSessionInactivityLimit = Duration(hours: 2);
@@ -93,8 +91,6 @@ class EcoDietApi {
     _bridgeRecetteCompleteCache.clear();
     _bridgeRecetteCompleteCacheAt.clear();
     _bridgeFavoritesEndpointAvailable = false;
-    _bridgeFoldersEndpointAvailable = false;
-    _bridgeFolderRecetteEndpointAvailable = false;
   }
 
   bool _isCacheValid(DateTime? at) {
