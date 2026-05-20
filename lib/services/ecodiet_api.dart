@@ -2203,60 +2203,6 @@ class EcoDietApi {
     return [];
   }
 
-  Future<List<Map<String, dynamic>>> _bridgeGetFoldersRows() async {
-    if (_bridgeFoldersEndpointAvailable == false) return [];
-    final q = <String, String>{
-      if (_currentUser?.userId != null && _currentUser!.userId!.isNotEmpty)
-        'user_id': _currentUser!.userId!
-      else
-        'email': _currentUser?.email ?? '',
-    };
-    try {
-      final res = await _bridgeGet('/folders', query: q);
-      _bridgeFoldersEndpointAvailable = true;
-      if (res is List) {
-        return res
-            .whereType<Map>()
-            .map((m) => Map<String, dynamic>.from(m))
-            .toList();
-      }
-    } catch (e) {
-      if (_isHttpBadRequestError(e)) {
-        _bridgeFoldersEndpointAvailable = false;
-      }
-    }
-    return [];
-  }
-
-  Future<List<Map<String, dynamic>>> _bridgeGetFolderRecetteRows({
-    int? folderId,
-  }) async {
-    if (_bridgeFolderRecetteEndpointAvailable == false) return [];
-    final q = <String, String>{
-      if (folderId != null)
-        'folder_id': '$folderId'
-      else if (_currentUser?.userId != null && _currentUser!.userId!.isNotEmpty)
-        'user_id': _currentUser!.userId!
-      else
-        'email': _currentUser?.email ?? '',
-    };
-    try {
-      final res = await _bridgeGet('/folder-recette', query: q);
-      _bridgeFolderRecetteEndpointAvailable = true;
-      if (res is List) {
-        return res
-            .whereType<Map>()
-            .map((m) => Map<String, dynamic>.from(m))
-            .toList();
-      }
-    } catch (e) {
-      if (_isHttpBadRequestError(e)) {
-        _bridgeFolderRecetteEndpointAvailable = false;
-      }
-    }
-    return [];
-  }
-
   Future<bool> setUserRegime(int regimeId) async {
     if (_currentUser == null) return false;
     try {
