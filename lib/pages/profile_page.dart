@@ -238,6 +238,7 @@ class _ProfilePageState extends State<ProfilePage> {
 
   Widget _buildDesktopBanner() {
     final favCount = favoriteCount;
+    final profileTag = preferences.isNotEmpty ? preferences.first.value : 'Aucune preference';
     return Column(
       children: [
         // Banner gradient
@@ -368,7 +369,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               Icons.folder_rounded,
                               '${folders.length} dossier${folders.length > 1 ? 's' : ''}',
                               const Color(0xFFF4A259)),
-                          _buildStatChip(Icons.eco_rounded, 'Végétarien',
+                          _buildStatChip(Icons.eco_rounded, profileTag,
                               const Color(0xFF2F6B3F)),
                         ],
                       ),
@@ -526,7 +527,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                   if (!isFavorites)
                     InkWell(
-                      onTap: () => _showDeleteFolderDialog(folder),
+                      onTap: () => _showEditFolderDialog(folder),
                       borderRadius: BorderRadius.circular(8),
                       child: Padding(
                         padding: const EdgeInsets.all(4),
@@ -862,6 +863,92 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  void _showEditFolderDialog(UserFolder folder) {
+    final TextEditingController labelController =
+        TextEditingController(text: folder.label);
+    Color selectedColor = folder.color;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Modifier le dossier'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: labelController,
+                decoration: const InputDecoration(
+                  labelText: 'Nom du dossier',
+                ),
+                autofocus: true,
+              ),
+              const SizedBox(height: 16),
+              const Text('Couleur du dossier', style: TextStyle(fontSize: 12)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 12,
+                children: [
+                  Colors.red,
+                  Colors.orange,
+                  Colors.amber,
+                  Colors.green,
+                  Colors.blue,
+                  const Color(0xFF87CEEB),
+                  Colors.purple,
+                  Colors.pink,
+                ].map((color) {
+                  return InkWell(
+                    onTap: () => setDialogState(() => selectedColor = color),
+                    borderRadius: BorderRadius.circular(18),
+                    child: Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: selectedColor == color
+                            ? Border.all(
+                                color: const Color(0xFF1F2E1F),
+                                width: 3,
+                              )
+                            : null,
+                      ),
+                      child: selectedColor == color
+                          ? const Icon(Icons.check, color: Colors.white, size: 20)
+                          : null,
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler'),
+            ),
+            TextButton(
+              onPressed: () async {
+                final newLabel = labelController.text.trim();
+                if (newLabel.isEmpty || folder.folderId == null) return;
+
+                await _api.updateFolder(
+                  folder.folderId!,
+                  newLabel: newLabel,
+                  colorValue: selectedColor.toARGB32(),
+                );
+                await _loadProfileData();
+                if (context.mounted) Navigator.pop(context);
+              },
+              child: const Text('Enregistrer'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildSectionHeader(IconData icon, String title) {
     return Row(
       children: [
@@ -894,6 +981,9 @@ class _ProfilePageState extends State<ProfilePage> {
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
+              if (folder.folderId != null) {
+                await _api.deleteFolder(folder.folderId!);
+              }
               await _loadProfileData();
             },
             child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
@@ -978,6 +1068,16 @@ class _ProfilePageState extends State<ProfilePage> {
                     shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12)),
                     itemBuilder: (_) => [
+                      const PopupMenuItem(
+                        value: 'edit',
+                        child: Row(
+                          children: [
+                            Icon(Icons.edit_outlined, size: 18),
+                            SizedBox(width: 10),
+                            Text('Modifier'),
+                          ],
+                        ),
+                      ),
                       PopupMenuItem(
                         value: 'delete',
                         child: Row(
@@ -992,6 +1092,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ],
                     onSelected: (value) {
+                      if (value == 'edit') _showEditFolderDialog(folder);
                       if (value == 'delete') _showDeleteFolderDialog(folder);
                     },
                   )

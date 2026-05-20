@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/ecodiet_api.dart';
 import '../services/favorites_service.dart';
@@ -26,6 +26,7 @@ class RecipeInfosPage extends StatefulWidget {
 
 class _RecipeInfosPageState extends State<RecipeInfosPage> {
   final EcoDietApi _api = EcoDietApi();
+  late final VoidCallback _favoritesListener;
 
   bool isFavorite = false;
   bool isLoading = true;
@@ -37,7 +38,22 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   @override
   void initState() {
     super.initState();
+    _favoritesListener = () {
+      final id = recette?.recette.recetteId ?? widget.id;
+      if (id == null || !mounted) return;
+      final next = FavoritesService().isFavorite(id);
+      if (next != isFavorite) {
+        setState(() => isFavorite = next);
+      }
+    };
+    FavoritesService().addListener(_favoritesListener);
     _loadRecipeDetails();
+  }
+
+  @override
+  void dispose() {
+    FavoritesService().removeListener(_favoritesListener);
+    super.dispose();
   }
 
   Future<void> _loadRecipeDetails() async {
@@ -69,7 +85,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
 
     final r = recette!.recette;
 
-    // Bascule locale immédiate : l'UI répond toujours, même hors ligne.
+    // Bascule locale immÃ©diate : l'UI rÃ©pond toujours, mÃªme hors ligne.
     setState(() => isFavorite = !isFavorite);
 
     if (isFavorite) {
@@ -84,14 +100,14 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
       FavoritesService().removeFavorite(r.recetteId);
     }
 
-    // Synchronisation backend au mieux (nécessite une session active).
+    // Synchronisation backend au mieux (nÃ©cessite une session active).
     final success = await _api.toggleFavorite(r.recetteId);
     if (!mounted) return;
     if (isFavorite && !success && !_api.isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Favori enregistré sur cet appareil. Connecte-toi pour le synchroniser.',
+            'Favori enregistrÃ© sur cet appareil. Connecte-toi pour le synchroniser.',
           ),
           duration: Duration(seconds: 3),
         ),
@@ -121,14 +137,14 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
             ),
             const SizedBox(height: 20),
             const Text(
-              'Ajouter à un dossier',
+              'Ajouter Ã  un dossier',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             if (_folders.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
-                child: Center(child: Text('Aucun dossier créé')),
+                child: Center(child: Text('Aucun dossier crÃ©Ã©')),
               )
             else
               ..._folders.map((folder) => ListTile(
@@ -147,7 +163,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                           SnackBar(
                             content: Text(
                               success
-                                  ? 'Ajouté à "${folder.label}"'
+                                  ? 'AjoutÃ© Ã  "${folder.label}"'
                                   : 'Erreur lors de l\'ajout',
                             ),
                           ),
@@ -175,41 +191,95 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
 
   void _showCreateFolderDialog() {
     final controller = TextEditingController();
+    Color selectedColor = Colors.blue;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Nouveau dossier'),
-        content: TextField(
-          controller: controller,
-          decoration: const InputDecoration(
-            labelText: 'Nom du dossier',
-            border: OutlineInputBorder(),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: const Text('Nouveau dossier'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: controller,
+                decoration: const InputDecoration(
+                  labelText: 'Nom du dossier',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const Text('Couleur du dossier', style: TextStyle(fontSize: 12)),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 10,
+                children: [
+                  Colors.red,
+                  Colors.orange,
+                  Colors.amber,
+                  Colors.green,
+                  Colors.blue,
+                  const Color(0xFF87CEEB),
+                  Colors.purple,
+                  Colors.pink,
+                ].map((color) {
+                  return InkWell(
+                    onTap: () => setDialogState(() => selectedColor = color),
+                    borderRadius: BorderRadius.circular(16),
+                    child: Container(
+                      width: 32,
+                      height: 32,
+                      decoration: BoxDecoration(
+                        color: color,
+                        shape: BoxShape.circle,
+                        border: selectedColor == color
+                            ? Border.all(
+                                color: const Color(0xFF1F2E1F),
+                                width: 2.5,
+                              )
+                            : null,
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
           ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (controller.text.trim().isNotEmpty) {
-                final result = await _api.createFolder(
-                    label: controller.text.trim());
-                if (result.isSuccess) {
-                  final foldersResult = await _api.getFolders();
-                  setState(() => _folders = foldersResult);
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Annuler'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (controller.text.trim().isNotEmpty) {
+                  final result = await _api.createFolder(
+                    label: controller.text.trim(),
+                    colorValue: selectedColor.toARGB32(),
+                  );
+                  if (result.isSuccess) {
+                    final createdFolder = result.data;
+                    final recetteId = recette?.recette.recetteId;
+                    if (createdFolder?.folderId != null &&
+                        recetteId != null &&
+                        recetteId.isNotEmpty) {
+                      await _api.addRecipeToFolder(
+                        createdFolder!.folderId!,
+                        recetteId,
+                      );
+                    }
+                    final foldersResult = await _api.getFolders();
+                    setState(() => _folders = foldersResult);
+                  }
+                  if (context.mounted) Navigator.pop(context);
                 }
-                if (context.mounted) Navigator.pop(context);
-              }
-            },
-            child: const Text('Créer'),
-          ),
-        ],
+              },
+              child: const Text('Cr\u00e9er'),
+            ),
+          ],
+        ),
       ),
     );
   }
-
   String _formatDuration(int minutes) {
     if (minutes < 60) return '$minutes min';
     final hours = minutes ~/ 60;
@@ -220,17 +290,61 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   String get _recipeTitle =>
       recette?.recette.titre ?? widget.title ?? 'Titre de la recette';
 
-  String? get _recipeCategory =>
-      widget.description ??
-      recette?.typePlat?.libelle ??
-      recette?.regime?.libelle;
+  String? get _recipeCategory {
+    final raw = (recette?.typePlat?.libelle ??
+            recette?.regime?.libelle ??
+            widget.description)
+        ?.trim();
+    if (raw == null || raw.isEmpty) return raw;
+    return _formatTypeLabel(raw);
+  }
+
+  String _formatTypeLabel(String rawType) {
+    final normalized = _cleanLabel(rawType)
+        .toLowerCase()
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized == 'apperitif') return 'aperitif';
+    return normalized;
+  }
 
   String _cleanLabel(String value) {
-    return value
+    return _fixMojibake(value)
         .replaceAll('"""', '')
         .replaceAll('"', '')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
+  }
+
+  String _fixMojibake(String input) {
+    var s = input;
+    const replacements = {
+      "Ã¢â‚¬Â¢": "-",
+      "Ã¢â‚¬â€œ": "-",
+      "Ã¢â‚¬â€": "-",
+      "Ã¢â‚¬Â": '"',
+      "Ã¢â‚¬Å“": '"',
+      "Ã¢â‚¬â„¢": "'",
+      "ÃƒÂ©": "?",
+      "ÃƒÂ¨": "?",
+      "ÃƒÂª": "?",
+      "ÃƒÂ«": "?",
+      "ÃƒÂ ": "?",
+      "ÃƒÂ¢": "?",
+      "ÃƒÂ®": "?",
+      "ÃƒÂ¯": "?",
+      "ÃƒÂ´": "?",
+      "ÃƒÂ¶": "?",
+      "ÃƒÂ¹": "?",
+      "ÃƒÂ»": "?",
+      "ÃƒÂ¼": "?",
+      "ÃƒÂ§": "?",
+      "Ã…â€œ": "?",
+      "Ã‚": "",
+    };
+    replacements.forEach((k, v) => s = s.replaceAll(k, v));
+    return s;
   }
 
   List<String> _ingredientLabels() =>
@@ -254,11 +368,11 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         .map(_cleanLabel)
         .where((value) => value.isNotEmpty)
         .where((value) =>
-            !RegExp(r'^pr[ée]paration', caseSensitive: false)
+            !RegExp(r'^pr[Ã©e]paration', caseSensitive: false)
                 .hasMatch(value))
         .map((value) => value
             .replaceFirst(
-              RegExp(r'^(étape|etape)\s+\d+\s*', caseSensitive: false),
+              RegExp(r'^(Ã©tape|etape)\s+\d+\s*', caseSensitive: false),
               '',
             )
             .trim())
@@ -290,7 +404,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
       return _buildMobileScaffold();
     }
 
-    // ── Desktop layout ──────────────────────────────────────────────────────
+    // Ã¢â€â‚¬Ã¢â€â‚¬ Desktop layout Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -316,7 +430,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     );
   }
 
-  // ── Mobile ─────────────────────────────────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Mobile Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   Widget _buildMobileScaffold() {
     if (isLoading) {
@@ -463,7 +577,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
             height: 1.2,
           ),
         ),
-        // Catégorie pill
+        // CatÃ©gorie pill
         if (category != null && category.isNotEmpty) ...[
           const SizedBox(height: 8),
           Container(
@@ -490,36 +604,13 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         // Empreinte carbone
         _buildCarbonFootprint(),
 
-        // Allergènes
-        if (recette != null && recette!.allergenes.isNotEmpty) ...[
+        if (_hasMetaInlineData(occasions)) ...[
           const SizedBox(height: 20),
-          _buildAllergenes(),
-        ],
-
-        // Type de plat
-        if (recette != null && recette!.typePlat != null) ...[
-          const SizedBox(height: 20),
-          _buildTypePlat(),
-        ],
-
-        // Régime
-        if (recette != null && recette!.regime != null) ...[
-          const SizedBox(height: 20),
-          _buildRegime(),
-        ],
-
-        // Ingrédients
-        if (occasions.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          _buildChipGroup(
-            title: 'Occasions',
-            items: occasions,
-            color: const Color(0xFFEA853D),
-          ),
+          _buildMetaInlineBar(occasions),
         ],
         if (ingredients.isNotEmpty) ...[
           const SizedBox(height: 28),
-          _buildMobileSection('Ingrédients', ingredients),
+          _buildMobileSection('Ingr\u00e9dients', ingredients),
         ],
 
         if (equipments.isNotEmpty) ...[
@@ -562,7 +653,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           _buildInfoStat(
               Icons.access_time_rounded, 'Temps', durationStr),
           _buildInfoDivider(),
-          _buildInfoStat(Icons.signal_cellular_alt_rounded, 'Difficulté',
+          _buildInfoStat(Icons.signal_cellular_alt_rounded, 'DifficultÃ©',
               difficultyLabel),
         ],
       ),
@@ -688,7 +779,67 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     );
   }
 
-  // ── Desktop ────────────────────────────────────────────────────────────────
+  bool _hasMetaInlineData(List<String> occasions) {
+    final hasAllergenes = recette != null && recette!.allergenes.isNotEmpty;
+    final hasType = recette?.typePlat?.libelle.trim().isNotEmpty ?? false;
+    final hasRegime = recette?.regime?.libelle.trim().isNotEmpty ?? false;
+    return hasAllergenes || hasType || hasRegime || occasions.isNotEmpty;
+  }
+
+  Widget _buildMetaInlineBar(List<String> occasions) {
+    final chips = <Widget>[];
+
+    if (recette != null && recette!.allergenes.isNotEmpty) {
+      chips.add(_metaChip(
+        'AllergÃ¨ne',
+        recette!.allergenes.first.libelle,
+        const Color(0xFFD94F3D),
+      ));
+    }
+    final typeRaw = recette?.typePlat?.libelle.trim() ?? '';
+    final type = typeRaw.isEmpty ? '' : _formatTypeLabel(typeRaw);
+    if (type.isNotEmpty) {
+      chips.add(_metaChip('Type', type, const Color(0xFF3F6FC6)));
+    }
+    final regime = recette?.regime?.libelle.trim() ?? '';
+    if (regime.isNotEmpty) {
+      chips.add(_metaChip('RÃ©gime', regime, const Color(0xFF4F8D4F)));
+    }
+    if (occasions.isNotEmpty) {
+      chips.add(_metaChip('Occasion', occasions.first, const Color(0xFFCF8748)));
+    }
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(children: chips),
+    );
+  }
+
+  Widget _metaChip(String label, String value, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(right: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: RichText(
+        text: TextSpan(
+          style: const TextStyle(fontSize: 13, color: Color(0xFF1F2E1F)),
+          children: [
+            TextSpan(
+              text: '$label: ',
+              style: TextStyle(fontWeight: FontWeight.w700, color: color),
+            ),
+            TextSpan(text: value),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Desktop Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   Widget _buildDesktopHeader() {
     return Padding(
@@ -738,7 +889,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    category ?? 'Detail de la recette',
+                    category ?? 'D\u00e9tail de la recette',
                     style: TextStyle(fontSize: 15, color: Colors.grey[600]),
                   ),
                   const SizedBox(height: 20),
@@ -752,37 +903,21 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
             ),
           ],
         ),
-        if (recette != null && recette!.allergenes.isNotEmpty) ...[
+        if (_hasMetaInlineData(occasions)) ...[
           const SizedBox(height: 24),
-          _buildAllergenes(),
-        ],
-        if (recette != null && recette!.typePlat != null) ...[
-          const SizedBox(height: 24),
-          _buildTypePlat(),
-        ],
-        if (recette != null && recette!.regime != null) ...[
-          const SizedBox(height: 24),
-          _buildRegime(),
-        ],
-        if (occasions.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          _buildChipGroup(
-            title: 'Occasions',
-            items: occasions,
-            color: const Color(0xFFEA853D),
-          ),
+          _buildMetaInlineBar(occasions),
         ],
         if (ingredients.isNotEmpty) ...[
           const SizedBox(height: 32),
-          _buildSection('Ingrédients', 'liste des ingrédients', ingredients),
+          _buildSection('Ingr\u00e9dients', 'liste des Ingr\u00e9dients', ingredients),
         ],
         if (equipments.isNotEmpty) ...[
           const SizedBox(height: 24),
-          _buildSection('Equipements', 'materiel conseille', equipments),
+          _buildSection('\u00c9quipements', 'mat\u00e9riel conseill\u00e9', equipments),
         ],
         if (instructions.isNotEmpty) ...[
           const SizedBox(height: 24),
-          _buildSection('Etapes', 'preparation', instructions,
+          _buildSection('\u00c9tapes', 'pr\u00e9paration', instructions,
               numbered: true),
         ],
         const SizedBox(height: 24),
@@ -790,7 +925,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     );
   }
 
-  // ── Shared helpers ─────────────────────────────────────────────────────────
+  // Ã¢â€â‚¬Ã¢â€â‚¬ Shared helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
   Widget _buildImage({required double height}) {
     final photo = recette?.recette.photo;
@@ -843,7 +978,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         const SizedBox(width: 12),
         _buildInfoCard(
           icon: Icons.trending_up,
-          label: 'Difficultés',
+          label: 'DifficultÃ©s',
           value: difficultyLabel,
           color: const Color(0xFF2F6B3F),
         ),
@@ -912,7 +1047,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Allergènes',
+          'AllergÃ¨nes',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -936,6 +1071,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   }
 
   Widget _buildTypePlat() {
+    final label = _formatTypeLabel(recette!.typePlat!.libelle);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -949,7 +1085,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         ),
         const SizedBox(height: 8),
         Chip(
-          label: Text(recette!.typePlat!.libelle),
+          label: Text(label),
           backgroundColor: Colors.blue[50],
           labelStyle: TextStyle(color: Colors.blue[700]),
         ),
@@ -962,7 +1098,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Régime compatible',
+          'RÃ©gime compatible',
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.bold,
@@ -1050,7 +1186,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               const Text(
-                '–',
+                '-' ,
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
@@ -1106,7 +1242,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                   )
                 else
                   const Text(
-                    '• ',
+                    '- ',
                     style: TextStyle(
                         fontWeight: FontWeight.bold,
                         color: Color(0xFF2F6B3F)),
@@ -1156,7 +1292,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               onPressed: _addToFolder,
               icon: const Icon(Icons.folder_outlined, size: 18),
               label: const Text(
-                'Ajouter à un dossier',
+                'Ajouter Ã  un dossier',
                 style:
                     TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               ),
@@ -1205,7 +1341,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
             onPressed: _addToFolder,
             icon: const Icon(Icons.folder_outlined, size: 20),
             label: const Text(
-              'Ajouter à un dossier',
+              'Ajouter Ã  un dossier',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
             style: ElevatedButton.styleFrom(
@@ -1221,3 +1357,8 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     );
   }
 }
+
+
+
+
+

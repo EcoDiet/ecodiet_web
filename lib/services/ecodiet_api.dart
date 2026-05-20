@@ -1,6 +1,8 @@
 import 'dart:convert';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'favorites_service.dart';
@@ -11,7 +13,7 @@ import '../models/user.dart' hide User;
 const String kMarmitonImageBaseUrl = 'https://assets.afcdn.com/recipe/';
 const String kGcpImageBaseUrl =
     'https://storage.googleapis.com/gcs_dataiku/dataiku/staging/node_7e227912/ECODIETYNOV/0RUJIdkr/';
-bool kDisableNetworkImages = true;
+bool kDisableNetworkImages = false;
 
 /// Retourne l'URL complète d'une image recette à partir du nom de fichier stocké en BDD.
 String recetteImageUrl(String photo) {
@@ -47,6 +49,26 @@ class EcoDietApi {
   String _gcpBridgeBaseUrl = '';
   String? _gcpBridgeApiKey;
   List<Map<String, dynamic>>? _bridgeRecettesCache;
+  DateTime? _bridgeRecettesCacheAt;
+  static const Duration _bridgeDataCacheTtl = Duration(minutes: 5);
+  final Map<String, List<Map<String, dynamic>>> _bridgeTableCache = {};
+  final Map<String, DateTime> _bridgeTableCacheAt = {};
+  final Map<String, RecetteComplete> _bridgeRecetteCompleteCache = {};
+  final Map<String, DateTime> _bridgeRecetteCompleteCacheAt = {};
+  bool? _bridgeFavoritesEndpointAvailable = false;
+  bool? _bridgeFoldersEndpointAvailable = false;
+  bool? _bridgeFolderRecetteEndpointAvailable = false;
+  static const bool _debugFolders = true;
+  final FlutterSecureStorage _storage = const FlutterSecureStorage();
+  static const Duration _bridgeSessionInactivityLimit = Duration(hours: 2);
+  static const String _bridgeSessionUserKey = 'bridge_session_user';
+  static const String _bridgeSessionLastActivityKey =
+      'bridge_session_last_activity';
+  bool _localBridgeStateLoaded = false;
+  Set<String> _localFavoriteIds = <String>{};
+  Map<int, Set<String>> _localFolderRecipes = <int, Set<String>>{};
+  List<Map<String, dynamic>> _localFolders = <Map<String, dynamic>>[];
+  int _localNextFolderId = 1;
 
   factory EcoDietApi() => _instance;
   EcoDietApi._internal();
@@ -60,7 +82,106 @@ class EcoDietApi {
     _useGcpBridge = enabled && baseUrl.trim().isNotEmpty;
     _gcpBridgeBaseUrl = baseUrl.trim().replaceAll(RegExp(r'/$'), '');
     _gcpBridgeApiKey = apiKey?.trim().isEmpty ?? true ? null : apiKey?.trim();
+    _clearBridgeDataCaches();
+  }
+
+  void _clearBridgeDataCaches() {
     _bridgeRecettesCache = null;
+    _bridgeRecettesCacheAt = null;
+    _bridgeTableCache.clear();
+    _bridgeTableCacheAt.clear();
+    _bridgeRecetteCompleteCache.clear();
+    _bridgeRecetteCompleteCacheAt.clear();
+    _bridgeFavoritesEndpointAvailable = false;
+    _bridgeFoldersEndpointAvailable = false;
+    _bridgeFolderRecetteEndpointAvailable = false;
+  }
+
+  bool _isCacheValid(DateTime? at) {
+    if (at == null) return false;
+    return DateTime.now().difference(at) < _bridgeDataCacheTtl;
+  }
+
+  bool _isHttpBadRequestError(Object error) {
+    final text = error.toString();
+    return text.contains('Bridge HTTP 400');
+  }
+
+  Future<void> _saveBridgeSession(app_models.User user) async {
+    try {
+      await _storage.write(
+        key: _bridgeSessionUserKey,
+        value: jsonEncode({
+          'user_id': user.userId,
+          'email': user.email,
+          'nom': user.nom,
+          'prenom': user.prenom,
+        }),
+      );
+      await _touchBridgeSessionActivity();
+    } catch (_) {}
+  }
+
+  Future<void> _touchBridgeSessionActivity() async {
+    try {
+      await _storage.write(
+        key: _bridgeSessionLastActivityKey,
+        value: DateTime.now().toUtc().toIso8601String(),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _clearBridgeSession() async {
+    try {
+      await _storage.delete(key: _bridgeSessionUserKey);
+      await _storage.delete(key: _bridgeSessionLastActivityKey);
+    } catch (_) {}
+  }
+
+  Future<bool> _restoreBridgeSession() async {
+    try {
+      final rawUser = await _storage.read(key: _bridgeSessionUserKey);
+      final rawLast = await _storage.read(key: _bridgeSessionLastActivityKey);
+      if (rawUser == null || rawUser.trim().isEmpty) return false;
+      if (rawLast == null || rawLast.trim().isEmpty) {
+        await _clearBridgeSession();
+        return false;
+      }
+
+      final last = DateTime.tryParse(rawLast)?.toUtc();
+      if (last == null) {
+        await _clearBridgeSession();
+        return false;
+      }
+
+      final now = DateTime.now().toUtc();
+      if (now.difference(last) > _bridgeSessionInactivityLimit) {
+        await _clearBridgeSession();
+        _currentUser = null;
+        FavoritesService().clear();
+        _resetLocalBridgeStateCache();
+        return false;
+      }
+
+      final decoded = jsonDecode(rawUser);
+      if (decoded is! Map) return false;
+      final map = Map<String, dynamic>.from(decoded);
+      final email = (map['email'] ?? '').toString().trim();
+      if (email.isEmpty) return false;
+
+      _currentUser = app_models.User(
+        userId: map['user_id']?.toString(),
+        email: email,
+        nom: map['nom']?.toString(),
+        prenom: map['prenom']?.toString(),
+        passwordHash: null,
+      );
+      await _touchBridgeSessionActivity();
+      _resetLocalBridgeStateCache();
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Map<String, String> _bridgeHeaders() {
@@ -72,6 +193,9 @@ class EcoDietApi {
   }
 
   Future<dynamic> _bridgeGet(String path, {Map<String, String>? query}) async {
+    if (_currentUser != null) {
+      await _touchBridgeSessionActivity();
+    }
     final uri = Uri.parse('$_gcpBridgeBaseUrl$path').replace(
       queryParameters: query?.isEmpty ?? true ? null : query,
     );
@@ -86,6 +210,9 @@ class EcoDietApi {
   }
 
   Future<dynamic> _bridgePost(String path, Map<String, dynamic> body) async {
+    if (_currentUser != null) {
+      await _touchBridgeSessionActivity();
+    }
     final uri = Uri.parse('$_gcpBridgeBaseUrl$path');
     final headers = <String, String>{
       ..._bridgeHeaders(),
@@ -117,6 +244,104 @@ class EcoDietApi {
       out[key] = value;
     });
     return out;
+  }
+
+  String _storageKey(String suffix) {
+    final userKey =
+        (_currentUser?.userId ?? _currentUser?.email ?? 'anon').toString();
+    return 'bridge_local_${userKey}_$suffix';
+  }
+
+  Future<void> _ensureLocalBridgeStateLoaded() async {
+    if (_localBridgeStateLoaded) return;
+    try {
+      final favRaw = await _storage.read(key: _storageKey('favorites'));
+      if (favRaw != null && favRaw.trim().isNotEmpty) {
+        final decoded = jsonDecode(favRaw);
+        if (decoded is List) {
+          _localFavoriteIds = decoded.map((e) => '$e').toSet();
+        }
+      }
+
+      final foldersRaw = await _storage.read(key: _storageKey('folders'));
+      if (foldersRaw != null && foldersRaw.trim().isNotEmpty) {
+        final decoded = jsonDecode(foldersRaw);
+        if (decoded is List) {
+          _localFolders = decoded
+              .whereType<Map>()
+              .map((m) => Map<String, dynamic>.from(m))
+              .toList();
+          for (final f in _localFolders) {
+            final fid = _toInt(f['folder_id'] ?? f['id']);
+            if (fid >= _localNextFolderId) _localNextFolderId = fid + 1;
+          }
+        }
+      }
+
+      final folderRecipesRaw =
+          await _storage.read(key: _storageKey('folder_recipes'));
+      if (folderRecipesRaw != null && folderRecipesRaw.trim().isNotEmpty) {
+        final decoded = jsonDecode(folderRecipesRaw);
+        if (decoded is Map) {
+          final map = <int, Set<String>>{};
+          decoded.forEach((k, v) {
+            final id = int.tryParse('$k');
+            if (id == null) return;
+            if (v is List) {
+              map[id] = v.map((e) => '$e').toSet();
+            }
+          });
+          _localFolderRecipes = map;
+        }
+      }
+    } catch (_) {
+      _localFavoriteIds = <String>{};
+      _localFolderRecipes = <int, Set<String>>{};
+      _localFolders = <Map<String, dynamic>>[];
+      _localNextFolderId = 1;
+    } finally {
+      _localBridgeStateLoaded = true;
+      if (_debugFolders) {
+        debugPrint(
+          '[FOLDER_DEBUG][LOAD] loaded=$_localBridgeStateLoaded folders=${_localFolders.length} links=${_localFolderRecipes.length} nextId=$_localNextFolderId user=${_currentUser?.email}',
+        );
+      }
+    }
+  }
+
+  Future<void> _saveLocalBridgeState() async {
+    try {
+      await _storage.write(
+        key: _storageKey('favorites'),
+        value: jsonEncode(_localFavoriteIds.toList()),
+      );
+      await _storage.write(
+        key: _storageKey('folders'),
+        value: jsonEncode(_localFolders),
+      );
+      final serializable = <String, List<String>>{};
+      _localFolderRecipes.forEach((k, v) {
+        serializable['$k'] = v.toList();
+      });
+      await _storage.write(
+        key: _storageKey('folder_recipes'),
+        value: jsonEncode(serializable),
+      );
+      if (_debugFolders) {
+        debugPrint(
+          '[FOLDER_DEBUG][SAVE] folders=${_localFolders.length} links=${serializable.length} data=$serializable',
+        );
+      }
+    } catch (_) {}
+  }
+
+  void _resetLocalBridgeStateCache() {
+    _localBridgeStateLoaded = false;
+    _localFavoriteIds = <String>{};
+    _localFolderRecipes = <int, Set<String>>{};
+    _localFolders = <Map<String, dynamic>>[];
+    _localNextFolderId = 1;
+    _clearBridgeDataCaches();
   }
 
   String _hashPassword(String plainPassword) {
@@ -186,7 +411,9 @@ class EcoDietApi {
   }
 
   Future<List<Map<String, dynamic>>> _bridgeGetRecettesFromRoot() async {
-    if (_bridgeRecettesCache != null) return _bridgeRecettesCache!;
+    if (_bridgeRecettesCache != null && _isCacheValid(_bridgeRecettesCacheAt)) {
+      return _bridgeRecettesCache!;
+    }
 
     final root = await _bridgeGet('', query: {'table': 'fact_recette_base'});
     List rawRows;
@@ -208,27 +435,34 @@ class EcoDietApi {
         .map((row) => _normalizeBridgeRecetteRow(Map<String, dynamic>.from(row)))
         .toList();
     _bridgeRecettesCache = normalized;
+    _bridgeRecettesCacheAt = DateTime.now();
     return normalized;
   }
 
   Future<List<Map<String, dynamic>>> _bridgeGetTable(String table) async {
+    final cached = _bridgeTableCache[table];
+    if (cached != null && _isCacheValid(_bridgeTableCacheAt[table])) {
+      return cached;
+    }
     final res = await _bridgeGet('', query: {'table': table});
+    List<Map<String, dynamic>> rows = [];
     if (res is List) {
-      return res
+      rows = res
           .whereType<Map>()
           .map((m) => Map<String, dynamic>.from(m))
           .toList();
-    }
-    if (res is Map) {
-      final rows = res['donneesBigQuery'];
-      if (rows is List) {
-        return rows
+    } else if (res is Map) {
+      final wrappedRows = res['donneesBigQuery'];
+      if (wrappedRows is List) {
+        rows = wrappedRows
             .whereType<Map>()
             .map((m) => Map<String, dynamic>.from(m))
             .toList();
       }
     }
-    return [];
+    _bridgeTableCache[table] = rows;
+    _bridgeTableCacheAt[table] = DateTime.now();
+    return rows;
   }
 
   Future<List<Map<String, dynamic>>> _bridgeGetTableAny(
@@ -251,18 +485,32 @@ class EcoDietApi {
   Future<List<RecettePreview>> _bridgeBuildPreviewsFromBase(
     List<Map<String, dynamic>> baseRows,
   ) async {
-    final dimIng = await _bridgeGetTableAny(['dim_ingredients', 'dim_ingredient']);
-    final factIng = await _bridgeGetTableAny(['fact_ingredients_recette']);
-    final dimEq = await _bridgeGetTableAny(['dim_equipement']);
-    final factEq = await _bridgeGetTableAny(['fact_recette_equipements', 'fact_recette_equipement']);
-    final dimReg = await _bridgeGetTableAny(['dim_regime']);
-    final factReg = await _bridgeGetTableAny(['fact_recette_regime']);
-    final dimAll = await _bridgeGetTableAny(['dim_allergene']);
-    final factAll = await _bridgeGetTableAny(['fact_recette_allergene']);
-    final dimOcc = await _bridgeGetTableAny(['dim_occasion']);
-    final factOcc = await _bridgeGetTableAny(['fact_recette_occasion']);
-    final dimType = await _bridgeGetTableAny(['dim_type_plat']);
-    final factType = await _bridgeGetTableAny(['fact_recette_type_plat']);
+    final parts = await Future.wait([
+      _bridgeGetTableAny(['dim_ingredients', 'dim_ingredient']),
+      _bridgeGetTableAny(['fact_ingredients_recette']),
+      _bridgeGetTableAny(['dim_equipement']),
+      _bridgeGetTableAny(['fact_recette_equipements', 'fact_recette_equipement']),
+      _bridgeGetTableAny(['dim_regime']),
+      _bridgeGetTableAny(['fact_recette_regime']),
+      _bridgeGetTableAny(['dim_allergene']),
+      _bridgeGetTableAny(['fact_recette_allergene']),
+      _bridgeGetTableAny(['dim_occasion']),
+      _bridgeGetTableAny(['fact_recette_occasion']),
+      _bridgeGetTableAny(['dim_type_plat']),
+      _bridgeGetTableAny(['fact_recette_type_plat']),
+    ]);
+    final dimIng = parts[0];
+    final factIng = parts[1];
+    final dimEq = parts[2];
+    final factEq = parts[3];
+    final dimReg = parts[4];
+    final factReg = parts[5];
+    final dimAll = parts[6];
+    final factAll = parts[7];
+    final dimOcc = parts[8];
+    final factOcc = parts[9];
+    final dimType = parts[10];
+    final factType = parts[11];
 
     final ingById = {for (final r in dimIng) _toInt(r['ingredient_id']): '${r['nom_ingredient'] ?? ''}'};
     final eqById = {for (final r in dimEq) _toInt(r['equipement_id']): '${r['nom_equipement'] ?? ''}'};
@@ -446,16 +694,18 @@ class EcoDietApi {
 
   Future<bool> restoreSession() async {
     if (_useGcpBridge) {
-      return _currentUser != null;
+      return _restoreBridgeSession();
     }
 
     final authUser = _supabase.auth.currentUser;
     if (authUser == null) {
       _currentUser = null;
+      _resetLocalBridgeStateCache();
       return false;
     }
 
     _currentUser = await _buildCurrentUser(authUser);
+    _resetLocalBridgeStateCache();
     await syncLocalFavorites();
     await _ensureDefaultFolder();
     return true;
@@ -602,6 +852,7 @@ class EcoDietApi {
         passwordHash: null,
       );
       _currentUser = null;
+      _resetLocalBridgeStateCache();
       return ApiResult.success(user);
     }
 
@@ -646,6 +897,7 @@ class EcoDietApi {
         );
 
         _currentUser = user;
+        _resetLocalBridgeStateCache();
 
         // Creer le dossier Favoris par defaut
         await createFolder(label: 'Favoris', colorValue: 0xFFE53935);
@@ -707,6 +959,8 @@ class EcoDietApi {
           passwordHash: null,
         );
         _currentUser = user;
+        await _saveBridgeSession(user);
+        _resetLocalBridgeStateCache();
         return ApiResult.success(user);
       } catch (e) {
         return ApiResult.error(
@@ -749,6 +1003,7 @@ class EcoDietApi {
           passwordHash: null,
         );
         _currentUser = user;
+        _resetLocalBridgeStateCache();
         await syncLocalFavorites();
         await _ensureDefaultFolder();
         return ApiResult.success(user);
@@ -763,9 +1018,13 @@ class EcoDietApi {
   Future<void> logout() async {
     if (_useGcpBridge) {
       _currentUser = null;
+      await _clearBridgeSession();
+      FavoritesService().clear();
+      _resetLocalBridgeStateCache();
       return;
     }
     _currentUser = null;
+    _resetLocalBridgeStateCache();
     await _supabase.auth.signOut();
   }
 
@@ -899,6 +1158,21 @@ class EcoDietApi {
   /// Retourne les IDs des recettes favorites de l'utilisateur courant
   Future<Set<String>> getFavoriteIds() async {
     if (_currentUser == null) return {};
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      final ids = <String>{..._localFavoriteIds};
+      try {
+        final rows = await _bridgeGetFavoritesRows();
+        ids.addAll(
+          rows
+              .map((r) => '${r['recette_id'] ?? r['recipe_id'] ?? ''}')
+              .where((id) => id.isNotEmpty),
+        );
+      } catch (_) {}
+      _localFavoriteIds = ids;
+      await _saveLocalBridgeState();
+      return ids;
+    }
     try {
       final res = await _supabase
           .from('user_favorite')
@@ -959,11 +1233,32 @@ class EcoDietApi {
     }
 
     if (_useGcpBridge) {
+      final cached = _bridgeRecetteCompleteCache[recetteId];
+      if (cached != null &&
+          _isCacheValid(_bridgeRecetteCompleteCacheAt[recetteId])) {
+        return cached;
+      }
       try {
         final recette = await getRecetteById(recetteId);
         if (recette == null) return null;
 
-        final stgRows = await _bridgeGetTable('stg_recettes');
+        final detailParts = await Future.wait([
+          _bridgeGetTable('stg_recettes'),
+          _bridgeGetTableAny(['fact_ingredients_recette']),
+          _bridgeGetTableAny(['dim_ingredients', 'dim_ingredient']),
+          _bridgeGetTableAny(
+              ['fact_recette_equipements', 'fact_recette_equipement']),
+          _bridgeGetTable('dim_equipement'),
+          _bridgeGetTableAny(['fact_recette_allergene']),
+          _bridgeGetTableAny(['dim_allergene']),
+          _bridgeGetTableAny(['fact_recette_occasion']),
+          _bridgeGetTableAny(['dim_occasion']),
+          _bridgeGetTableAny(['fact_recette_regime']),
+          _bridgeGetTableAny(['dim_regime']),
+          _bridgeGetTableAny(['fact_recette_type_plat']),
+          _bridgeGetTableAny(['dim_type_plat']),
+        ]);
+        final stgRows = detailParts[0];
         final stg = stgRows.cast<Map<String, dynamic>?>().firstWhere(
               (r) => r?['recette_id'] == recetteId,
               orElse: () => null,
@@ -981,12 +1276,8 @@ class EcoDietApi {
           tempsBinId: recette.tempsBinId,
         );
 
-        final factIng = await _bridgeGetTableAny(
-          ['fact_ingredients_recette'],
-        );
-        final dimIng = await _bridgeGetTableAny(
-          ['dim_ingredients', 'dim_ingredient'],
-        );
+        final factIng = detailParts[1];
+        final dimIng = detailParts[2];
         final ingById = <int, String>{
           for (final d in dimIng)
             ((d['ingredient_id'] as num?)?.toInt() ?? -1):
@@ -1013,10 +1304,8 @@ class EcoDietApi {
           }
         }
 
-        final factEq = await _bridgeGetTableAny(
-          ['fact_recette_equipements', 'fact_recette_equipement'],
-        );
-        final dimEq = await _bridgeGetTable('dim_equipement');
+        final factEq = detailParts[3];
+        final dimEq = detailParts[4];
         final eqById = <int, String>{
           for (final d in dimEq)
             ((d['equipement_id'] as num?)?.toInt() ?? -1):
@@ -1043,12 +1332,8 @@ class EcoDietApi {
           }
         }
 
-        final factAll = await _bridgeGetTableAny(
-          ['fact_recette_allergene'],
-        );
-        final dimAll = await _bridgeGetTableAny(
-          ['dim_allergene'],
-        );
+        final factAll = detailParts[5];
+        final dimAll = detailParts[6];
         final allergeneById = <int, String>{
           for (final d in dimAll)
             ((d['allergene_id'] as num?)?.toInt() ?? -1):
@@ -1066,12 +1351,8 @@ class EcoDietApi {
             .map((id) => Allergene(allergeneId: id, libelle: allergeneById[id]!))
             .toList();
 
-        final factOcc = await _bridgeGetTableAny(
-          ['fact_recette_occasion'],
-        );
-        final dimOcc = await _bridgeGetTableAny(
-          ['dim_occasion'],
-        );
+        final factOcc = detailParts[7];
+        final dimOcc = detailParts[8];
         final occasionById = <int, String>{
           for (final d in dimOcc)
             ((d['occasion_id'] as num?)?.toInt() ?? -1):
@@ -1089,12 +1370,8 @@ class EcoDietApi {
             .map((id) => Occasion(occasionId: id, libelle: occasionById[id]!))
             .toList();
 
-        final factReg = await _bridgeGetTableAny(
-          ['fact_recette_regime'],
-        );
-        final dimReg = await _bridgeGetTableAny(
-          ['dim_regime'],
-        );
+        final factReg = detailParts[9];
+        final dimReg = detailParts[10];
         final regimeById = <int, String>{
           for (final d in dimReg)
             ((d['regime_id'] as num?)?.toInt() ?? -1):
@@ -1112,12 +1389,8 @@ class EcoDietApi {
             ? Regime(regimeId: regimeId, libelle: regimeById[regimeId]!)
             : null;
 
-        final factType = await _bridgeGetTableAny(
-          ['fact_recette_type_plat'],
-        );
-        final dimType = await _bridgeGetTableAny(
-          ['dim_type_plat'],
-        );
+        final factType = detailParts[11];
+        final dimType = detailParts[12];
         final typeById = <int, String>{
           for (final d in dimType)
             ((d['type_plat_id'] as num?)?.toInt() ?? -1):
@@ -1135,7 +1408,7 @@ class EcoDietApi {
             ? TypePlat(typePlatId: typePlatId, libelle: typeById[typePlatId]!)
             : null;
 
-        return RecetteComplete(
+        final complete = RecetteComplete(
           recette: enrichedRecette,
           ingredients: ingredients,
           equipements: equipements,
@@ -1144,10 +1417,17 @@ class EcoDietApi {
           regime: regime,
           typePlat: typePlat,
         );
+        _bridgeRecetteCompleteCache[recetteId] = complete;
+        _bridgeRecetteCompleteCacheAt[recetteId] = DateTime.now();
+        return complete;
       } catch (_) {}
       try {
         final res = await _bridgeGet('/v1/recettes/$recetteId/complete');
-        return _recetteCompleteFromBridgeMap(res as Map<String, dynamic>);
+        final complete =
+            _recetteCompleteFromBridgeMap(res as Map<String, dynamic>);
+        _bridgeRecetteCompleteCache[recetteId] = complete;
+        _bridgeRecetteCompleteCacheAt[recetteId] = DateTime.now();
+        return complete;
       } catch (_) {}
       return null;
     }
@@ -1472,6 +1752,18 @@ class EcoDietApi {
 
   Future<bool> isFavorite(String recetteId) async {
     if (_currentUser == null) return false;
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      if (_localFavoriteIds.contains(recetteId)) return true;
+      try {
+        final rows = await _bridgeGetFavoritesRows();
+        return rows.any(
+          (r) => '${r['recette_id'] ?? r['recipe_id'] ?? ''}' == recetteId,
+        );
+      } catch (_) {
+        return FavoritesService().isFavorite(recetteId);
+      }
+    }
     try {
       final res = await _supabase
           .from('user_favorite')
@@ -1486,6 +1778,30 @@ class EcoDietApi {
 
   Future<bool> addToFavorites(String recetteId) async {
     if (_currentUser == null) return false;
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      _localFavoriteIds.add(recetteId);
+      await _saveLocalBridgeState();
+      try {
+        await _bridgePost('/favorites', _stripNulls({
+          'action': 'add',
+          'user_id': _currentUser!.userId,
+          'email': _currentUser!.email,
+          'recette_id': recetteId,
+        }));
+        return true;
+      } catch (_) {
+        try {
+          await _bridgePost('/favorites', _stripNulls({
+            'user_id': _currentUser!.userId,
+            'recette_id': recetteId,
+          }));
+          return true;
+        } catch (_) {
+          return true;
+        }
+      }
+    }
     try {
       await _supabase.from('user_favorite').insert({
         'user_id': _currentUser!.userId!,
@@ -1499,6 +1815,22 @@ class EcoDietApi {
 
   Future<bool> removeFromFavorites(String recetteId) async {
     if (_currentUser == null) return false;
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      _localFavoriteIds.remove(recetteId);
+      await _saveLocalBridgeState();
+      try {
+        await _bridgePost('/favorites', _stripNulls({
+          'action': 'remove',
+          'user_id': _currentUser!.userId,
+          'email': _currentUser!.email,
+          'recette_id': recetteId,
+        }));
+        return true;
+      } catch (_) {
+        return true;
+      }
+    }
     try {
       await _supabase
           .from('user_favorite')
@@ -1522,6 +1854,36 @@ class EcoDietApi {
 
   Future<List<Recette>> getFavorites() async {
     if (_currentUser == null) return [];
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      try {
+        final rows = await _bridgeGetFavoritesRows();
+        final ids = rows
+            .map((r) => '${r['recette_id'] ?? r['recipe_id'] ?? ''}')
+            .where((id) => id.isNotEmpty)
+            .toSet();
+        _localFavoriteIds = {..._localFavoriteIds, ...ids};
+        await _saveLocalBridgeState();
+        final allIds = _localFavoriteIds;
+        if (allIds.isEmpty) return [];
+        final base = await _bridgeGetRecettesFromRoot();
+        return base
+            .where((r) => allIds.contains('${r['recette_id'] ?? ''}'))
+            .map((r) => Recette.fromMap(r))
+            .toList();
+      } catch (_) {
+        if (_localFavoriteIds.isEmpty) return [];
+        try {
+          final base = await _bridgeGetRecettesFromRoot();
+          return base
+              .where((r) => _localFavoriteIds.contains('${r['recette_id'] ?? ''}'))
+              .map((r) => Recette.fromMap(r))
+              .toList();
+        } catch (_) {
+          return [];
+        }
+      }
+    }
     try {
       final res = await _supabase
           .from('user_favorite')
@@ -1549,7 +1911,25 @@ class EcoDietApi {
     required String label,
     int colorValue = 0xFFF4A259,
   }) async {
-    if (_currentUser == null) return ApiResult.error('Non connecté');
+    if (_currentUser == null) return ApiResult.error('Non connecte');
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      final localFolder = <String, dynamic>{
+        'folder_id': _localNextFolderId++,
+        'user_id': _currentUser!.userId ?? _currentUser!.email,
+        'label': label,
+        'color': colorValue,
+        'recipe_count': 0,
+      };
+      _localFolders.add(localFolder);
+      await _saveLocalBridgeState();
+      if (_debugFolders) {
+        debugPrint(
+          '[FOLDER_DEBUG][CREATE] folderId=${localFolder['folder_id']} label="$label" user=${_currentUser?.email}',
+        );
+      }
+      return ApiResult.success(UserFolder.fromMap(localFolder));
+    }
     try {
       final res = await _supabase
           .from('user_folder')
@@ -1569,6 +1949,21 @@ class EcoDietApi {
 
   Future<List<UserFolder>> getFolders() async {
     if (_currentUser == null) return [];
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      final folders = _localFolders.map((f) {
+        final map = Map<String, dynamic>.from(f);
+        final fid = _toInt(map['folder_id'] ?? map['id']);
+        map['recipe_count'] = (_localFolderRecipes[fid] ?? <String>{}).length;
+        return UserFolder.fromMap(map);
+      }).toList();
+      if (_debugFolders) {
+        debugPrint(
+          '[FOLDER_DEBUG][GET_FOLDERS] count=${folders.length} values=${folders.map((e) => '${e.folderId}:${e.recipeCount}').toList()}',
+        );
+      }
+      return folders;
+    }
     try {
       final res = await _supabase
           .from('user_folder')
@@ -1579,7 +1974,6 @@ class EcoDietApi {
       List<UserFolder> folders = [];
       for (var f in (res as List)) {
         final folder = UserFolder.fromMap(f);
-        // Get count
         try {
           final countRes = await _supabase
               .from('folder_recette')
@@ -1587,7 +1981,7 @@ class EcoDietApi {
               .eq('folder_id', folder.folderId!)
               .count(CountOption.exact);
           folder.recipeCount = countRes.count;
-        } catch (_) {/* ignore */}
+        } catch (_) {}
         folders.add(folder);
       }
       return folders;
@@ -1598,6 +1992,13 @@ class EcoDietApi {
 
   Future<bool> deleteFolder(int folderId) async {
     if (_currentUser == null) return false;
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      _localFolders.removeWhere((f) => _toInt(f['folder_id']) == folderId);
+      _localFolderRecipes.remove(folderId);
+      await _saveLocalBridgeState();
+      return true;
+    }
     try {
       await _supabase
           .from('user_folder')
@@ -1612,6 +2013,17 @@ class EcoDietApi {
 
   Future<bool> renameFolder(int folderId, String newLabel) async {
     if (_currentUser == null) return false;
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      for (final f in _localFolders) {
+        if (_toInt(f['folder_id']) == folderId) {
+          f['label'] = newLabel;
+          break;
+        }
+      }
+      await _saveLocalBridgeState();
+      return true;
+    }
     try {
       await _supabase
           .from('user_folder')
@@ -1624,8 +2036,65 @@ class EcoDietApi {
     }
   }
 
+  Future<bool> updateFolder(
+    int folderId, {
+    String? newLabel,
+    int? colorValue,
+  }) async {
+    if (_currentUser == null) return false;
+    if (newLabel == null && colorValue == null) return true;
+
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      for (final f in _localFolders) {
+        if (_toInt(f['folder_id']) == folderId) {
+          if (newLabel != null) f['label'] = newLabel;
+          if (colorValue != null) f['color'] = colorValue;
+          break;
+        }
+      }
+      await _saveLocalBridgeState();
+      return true;
+    }
+
+    try {
+      final updates = <String, dynamic>{};
+      if (newLabel != null) updates['label'] = newLabel;
+      if (colorValue != null) updates['color'] = colorValue;
+      await _supabase
+          .from('user_folder')
+          .update(updates)
+          .eq('folder_id', folderId)
+          .eq('user_id', _currentUser!.userId!);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<bool> addRecipeToFolder(int folderId, String recetteId) async {
     if (_currentUser == null) return false;
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      final folderExists =
+          _localFolders.any((f) => _toInt(f['folder_id']) == folderId);
+      if (!folderExists) {
+        if (_debugFolders) {
+          debugPrint(
+            '[FOLDER_DEBUG][ADD] folderId=$folderId not found. existingFolders=$_localFolders',
+          );
+        }
+        return false;
+      }
+      (_localFolderRecipes[folderId] ??= <String>{}).add(recetteId);
+      await _saveLocalBridgeState();
+      if (_debugFolders) {
+        debugPrint(
+          '[FOLDER_DEBUG][ADD] folderId=$folderId recetteId=$recetteId links=${_localFolderRecipes[folderId]}',
+        );
+      }
+      return true;
+    }
     try {
       await _supabase.from('folder_recette').insert({
         'folder_id': folderId,
@@ -1639,6 +2108,17 @@ class EcoDietApi {
 
   Future<bool> removeRecipeFromFolder(int folderId, String recetteId) async {
     if (_currentUser == null) return false;
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      _localFolderRecipes[folderId]?.remove(recetteId);
+      await _saveLocalBridgeState();
+      if (_debugFolders) {
+        debugPrint(
+          '[FOLDER_DEBUG][REMOVE] folderId=$folderId recetteId=$recetteId links=${_localFolderRecipes[folderId]}',
+        );
+      }
+      return true;
+    }
     try {
       await _supabase
           .from('folder_recette')
@@ -1653,6 +2133,33 @@ class EcoDietApi {
 
   Future<List<Recette>> getRecipesInFolder(int folderId) async {
     if (_currentUser == null) return [];
+    if (_useGcpBridge) {
+      await _ensureLocalBridgeStateLoaded();
+      final localIds = _localFolderRecipes[folderId] ?? <String>{};
+      if (_debugFolders) {
+        debugPrint(
+          '[FOLDER_DEBUG][GET_RECIPES] folderId=$folderId localIds=$localIds',
+        );
+      }
+      if (localIds.isEmpty) return [];
+      try {
+        final base = await _bridgeGetRecettesFromRoot();
+        if (_debugFolders) {
+          debugPrint(
+            '[FOLDER_DEBUG][GET_RECIPES] baseCount=${base.length} for folderId=$folderId',
+          );
+        }
+        return base
+            .where((r) => localIds.contains('${r['recette_id'] ?? ''}'))
+            .map((r) => Recette.fromMap(r))
+            .toList();
+      } catch (_) {
+        if (_debugFolders) {
+          debugPrint('[FOLDER_DEBUG][GET_RECIPES] bridge base fetch failed');
+        }
+        return [];
+      }
+    }
     try {
       final res = await _supabase
           .from('folder_recette')
@@ -1671,10 +2178,84 @@ class EcoDietApi {
       return [];
     }
   }
+  Future<List<Map<String, dynamic>>> _bridgeGetFavoritesRows() async {
+    if (_bridgeFavoritesEndpointAvailable == false) return [];
+    final q = <String, String>{
+      if (_currentUser?.userId != null && _currentUser!.userId!.isNotEmpty)
+        'user_id': _currentUser!.userId!
+      else
+        'email': _currentUser?.email ?? '',
+    };
+    try {
+      final res = await _bridgeGet('/favorites', query: q);
+      _bridgeFavoritesEndpointAvailable = true;
+      if (res is List) {
+        return res
+            .whereType<Map>()
+            .map((m) => Map<String, dynamic>.from(m))
+            .toList();
+      }
+    } catch (e) {
+      if (_isHttpBadRequestError(e)) {
+        _bridgeFavoritesEndpointAvailable = false;
+      }
+    }
+    return [];
+  }
 
-  // ============================================================================
-  // PRÉFÉRENCES UTILISATEUR
-  // ============================================================================
+  Future<List<Map<String, dynamic>>> _bridgeGetFoldersRows() async {
+    if (_bridgeFoldersEndpointAvailable == false) return [];
+    final q = <String, String>{
+      if (_currentUser?.userId != null && _currentUser!.userId!.isNotEmpty)
+        'user_id': _currentUser!.userId!
+      else
+        'email': _currentUser?.email ?? '',
+    };
+    try {
+      final res = await _bridgeGet('/folders', query: q);
+      _bridgeFoldersEndpointAvailable = true;
+      if (res is List) {
+        return res
+            .whereType<Map>()
+            .map((m) => Map<String, dynamic>.from(m))
+            .toList();
+      }
+    } catch (e) {
+      if (_isHttpBadRequestError(e)) {
+        _bridgeFoldersEndpointAvailable = false;
+      }
+    }
+    return [];
+  }
+
+  Future<List<Map<String, dynamic>>> _bridgeGetFolderRecetteRows({
+    int? folderId,
+  }) async {
+    if (_bridgeFolderRecetteEndpointAvailable == false) return [];
+    final q = <String, String>{
+      if (folderId != null)
+        'folder_id': '$folderId'
+      else if (_currentUser?.userId != null && _currentUser!.userId!.isNotEmpty)
+        'user_id': _currentUser!.userId!
+      else
+        'email': _currentUser?.email ?? '',
+    };
+    try {
+      final res = await _bridgeGet('/folder-recette', query: q);
+      _bridgeFolderRecetteEndpointAvailable = true;
+      if (res is List) {
+        return res
+            .whereType<Map>()
+            .map((m) => Map<String, dynamic>.from(m))
+            .toList();
+      }
+    } catch (e) {
+      if (_isHttpBadRequestError(e)) {
+        _bridgeFolderRecetteEndpointAvailable = false;
+      }
+    }
+    return [];
+  }
 
   Future<bool> setUserRegime(int regimeId) async {
     if (_currentUser == null) return false;
@@ -1760,6 +2341,58 @@ class EcoDietApi {
   }
 
   Future<List<UserPreference>> getUserPreferences() async {
+    if (_useGcpBridge) {
+      final prefs = <UserPreference>[];
+      try {
+        final rows = await _bridgeGetTableAny(['dim_utilisateur']);
+        final email = _currentUser?.email.toLowerCase().trim();
+        Map<String, dynamic>? row;
+        if (email != null && email.isNotEmpty) {
+          row = rows.cast<Map<String, dynamic>?>().firstWhere(
+                (r) =>
+                    r != null &&
+                    (r['email'] ?? '').toString().toLowerCase().trim() ==
+                        email,
+                orElse: () => null,
+              );
+        }
+        if (row != null) {
+          String readFirstNonEmpty(List<String> keys) {
+            for (final k in keys) {
+              final v = (row![k] ?? '').toString().trim();
+              if (v.isNotEmpty) return v;
+            }
+            return '';
+          }
+
+          final regime = readFirstNonEmpty([
+            'regime_alimentaire',
+            'regime',
+            'diet',
+          ]);
+          final allergies = readFirstNonEmpty([
+            'allergies',
+            'allergenes',
+            'allergenes',
+          ]);
+          final intolerances = readFirstNonEmpty([
+            'intolerances',
+            'intolerance',
+          ]);
+          if (regime.isNotEmpty) {
+            prefs.add(UserPreference(label: 'Régime', value: regime));
+          }
+          if (intolerances.isNotEmpty) {
+            prefs.add(
+                UserPreference(label: 'Intolérances', value: intolerances));
+          }
+          if (allergies.isNotEmpty) {
+            prefs.add(UserPreference(label: 'Allergènes', value: allergies));
+          }
+        }
+      } catch (_) {}
+      return prefs;
+    }
     final preferences = <UserPreference>[];
     final regime = await getUserRegime();
     if (regime != null) {

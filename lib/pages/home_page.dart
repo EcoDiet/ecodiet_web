@@ -3,6 +3,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../services/ecodiet_api.dart';
 import '../models/recette.dart';
+import '../models/user.dart' show UserPreference;
 import '../utils/responsive.dart';
 import '../services/favorites_service.dart';
 import 'all_recipes_page.dart';
@@ -39,13 +40,17 @@ class RecipeDisplayModel {
 
   static RecipeDisplayModel fromPreview(
       RecettePreview recette, Set<String> favoriteIds) {
+    final rawCategory = (recette.typePlatLibelle ?? 'Recette').trim();
+    final category = _formatTypeLabel(rawCategory);
+    final diets = (recette.regimeLibelle ?? '').trim();
+
     return RecipeDisplayModel(
       id: recette.recetteId,
       title: recette.titre,
-      category: recette.typePlatLibelle ?? 'Recette',
+      category: category,
       ingredients: recette.ingredients.join(', '),
       utensils: recette.equipements.join(', '),
-      diets: recette.regimeLibelle ?? '',
+      diets: diets,
       allergens: recette.allergenes.join(', '),
       occasions: recette.occasions.join(', '),
       duration: recette.dureeMinute > 0 ? "${recette.dureeMinute} min" : '',
@@ -54,6 +59,17 @@ class RecipeDisplayModel {
           recette.photo.isNotEmpty ? recetteImageUrl(recette.photo) : null,
       isFavorite: favoriteIds.contains(recette.recetteId),
     );
+  }
+
+  static String _formatTypeLabel(String rawType) {
+    final normalized = rawType
+        .trim()
+        .toLowerCase()
+        .replaceAll('_', ' ')
+        .replaceAll('-', ' ')
+        .replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized == 'apperitif') return 'aperitif';
+    return normalized;
   }
 }
 
@@ -77,6 +93,30 @@ class Quiz {
   });
 }
 
+class _HomeDataCache {
+  final DateTime fetchedAt;
+  final List<RecettePreview> previews;
+  final List quizzes;
+  final List<Ingredient> ingredientRefs;
+  final List<Equipement> equipementRefs;
+  final List<Regime> regimeRefs;
+  final List<TypePlat> typePlatRefs;
+  final List<Allergene> allergeneRefs;
+  final List<UserPreference> userPreferences;
+
+  _HomeDataCache({
+    required this.fetchedAt,
+    required this.previews,
+    required this.quizzes,
+    required this.ingredientRefs,
+    required this.equipementRefs,
+    required this.regimeRefs,
+    required this.typePlatRefs,
+    required this.allergeneRefs,
+    required this.userPreferences,
+  });
+}
+
 enum RecipeSortMode {
   pertinence,
   titreAsc,
@@ -93,6 +133,9 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  static _HomeDataCache? _memoryCache;
+  static const Duration _memoryCacheTtl = Duration(minutes: 3);
+
   final EcoDietApi _api = EcoDietApi();
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
 
@@ -224,19 +267,71 @@ class _HomePageState extends State<HomePage> {
   }
 
   String _cleanLabel(String value) {
-    return value
+    return _normalizeAscii(value)
         .replaceAll('"""', '')
         .replaceAll('"', '')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
   }
 
+  String _normalizeAscii(String input) {
+    var s = input;
+    const repl = {
+      'à': 'a',
+      'á': 'a',
+      'â': 'a',
+      'ä': 'a',
+      'ã': 'a',
+      'å': 'a',
+      'ç': 'c',
+      'è': 'e',
+      'é': 'e',
+      'ê': 'e',
+      'ë': 'e',
+      'ì': 'i',
+      'í': 'i',
+      'î': 'i',
+      'ï': 'i',
+      'ñ': 'n',
+      'ò': 'o',
+      'ó': 'o',
+      'ô': 'o',
+      'ö': 'o',
+      'õ': 'o',
+      'ù': 'u',
+      'ú': 'u',
+      'û': 'u',
+      'ü': 'u',
+      'ý': 'y',
+      'ÿ': 'y',
+      'œ': 'oe',
+      'æ': 'ae',
+      'Ã©': 'e',
+      'Ã¨': 'e',
+      'Ãª': 'e',
+      'Ã«': 'e',
+      'Ã ': 'a',
+      'Ã¢': 'a',
+      'Ã§': 'c',
+      'Ã®': 'i',
+      'Ã¯': 'i',
+      'Ã´': 'o',
+      'Ã¶': 'o',
+      'Ã¹': 'u',
+      'Ã»': 'u',
+      'Ã¼': 'u',
+      'Å“': 'oe',
+    };
+    repl.forEach((k, v) => s = s.replaceAll(k, v));
+    return s;
+  }
+
   String _ingredientFilterLabel(String raw) {
-    final cleaned = raw
+    final cleaned = _normalizeAscii(raw)
         .toLowerCase()
         .replaceAll('"', ' ')
         .replaceAll(RegExp(r'[0-9]+([.,][0-9]+)?'), ' ')
-        .replaceAll(RegExp(r'[^a-zàâäçéèêëîïôöùûüÿñæœ\s-]'), ' ')
+        .replaceAll(RegExp(r'[^a-z\s-]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
 
@@ -439,9 +534,10 @@ class _HomePageState extends State<HomePage> {
         .where((v) => v.isNotEmpty)
         .map((v) => v.toLowerCase())
         .toSet();
-    final utensilText = recipe.utensils.toLowerCase();
-    final dietText = '${recipe.category} ${recipe.diets}'.toLowerCase();
-    final allergenText = recipe.allergens.toLowerCase();
+    final utensilText = _normalizeAscii(recipe.utensils).toLowerCase();
+    final dietText =
+        _normalizeAscii('${recipe.category} ${recipe.diets}').toLowerCase();
+    final allergenText = _normalizeAscii(recipe.allergens).toLowerCase();
 
     if (_filters.ingredients.isNotEmpty &&
         !_filters.ingredients
@@ -450,7 +546,8 @@ class _HomePageState extends State<HomePage> {
     }
 
     if (_filters.utensils.isNotEmpty &&
-        !_filters.utensils.any((v) => utensilText.contains(v.toLowerCase()))) {
+        !_filters.utensils.any(
+            (v) => utensilText.contains(_normalizeAscii(v).toLowerCase()))) {
       return false;
     }
 
@@ -467,16 +564,40 @@ class _HomePageState extends State<HomePage> {
     }
 
     if (_filters.diets.isNotEmpty &&
-        !_filters.diets.any((v) => dietText.contains(v.toLowerCase()))) {
+        !_filters.diets.any((v) =>
+            _matchesDiet(recipe, _normalizeAscii(v).toLowerCase(), dietText))) {
       return false;
     }
 
     if (_filters.allergens.isNotEmpty &&
-        _filters.allergens.any((v) => allergenText.contains(v.toLowerCase()))) {
+        _filters.allergens.any(
+            (v) => allergenText.contains(_normalizeAscii(v).toLowerCase()))) {
       return false;
     }
 
     return true;
+  }
+
+  bool _matchesDiet(RecipeDisplayModel recipe, String filter, String dietText) {
+    final text =
+        '${recipe.title} ${recipe.ingredients} ${recipe.category} ${recipe.diets}'
+            .toLowerCase();
+    final hasMeat = RegExp(
+      r'(boeuf|b[œoe]uf|porc|poulet|dinde|agneau|veau|jambon|lardon|saucisse|steak|magret|canard|viande|hot ?dog|knack)',
+    ).hasMatch(text);
+    final hasFish = RegExp(
+      r'(poisson|saumon|thon|cabillaud|truite|sole|crevette|fruits de mer|moule|saint jacques|st jacques)',
+    ).hasMatch(text);
+    final hasAnimalProducts =
+        RegExp(r'(oeuf|œuf|lait|fromage|beurre|creme|crème|yaourt|miel)')
+            .hasMatch(text);
+
+    if (filter.contains('vegetar')) return !hasMeat && !hasFish;
+    if (filter.contains('vegan') || filter.contains('végétalien')) {
+      return !hasMeat && !hasFish && !hasAnimalProducts;
+    }
+    if (filter.contains('pesc')) return !hasMeat;
+    return dietText.contains(filter);
   }
 
   int? _parseDurationMinutes(String duration) {
@@ -555,7 +676,200 @@ class _HomePageState extends State<HomePage> {
     _openMobileFiltersSheet();
   }
 
-  Future<void> _loadData() async {
+  bool _isCacheUsable() {
+    final cache = _memoryCache;
+    if (cache == null) return false;
+    return DateTime.now().difference(cache.fetchedAt) < _memoryCacheTtl;
+  }
+
+  void _applyLoadedData({
+    required List<RecettePreview> previews,
+    required Set<String> favoriteIds,
+    required List loadedQuizzes,
+    required List<Ingredient> ingredientRefs,
+    required List<Equipement> equipementRefs,
+    required List<Regime> regimeRefs,
+    required List<TypePlat> typePlatRefs,
+    required List<Allergene> allergeneRefs,
+    required List<UserPreference> userPreferences,
+  }) {
+    final models = previews
+        .map((r) => RecipeDisplayModel.fromPreview(r, favoriteIds))
+        .toList();
+
+    final favService = FavoritesService();
+    favService.clear();
+    for (final recipe in models.where((m) => favoriteIds.contains(m.id))) {
+      favService.addFavorite(
+        FavoriteRecipe(
+          id: recipe.id,
+          title: recipe.title,
+          category: recipe.category,
+          duration: recipe.duration,
+          imageUrl: recipe.imageUrl,
+        ),
+      );
+    }
+
+    _memoryCache = _HomeDataCache(
+      fetchedAt: DateTime.now(),
+      previews: previews,
+      quizzes: loadedQuizzes,
+      ingredientRefs: ingredientRefs,
+      equipementRefs: equipementRefs,
+      regimeRefs: regimeRefs,
+      typePlatRefs: typePlatRefs,
+      allergeneRefs: allergeneRefs,
+      userPreferences: userPreferences,
+    );
+
+    setState(() {
+      _loadWarning = (_api.isBridgeMode && models.isEmpty)
+          ? 'Aucune recette re?ue depuis l API Cloud Run. V?rifie le service et son JSON.'
+          : null;
+      _recipeSource = models;
+      _ingredientOptionsFromRef = ingredientRefs
+          .map((i) => _ingredientFilterLabel(i.nomIngredient))
+          .where((v) => v.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+      _utensilOptionsFromRef = equipementRefs
+          .map((e) =>
+              _cleanLabel(e.nomEquipement).replaceFirst(RegExp(r'^\d+\s+'), ''))
+          .where((v) => v.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+      _dietOptionsFromRef = [
+        ...regimeRefs.map((r) => _cleanLabel(r.libelle)),
+        ...models.map((m) => _cleanLabel(m.category)),
+      ].where((v) => v.isNotEmpty).toSet().toList()
+        ..sort();
+      _allergenOptionsFromRef = allergeneRefs
+          .map((a) => _cleanLabel(a.libelle))
+          .where((v) => v.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+      recommendedRecipes = _buildRecommendedRecipes(
+        models,
+        userPreferences,
+      ).take(10).toList();
+      _recomputeVisibleRecipes();
+      quizzes = loadedQuizzes
+          .map((q) => Quiz(
+                id: q.quizId?.toString() ?? '',
+                title: q.title,
+                description: q.description ?? '',
+                imageUrl: q.imageUrl,
+              ))
+          .toList();
+      isLoading = false;
+    });
+  }
+
+  List<RecipeDisplayModel> _buildRecommendedRecipes(
+    List<RecipeDisplayModel> source,
+    List<UserPreference> prefs,
+  ) {
+    if (source.isEmpty) return const [];
+
+    final blockedKeywords = <String>{};
+    final regimeKeywords = <String>{};
+
+    for (final p in prefs) {
+      final label = _normalizeAscii(p.label).toLowerCase();
+      final values = _normalizeAscii(p.value)
+          .toLowerCase()
+          .split(RegExp(r'[,;/|]'))
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty);
+      if (label.contains('allerg') || label.contains('intoler')) {
+        blockedKeywords.addAll(values);
+      } else if (label.contains('regime') || label.contains('régime')) {
+        regimeKeywords.addAll(values);
+      }
+    }
+
+    bool violatesAllergens(RecipeDisplayModel r) {
+      if (blockedKeywords.isEmpty) return false;
+      final text =
+          _normalizeAscii('${r.allergens} ${r.ingredients}').toLowerCase();
+      return blockedKeywords.any((k) => k.isNotEmpty && text.contains(k));
+    }
+
+    bool violatesRegime(RecipeDisplayModel r) {
+      if (regimeKeywords.isEmpty) return false;
+      final text = _normalizeAscii(
+        '${r.title} ${r.diets} ${r.category} ${r.ingredients} ${r.allergens}',
+      ).toLowerCase();
+
+      final vegetarian = regimeKeywords.any(
+        (k) => k.contains('vegetar') || k.contains('végétar'),
+      );
+      final vegan = regimeKeywords.any(
+        (k) => k.contains('vegan') || k.contains('végétalien'),
+      );
+      final pescetarian = regimeKeywords.any(
+        (k) => k.contains('pesc') || k.contains('poisson'),
+      );
+
+      final hasMeat = RegExp(
+        r'(boeuf|b[oe]uf|porc|poulet|dinde|agneau|veau|jambon|lardon|saucisse|viande|steak|charcut|hot ?dog|knack|lard|canard|magret)',
+      ).hasMatch(text);
+      final hasFish = RegExp(
+        r'(thon|saumon|poisson|cabillaud|truite|sardine|anchois|fruits de mer|crevette|moule)',
+      ).hasMatch(text);
+      final hasAnimalProducts =
+          RegExp(r'(oeuf|œuf|lait|fromage|beurre|creme|crème|yaourt|miel)')
+              .hasMatch(text);
+
+      if (vegetarian && hasMeat) return true;
+      if (vegan && (hasMeat || hasAnimalProducts)) return true;
+      if (pescetarian && hasMeat) return true;
+      if (!pescetarian && vegetarian && hasFish) return true;
+      return false;
+    }
+
+    // Si l'utilisateur a choisi un régime dans les filtres UI, on l'applique aussi ici.
+    final selectedDiets =
+        _filters.diets.map((d) => _normalizeAscii(d).toLowerCase()).toSet();
+    if (selectedDiets.any((d) => d.contains('vegetar'))) {
+      regimeKeywords.add('vegetarien');
+    }
+    if (selectedDiets.any((d) => d.contains('vegan') || d.contains('vegetalien'))) {
+      regimeKeywords.add('vegan');
+    }
+    if (selectedDiets.any((d) => d.contains('pesc'))) {
+      regimeKeywords.add('pescetarien');
+    }
+
+    final filtered = source
+        .where((r) => !violatesAllergens(r) && !violatesRegime(r))
+        .toList();
+    if (filtered.isNotEmpty) return filtered;
+    return source;
+  }
+
+  Future<void> _loadData({bool forceRefresh = false}) async {
+    if (!forceRefresh && _isCacheUsable()) {
+      final cache = _memoryCache!;
+      final favoriteIds = await _api.getFavoriteIds();
+      _applyLoadedData(
+        previews: cache.previews,
+        favoriteIds: favoriteIds,
+        loadedQuizzes: cache.quizzes,
+        ingredientRefs: cache.ingredientRefs,
+        equipementRefs: cache.equipementRefs,
+        regimeRefs: cache.regimeRefs,
+        typePlatRefs: cache.typePlatRefs,
+        allergeneRefs: cache.allergeneRefs,
+        userPreferences: cache.userPreferences,
+      );
+      return;
+    }
+
     setState(() => isLoading = true);
 
     try {
@@ -569,6 +883,7 @@ class _HomePageState extends State<HomePage> {
         _api.getAllRegimes(),
         _api.getAllTypesPlat(),
         _api.getAllAllergenes(),
+        _api.getUserPreferences(),
       ]);
 
       final previews = results[0] as List<RecettePreview>;
@@ -579,51 +894,19 @@ class _HomePageState extends State<HomePage> {
       final regimeRefs = results[5] as List<Regime>;
       final typePlatRefs = results[6] as List<TypePlat>;
       final allergeneRefs = results[7] as List<Allergene>;
+      final userPreferences = results[8] as List<UserPreference>;
 
-      final models = previews
-          .map((r) => RecipeDisplayModel.fromPreview(r, favoriteIds))
-          .toList();
-
-      setState(() {
-        _loadWarning = (_api.isBridgeMode && models.isEmpty)
-            ? 'Aucune recette recue depuis l API Cloud Run. Verifie le service et son JSON.'
-            : null;
-        _recipeSource = models;
-        _ingredientOptionsFromRef = ingredientRefs
-            .map((i) => _ingredientFilterLabel(i.nomIngredient))
-            .where((v) => v.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort();
-        _utensilOptionsFromRef = equipementRefs
-            .map((e) => _cleanLabel(e.nomEquipement).replaceFirst(RegExp(r'^\d+\s+'), ''))
-            .where((v) => v.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort();
-        _dietOptionsFromRef = [
-          ...regimeRefs.map((r) => _cleanLabel(r.libelle)),
-          ...typePlatRefs.map((t) => _cleanLabel(t.libelle)),
-        ].where((v) => v.isNotEmpty).toSet().toList()
-          ..sort();
-        _allergenOptionsFromRef = allergeneRefs
-            .map((a) => _cleanLabel(a.libelle))
-            .where((v) => v.isNotEmpty)
-            .toSet()
-            .toList()
-          ..sort();
-        recommendedRecipes = models.take(5).toList();
-        _recomputeVisibleRecipes();
-        quizzes = loadedQuizzes
-            .map((q) => Quiz(
-                  id: q.quizId?.toString() ?? '',
-                  title: q.title,
-                  description: q.description ?? '',
-                  imageUrl: q.imageUrl,
-                ))
-            .toList();
-        isLoading = false;
-      });
+      _applyLoadedData(
+        previews: previews,
+        favoriteIds: favoriteIds,
+        loadedQuizzes: loadedQuizzes,
+        ingredientRefs: ingredientRefs,
+        equipementRefs: equipementRefs,
+        regimeRefs: regimeRefs,
+        typePlatRefs: typePlatRefs,
+        allergeneRefs: allergeneRefs,
+        userPreferences: userPreferences,
+      );
     } catch (e) {
       setState(() {
         isLoading = false;
@@ -643,9 +926,11 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _toggleFavorite(RecipeDisplayModel recipe) async {
     // Bascule locale immédiate : l'UI répond toujours, même hors ligne.
-    setState(() => recipe.isFavorite = !recipe.isFavorite);
+    final wasFavorite = FavoritesService().isFavorite(recipe.id);
+    final nowFavorite = !wasFavorite;
+    setState(() => recipe.isFavorite = nowFavorite);
 
-    if (recipe.isFavorite) {
+    if (nowFavorite) {
       FavoritesService().addFavorite(FavoriteRecipe(
         id: recipe.id,
         title: recipe.title,
@@ -660,7 +945,7 @@ class _HomePageState extends State<HomePage> {
     // Synchronisation backend au mieux (nécessite une session active).
     final success = await _api.toggleFavorite(recipe.id);
     if (!mounted) return;
-    if (recipe.isFavorite && !success && !_api.isLoggedIn) {
+    if (nowFavorite && !success && !_api.isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -761,7 +1046,7 @@ class _HomePageState extends State<HomePage> {
                 // Contenu scrollable
                 Expanded(
                   child: RefreshIndicator(
-                    onRefresh: _loadData,
+                    onRefresh: () => _loadData(forceRefresh: true),
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: EdgeInsets.fromLTRB(
@@ -1416,22 +1701,9 @@ class _HomePageState extends State<HomePage> {
                         ],
                       ),
                     ),
-                    IconButton(
-                      onPressed: () => _toggleFavorite(recipe),
-                      tooltip: recipe.isFavorite
-                          ? 'Retirer des favoris'
-                          : 'Ajouter aux favoris',
-                      style: IconButton.styleFrom(
-                        backgroundColor: Colors.red[50],
-                        minimumSize: const Size(44, 44),
-                      ),
-                      icon: Icon(
-                        recipe.isFavorite
-                            ? Icons.favorite_rounded
-                            : Icons.favorite_border_rounded,
-                        size: 20,
-                        color: Colors.red[400],
-                      ),
+                    FavoriteButton(
+                      recipeId: recipe.id,
+                      onToggle: () => _toggleFavorite(recipe),
                     ),
                   ],
                 ),

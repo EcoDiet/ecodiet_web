@@ -42,6 +42,11 @@ class FavoritesService extends ChangeNotifier {
     notifyListeners();
   }
 
+  void clear() {
+    _favorites.clear();
+    notifyListeners();
+  }
+
   void toggle(FavoriteRecipe recipe) {
     if (isFavorite(recipe.id)) {
       removeFavorite(recipe.id);

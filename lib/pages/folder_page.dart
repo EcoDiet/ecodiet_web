@@ -50,7 +50,11 @@ class _FolderPageState extends State<FolderPage> {
                   title: r.titre,
                   category: 'Recette',
                   duration: _formatDuration(r.dureeMinute),
-                  imageUrl: r.photo.isNotEmpty ? r.photo : null,
+                  imageUrl: r.photo.isNotEmpty
+                      ? (recetteImageUrl(r.photo).isEmpty
+                          ? null
+                          : recetteImageUrl(r.photo))
+                      : null,
                 ))
             .toList();
         isLoading = false;
@@ -69,7 +73,11 @@ class _FolderPageState extends State<FolderPage> {
                   title: r.titre,
                   category: 'Recette',
                   duration: _formatDuration(r.dureeMinute),
-                  imageUrl: r.photo.isNotEmpty ? r.photo : null,
+                  imageUrl: r.photo.isNotEmpty
+                      ? (recetteImageUrl(r.photo).isEmpty
+                          ? null
+                          : recetteImageUrl(r.photo))
+                      : null,
                 ))
             .toList();
         isLoading = false;
