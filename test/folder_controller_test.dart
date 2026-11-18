@@ -2,6 +2,7 @@ import 'package:eco_diet_v0/models/recette.dart';
 import 'package:eco_diet_v0/pages/folder/folder_controller.dart';
 import 'package:eco_diet_v0/pages/folder_page.dart';
 import 'package:eco_diet_v0/services/ecodiet_api.dart';
+import 'package:eco_diet_v0/services/favorites_service.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -39,6 +40,18 @@ class _FakeApi implements EcoDietApi {
   }
 
   @override
+  Future<bool> addToFavorites(String recetteId) async {
+    calls.add('fav $recetteId');
+    return true;
+  }
+
+  @override
+  Future<bool> addRecipeToFolder(int folderId, String recetteId) async {
+    calls.add('file $folderId $recetteId');
+    return true;
+  }
+
+  @override
   Future<bool> removeRecipeFromFolder(int folderId, String recetteId) async {
     calls.add('unfile $folderId $recetteId');
     return true;
@@ -70,7 +83,10 @@ void main() {
     expect(f.imageUrl, isNull);
   });
 
-  test('favoris : chargement puis retrait côté données', () async {
+  setUp(() => FavoritesService().clear());
+
+  test('favoris : retrait puis annulation, côté données et à sa place',
+      () async {
     final api = _FakeApi();
     final c = FolderController(folderId: favoritesFolderId, api: api);
     expect(c.isLoading, isTrue);
@@ -80,11 +96,19 @@ void main() {
     expect(c.recipes.map((r) => r.id), ['f1', 'f2']);
 
     final first = c.recipes.first;
+    FavoritesService().addFavorite(first);
     c.remove(first);
     expect(c.recipes.map((r) => r.id), ['f2']);
+    expect(FavoritesService().isFavorite('f1'), isFalse);
+
     c.restore(first);
-    expect(c.recipes.map((r) => r.id), ['f2', 'f1']);
-    expect(api.calls, ['favorites', 'unfav f1']);
+    expect(c.recipes.map((r) => r.id), ['f1', 'f2']);
+    expect(FavoritesService().isFavorite('f1'), isTrue);
+    expect(api.calls, ['favorites', 'unfav f1', 'fav f1']);
+
+    c.restore(first); // double annulation : sans effet
+    expect(c.recipes, hasLength(2));
+    expect(api.calls, hasLength(3));
   });
 
   test('dossier numérique : recettes du dossier et retrait du dossier',
@@ -92,9 +116,12 @@ void main() {
     final api = _FakeApi();
     final c = FolderController(folderId: '7', api: api);
     await c.load();
-    c.remove(c.recipes.single);
+    final recipe = c.recipes.single;
+    c.remove(recipe);
+    c.restore(recipe);
 
-    expect(api.calls, ['folder 7', 'unfile 7 d1']);
+    expect(api.calls, ['folder 7', 'unfile 7 d1', 'file 7 d1']);
+    expect(c.recipes.single.id, 'd1');
   });
 
   test('identifiant absent ou invalide : vide, sans appel', () async {
@@ -149,7 +176,7 @@ void main() {
     });
 
     testWidgets('mobile : balayage, puis annulation', (tester) async {
-      await pump(tester, const Size(400, 860), back: false);
+      final api = await pump(tester, const Size(400, 860), back: false);
       expect(find.text('2 recettes'), findsOneWidget);
 
       await tester.drag(find.text('Recette f1'), const Offset(-500, 0));
@@ -160,6 +187,7 @@ void main() {
       await tester.tap(find.text('Annuler'));
       await tester.pumpAndSettle();
       expect(find.text('2 recettes'), findsOneWidget);
+      expect(api.calls, ['favorites', 'unfav f1', 'fav f1']);
     });
 
     testWidgets('dossier vide : message dédié', (tester) async {

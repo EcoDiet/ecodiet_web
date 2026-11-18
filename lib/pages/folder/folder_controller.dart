@@ -77,21 +77,37 @@ class FolderController extends ChangeNotifier {
     _notify();
   }
 
+  /// Position de chaque recette retirée, pour la remettre à sa place.
+  final Map<String, int> _removedAt = {};
+
   /// Retire la recette de l'affichage tout de suite, puis côté données.
   void remove(FavoriteRecipe recipe) {
-    _recipes.removeWhere((r) => r.id == recipe.id);
+    final index = _recipes.indexWhere((r) => r.id == recipe.id);
+    if (index < 0) return;
+    _recipes.removeAt(index);
+    _removedAt[recipe.id] = index;
     _notify();
     if (isFavorites) {
+      FavoritesService().removeFavorite(recipe.id);
       _api.removeFromFavorites(recipe.id);
     } else if (_numericId != null) {
       _api.removeRecipeFromFolder(_numericId!, recipe.id);
     }
   }
 
-  /// « Annuler » après un retrait : réaffiche la recette (localement).
+  /// « Annuler » après un retrait : remet la recette à sa place, à
+  /// l'affichage et côté données.
   void restore(FavoriteRecipe recipe) {
-    _recipes.add(recipe);
+    if (_recipes.any((r) => r.id == recipe.id)) return;
+    final index = _removedAt.remove(recipe.id) ?? _recipes.length;
+    _recipes.insert(index.clamp(0, _recipes.length), recipe);
     _notify();
+    if (isFavorites) {
+      FavoritesService().addFavorite(recipe);
+      _api.addToFavorites(recipe.id);
+    } else if (_numericId != null) {
+      _api.addRecipeToFolder(_numericId!, recipe.id);
+    }
   }
 
   void _notify() {
