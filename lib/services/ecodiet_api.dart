@@ -69,6 +69,11 @@ class EcoDietApi {
   bool _useGcpBridge = false;
   String _gcpBridgeBaseUrl = '';
   String? _gcpBridgeApiKey;
+  // Service d'authentification (server/auth). Vide : ancienne connexion
+  // côté navigateur via dim_utilisateur.
+  String _authBaseUrl = '';
+  String? _sessionToken;
+  late http.Client _authHttp = http.Client();
   List<Map<String, dynamic>>? _bridgeRecettesCache;
   DateTime? _bridgeRecettesCacheAt;
   static const Duration _bridgeDataCacheTtl = Duration(minutes: 5);
@@ -93,11 +98,23 @@ class EcoDietApi {
   EcoDietApi._internal();
   bool get isBridgeMode => _useGcpBridge;
 
+  /// Connexion via le service d'authentification (mots de passe vérifiés
+  /// côté serveur) plutôt que via la table dim_utilisateur.
+  bool get usesAuthService => _useGcpBridge && _authBaseUrl.isNotEmpty;
+
+  /// Jeton de session délivré par le service d'authentification.
+  String? get sessionToken => _sessionToken;
+
+  @visibleForTesting
+  set authHttpClient(http.Client client) => _authHttp = client;
+
   void configureDataBridge({
     required bool enabled,
     required String baseUrl,
     String? apiKey,
+    String authUrl = '',
   }) {
+    _authBaseUrl = authUrl.trim().replaceAll(RegExp(r'/+$'), '');
     _useGcpBridge = enabled && baseUrl.trim().isNotEmpty;
     _gcpBridgeBaseUrl = baseUrl.trim().replaceAll(RegExp(r'/$'), '');
     _gcpBridgeApiKey = apiKey?.trim().isEmpty ?? true ? null : apiKey?.trim();
@@ -133,6 +150,7 @@ class EcoDietApi {
           'email': user.email,
           'nom': user.nom,
           'prenom': user.prenom,
+          if (_sessionToken != null) 'token': _sessionToken,
         }),
       );
       await _touchBridgeSessionActivity();
@@ -154,6 +172,7 @@ class EcoDietApi {
 
   Future<void> _clearBridgeSession() async {
     try {
+      _sessionToken = null;
       await _storage.delete(key: _bridgeSessionUserKey);
       await _storage.delete(key: _bridgeSessionLastActivityKey);
     } catch (error, stack) {
@@ -191,6 +210,16 @@ class EcoDietApi {
       final map = Map<String, dynamic>.from(decoded);
       final email = (map['email'] ?? '').toString().trim();
       if (email.isEmpty) return false;
+      if (usesAuthService) {
+        // Session d'avant le service d'authentification, ou jeton expiré :
+        // reconnexion obligatoire.
+        final token = map['token']?.toString();
+        if (token == null || !isSessionTokenValid(token)) {
+          await _clearBridgeSession();
+          return false;
+        }
+        _sessionToken = token;
+      }
 
       _currentUser = app_models.User(
         userId: map['user_id']?.toString(),
@@ -214,6 +243,94 @@ class EcoDietApi {
       headers['x-api-key'] = _gcpBridgeApiKey!;
     }
     return headers;
+  }
+
+  /// Appel JSON au service d'authentification : (code HTTP, corps).
+  Future<(int, Map<String, dynamic>)> _authCall(String path,
+      {Map<String, dynamic>? body}) async {
+    final uri = Uri.parse('$_authBaseUrl$path');
+    final headers = {
+      'Accept': 'application/json',
+      if (body != null) 'Content-Type': 'application/json',
+      if (body == null && _sessionToken != null)
+        'Authorization': 'Bearer $_sessionToken',
+    };
+    final response = body == null
+        ? await _authHttp.get(uri, headers: headers)
+        : await _authHttp.post(uri, headers: headers, body: jsonEncode(body));
+    Map<String, dynamic> decoded = {};
+    try {
+      final value = jsonDecode(utf8.decode(response.bodyBytes));
+      if (value is Map) decoded = Map<String, dynamic>.from(value);
+    } catch (error, stack) {
+      _logIgnored('_authCall', error, stack, expected: true);
+    }
+    return (response.statusCode, decoded);
+  }
+
+  String _authErrorMessage(Map<String, dynamic> body, String fallback) {
+    final message = body['error']?.toString().trim() ?? '';
+    return message.isEmpty ? fallback : message;
+  }
+
+  app_models.User _userFromAuth(Map<String, dynamic> json, String email) {
+    String? text(String key) {
+      final value = json[key]?.toString().trim() ?? '';
+      return value.isEmpty ? null : value;
+    }
+
+    return app_models.User(
+      userId: text('user_id'),
+      email: text('email') ?? email,
+      nom: text('nom'),
+      prenom: text('prenom'),
+      passwordHash: null,
+    );
+  }
+
+  Future<ApiResult<app_models.User>> _loginWithAuthService(
+      String email, String password) async {
+    try {
+      final (status, body) = await _authCall('/auth/login',
+          body: {'email': email, 'password': password});
+      final user = body['user'];
+      final token = body['token']?.toString();
+      if (status != 200 || user is! Map || token == null) {
+        return ApiResult.error(_authErrorMessage(
+            body, 'Erreur lors de la connexion : identifiants invalides.'));
+      }
+      _sessionToken = token;
+      _currentUser = _userFromAuth(Map<String, dynamic>.from(user), email);
+      await _applyLocalIdentity();
+      await _saveBridgeSession(_currentUser!);
+      _resetLocalBridgeStateCache();
+      return ApiResult.success(_currentUser!);
+    } catch (e) {
+      return ApiResult.error('Service de connexion injoignable : $e');
+    }
+  }
+
+  /// Disponibilité d'un e-mail ou d'un pseudo ; `true` en cas de doute
+  /// (l'inscription tranchera par un 409).
+  Future<bool> _authAvailable(String route, String key, String value) async {
+    try {
+      final (status, body) = await _authCall(route, body: {key: value});
+      if (status == 200 && body['available'] is bool) {
+        return body['available'] as bool;
+      }
+    } catch (error, stack) {
+      _logIgnored(route, error, stack);
+    }
+    return true;
+  }
+
+  /// Ligne de préférences de l'utilisateur connecté, lue via /auth/me.
+  Future<Map<String, dynamic>?> _authPreferencesRow() async {
+    if (_sessionToken == null) return null;
+    final (status, body) = await _authCall('/auth/me');
+    final prefs = body['preferences'];
+    if (status != 200 || prefs is! Map) return null;
+    return Map<String, dynamic>.from(prefs);
   }
 
   Future<dynamic> _bridgeGet(String path, {Map<String, String>? query}) async {
@@ -846,6 +963,32 @@ class EcoDietApi {
           'Nom, prenom, pseudo, email et mot de passe sont requis.',
         );
       }
+      if (usesAuthService) {
+        try {
+          final (status, body) = await _authCall('/auth/register', body: {
+            if (profile != null) ...profile,
+            'email': normalizedEmail,
+            'password': safePassword,
+            'nom': safeNom,
+            'prenom': safePrenom,
+            'pseudo': safePseudo,
+          });
+          final user = body['user'];
+          if (status != 201 || user is! Map) {
+            return ApiResult.error(
+                _authErrorMessage(body, 'Inscription impossible.'));
+          }
+          // Comme avant : l'inscription ne connecte pas, l'app enchaîne
+          // avec login().
+          _currentUser = null;
+          _resetLocalBridgeStateCache();
+          return ApiResult.success(
+              _userFromAuth(Map<String, dynamic>.from(user), normalizedEmail));
+        } catch (e) {
+          return ApiResult.error('Service d\'inscription injoignable : $e');
+        }
+      }
+
       final emailAvailable = await isEmailAvailable(normalizedEmail);
       if (!emailAvailable) {
         return ApiResult.error('Cet email est deja inscrit.');
@@ -958,6 +1101,9 @@ class EcoDietApi {
     if (_useGcpBridge) {
       final normalizedEmail = email.toLowerCase().trim();
       final rawPassword = password.trim();
+      if (usesAuthService) {
+        return _loginWithAuthService(normalizedEmail, rawPassword);
+      }
       try {
         final rows = await _bridgeGetTableAny(['dim_utilisateur']);
         final row = rows.cast<Map<String, dynamic>?>().firstWhere(
@@ -2386,10 +2532,12 @@ class EcoDietApi {
       var allergies = '';
       var intolerances = '';
       try {
-        final rows = await _bridgeGetTableAny(['dim_utilisateur']);
         final email = _currentUser?.email.toLowerCase().trim();
         Map<String, dynamic>? row;
-        if (email != null && email.isNotEmpty) {
+        if (usesAuthService) {
+          row = await _authPreferencesRow();
+        } else if (email != null && email.isNotEmpty) {
+          final rows = await _bridgeGetTableAny(['dim_utilisateur']);
           row = rows.cast<Map<String, dynamic>?>().firstWhere(
                 (r) =>
                     r != null &&
@@ -2878,6 +3026,10 @@ class EcoDietApi {
     final normalized = pseudo.trim().toLowerCase();
     if (normalized.isEmpty) return false;
 
+    if (usesAuthService) {
+      return _authAvailable('/auth/pseudo-available', 'pseudo', normalized);
+    }
+
     if (_useGcpBridge) {
       try {
         final rows = await _bridgeGetTableAny(['dim_utilisateur']);
@@ -2910,6 +3062,10 @@ class EcoDietApi {
   Future<bool> isEmailAvailable(String email) async {
     final normalized = email.trim().toLowerCase();
     if (normalized.isEmpty) return false;
+
+    if (usesAuthService) {
+      return _authAvailable('/auth/email-available', 'email', normalized);
+    }
 
     if (_useGcpBridge) {
       try {
@@ -3014,3 +3170,20 @@ class ApiResult<T> {
       ApiResult._(error: error, isSuccess: false);
 }
 
+/// Jeton JWT lisible et non expiré (la signature est vérifiée par le serveur).
+@visibleForTesting
+bool isSessionTokenValid(String token, {DateTime? now}) {
+  final parts = token.split('.');
+  if (parts.length != 3) return false;
+  try {
+    final payload = jsonDecode(
+        utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))));
+    final exp = payload is Map ? payload['exp'] : null;
+    if (exp is! num) return false;
+    final expiry =
+        DateTime.fromMillisecondsSinceEpoch((exp * 1000).toInt(), isUtc: true);
+    return expiry.isAfter(now ?? DateTime.now().toUtc());
+  } catch (_) {
+    return false;
+  }
+}

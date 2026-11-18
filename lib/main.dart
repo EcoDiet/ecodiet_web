@@ -50,6 +50,8 @@ String _environmentValue(String name) {
     compileTimeValue = const String.fromEnvironment('GCP_BRIDGE_URL').trim();
   } else if (name == 'GCP_BRIDGE_API_KEY') {
     compileTimeValue = const String.fromEnvironment('GCP_BRIDGE_API_KEY').trim();
+  } else if (name == 'AUTH_URL') {
+    compileTimeValue = const String.fromEnvironment('AUTH_URL').trim();
   }
   if (compileTimeValue.isNotEmpty) return compileTimeValue;
   return dotenv.env[name]?.trim() ?? '';
@@ -81,6 +83,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
       enabled: useGcpBridge,
       baseUrl: bridgeUrl,
       apiKey: bridgeApiKey,
+      authUrl: _environmentValue('AUTH_URL'),
     );
     kDisableNetworkImages = false;
     logger.i(
