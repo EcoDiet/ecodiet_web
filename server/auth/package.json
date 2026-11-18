@@ -1,0 +1,19 @@
+{
+  "name": "ecodiet-auth",
+  "version": "1.0.0",
+  "description": "Authentification EcoDiet : mots de passe hachés côté serveur (scrypt) et jeton de session signé.",
+  "private": true,
+  "type": "module",
+  "main": "src/handler.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node src/dev_server.js",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@google-cloud/bigquery": "^7.9.0"
+  }
+}

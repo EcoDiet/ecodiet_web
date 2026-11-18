@@ -1,0 +1,50 @@
+// Service autonome : `npm start`. Variables d'environnement :
+//   AUTH_SECRET       secret de signature des jetons (32 caractères min.)
+//   USERS_TABLE       table BigQuery des utilisateurs (projet.dataset.table)
+//   PASSWORD_COLUMN   colonne du hachage (défaut : mdp)
+//   USER_ID_COLUMN    colonne identifiant (défaut : user_id)
+//   USER_ID_TYPE      string (UUID, défaut) ou int
+//   BQ_LOCATION       région BigQuery (ex. EU)
+//   ALLOWED_ORIGINS   origines autorisées, séparées par des virgules
+//   PORT              port d'écoute (défaut : 8080, fourni par Cloud Run)
+
+import http from 'node:http';
+
+import { createBigQueryStore } from './bigquery_store.js';
+import { createAuthHandler } from './handler.js';
+
+const env = process.env;
+for (const name of ['AUTH_SECRET', 'USERS_TABLE']) {
+  if (!env[name]) {
+    console.error(`Variable d'environnement manquante : ${name}`);
+    process.exit(1);
+  }
+}
+
+const { BigQuery } = await import('@google-cloud/bigquery');
+const store = createBigQueryStore({
+  bigquery: new BigQuery(),
+  table: env.USERS_TABLE,
+  passwordColumn: env.PASSWORD_COLUMN || 'mdp',
+  idColumn: env.USER_ID_COLUMN || 'user_id',
+  idType: env.USER_ID_TYPE === 'int' ? 'int' : 'string',
+  location: env.BQ_LOCATION || undefined,
+});
+
+const handleAuth = createAuthHandler({
+  store,
+  secret: env.AUTH_SECRET,
+  allowedOrigins: (env.ALLOWED_ORIGINS || '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter(Boolean),
+});
+
+const port = Number(env.PORT || 8080);
+http
+  .createServer(async (req, res) => {
+    if (await handleAuth(req, res)) return;
+    res.statusCode = 404;
+    res.end();
+  })
+  .listen(port, () => console.log(`ecodiet-auth : port ${port}`));
