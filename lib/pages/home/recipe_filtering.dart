@@ -1,4 +1,5 @@
 import '../../models/user.dart' show UserPreference;
+import '../../utils/text_labels.dart';
 import 'home_models.dart';
 
 // Logique pure de recherche, filtrage, tri et recommandation des recettes
@@ -46,13 +47,9 @@ const List<String> fallbackAllergens = [
   'Poisson',
 ];
 
-String cleanLabel(String value) {
-  return normalizeAscii(value)
-      .replaceAll('"""', '')
-      .replaceAll('"', '')
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
-}
+/// Libellé de filtre : sans accents, guillemets ni espaces superflus.
+String asciiFilterLabel(String value) =>
+    stripQuotesAndSpaces(normalizeAscii(value));
 
 String normalizeAscii(String input) {
   var s = input;

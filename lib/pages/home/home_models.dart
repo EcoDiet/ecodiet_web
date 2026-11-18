@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/recette.dart';
 import '../../services/ecodiet_api.dart';
+import '../../utils/text_labels.dart';
 
 /// Modèle local pour une recette avec favoris
 class RecipeDisplayModel {
@@ -36,7 +37,7 @@ class RecipeDisplayModel {
   static RecipeDisplayModel fromPreview(
       RecettePreview recette, Set<String> favoriteIds) {
     final rawCategory = (recette.typePlatLibelle ?? 'Recette').trim();
-    final category = _formatTypeLabel(rawCategory);
+    final category = normalizeTypeLabel(rawCategory);
     final diets = (recette.regimeLibelle ?? '').trim();
 
     return RecipeDisplayModel(
@@ -54,17 +55,6 @@ class RecipeDisplayModel {
           recette.photo.isNotEmpty ? recetteImageUrl(recette.photo) : null,
       isFavorite: favoriteIds.contains(recette.recetteId),
     );
-  }
-
-  static String _formatTypeLabel(String rawType) {
-    final normalized = rawType
-        .trim()
-        .toLowerCase()
-        .replaceAll('_', ' ')
-        .replaceAll('-', ' ')
-        .replaceAll(RegExp(r'\s+'), ' ');
-    if (normalized == 'apperitif') return 'aperitif';
-    return normalized;
   }
 }
 

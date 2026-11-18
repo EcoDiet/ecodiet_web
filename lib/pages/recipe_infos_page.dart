@@ -295,15 +295,15 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
   }
 
   List<String> _ingredientLabels() =>
-      recette?.ingredients.map((i) => cleanLabel(i.nomIngredient)).toList() ??
+      recette?.ingredients.map((i) => displayLabel(i.nomIngredient)).toList() ??
       [];
 
   List<String> _equipmentLabels() =>
-      recette?.equipements.map((e) => cleanLabel(e.nomEquipement)).toList() ??
+      recette?.equipements.map((e) => displayLabel(e.nomEquipement)).toList() ??
       [];
 
   List<String> _occasionLabels() =>
-      recette?.occasions.map((o) => cleanLabel(o.libelle)).toList() ?? [];
+      recette?.occasions.map((o) => displayLabel(o.libelle)).toList() ?? [];
 
   List<String> _instructionLabels() =>
       parseInstructions(recette?.recette.etapes ?? '');

@@ -271,19 +271,19 @@ class HomeController extends ChangeNotifier {
         .toList()
       ..sort();
     _utensilOptionsFromRef = data.equipementRefs
-        .map((e) =>
-            cleanLabel(e.nomEquipement).replaceFirst(RegExp(r'^\d+\s+'), ''))
+        .map((e) => asciiFilterLabel(e.nomEquipement)
+            .replaceFirst(RegExp(r'^\d+\s+'), ''))
         .where((v) => v.isNotEmpty)
         .toSet()
         .toList()
       ..sort();
     _dietOptionsFromRef = [
-      ...data.regimeRefs.map((r) => cleanLabel(r.libelle)),
-      ...models.map((m) => cleanLabel(m.category)),
+      ...data.regimeRefs.map((r) => asciiFilterLabel(r.libelle)),
+      ...models.map((m) => asciiFilterLabel(m.category)),
     ].where((v) => v.isNotEmpty).toSet().toList()
       ..sort();
     _allergenOptionsFromRef = data.allergeneRefs
-        .map((a) => cleanLabel(a.libelle))
+        .map((a) => asciiFilterLabel(a.libelle))
         .where((v) => v.isNotEmpty)
         .toSet()
         .toList()

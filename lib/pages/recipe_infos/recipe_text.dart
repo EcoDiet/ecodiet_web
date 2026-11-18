@@ -1,6 +1,8 @@
 // Nettoyage et formatage des données texte d'une recette : fonctions pures,
 // testables sans widget.
 
+import '../../utils/text_labels.dart';
+
 String formatDuration(int minutes) {
   if (minutes < 60) return '$minutes min';
   final hours = minutes ~/ 60;
@@ -8,23 +10,12 @@ String formatDuration(int minutes) {
   return '${hours}h${remainingMinutes > 0 ? " ${remainingMinutes}min" : ""}';
 }
 
-String formatTypeLabel(String rawType) {
-  final normalized = cleanLabel(rawType)
-      .toLowerCase()
-      .replaceAll('_', ' ')
-      .replaceAll('-', ' ')
-      .replaceAll(RegExp(r'\s+'), ' ');
-  if (normalized == 'apperitif') return 'aperitif';
-  return normalized;
-}
+String formatTypeLabel(String rawType) =>
+    normalizeTypeLabel(displayLabel(rawType));
 
-String cleanLabel(String value) {
-  return fixMojibake(value)
-      .replaceAll('"""', '')
-      .replaceAll('"', '')
-      .replaceAll(RegExp(r'\s+'), ' ')
-      .trim();
-}
+/// Libellé affichable : accents conservés, mojibake corrigé, guillemets et
+/// espaces superflus retirés.
+String displayLabel(String value) => stripQuotesAndSpaces(fixMojibake(value));
 
 String fixMojibake(String input) {
   var s = input;
@@ -63,7 +54,7 @@ List<String> parseInstructions(String raw) {
   final text = cleanEtapesText(raw);
   return text
       .split(RegExp(r'\n+'))
-      .map(cleanLabel)
+      .map(displayLabel)
       .where((value) => value.isNotEmpty)
       .where((value) =>
           !RegExp(r'^pr[Ã©e]paration', caseSensitive: false).hasMatch(value))
