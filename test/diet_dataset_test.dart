@@ -92,11 +92,11 @@ void main() {
     expect(wrong, 0);
   }, skip: _available ? false : 'BDD/ absent');
 
-  test('secours par mots-clés : pas de régression sous 261/300', () {
+  test('secours par mots-clés : pas de régression sous 263/300', () {
     final data = _load(withLabel: false);
     final ok = data.where((d) => inferDietLevel(d.recipe) == d.expected).length;
-    // 261 mesuré après unification des deux listes de mots-clés (259 avant).
-    expect(ok, greaterThanOrEqualTo(261), reason: 'accord : $ok/300');
+    // 263 après unification des mots-clés et correction de deux régimes.
+    expect(ok, greaterThanOrEqualTo(263), reason: 'accord : $ok/300');
     printOnFailure('accord mots-clés : $ok/300');
   }, skip: _available ? false : 'BDD/ absent');
 }

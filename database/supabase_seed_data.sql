@@ -7498,7 +7498,7 @@ insert into fact_recette_regime (recette_id, regime_id) values ('fe146ac4241b330
 insert into fact_recette_regime (recette_id, regime_id) values ('2e691dc7f2276eb3c8e0b971759ce141', 1);
 insert into fact_recette_regime (recette_id, regime_id) values ('287485923ab6da9e763c2824ed3a4f0e', 1);
 insert into fact_recette_regime (recette_id, regime_id) values ('3233892ca2066afcde3197c9956a4374', 1);
-insert into fact_recette_regime (recette_id, regime_id) values ('14591e4d815f6c24ca726cd97ea96014', 1);
+insert into fact_recette_regime (recette_id, regime_id) values ('14591e4d815f6c24ca726cd97ea96014', 4);
 insert into fact_recette_regime (recette_id, regime_id) values ('4c3f563c92fedc5eae2d5f425780060b', 1);
 insert into fact_recette_regime (recette_id, regime_id) values ('bed676c1e334971abe99d12f791979dc', 1);
 insert into fact_recette_regime (recette_id, regime_id) values ('712ca2fd6d29e46cfe98cb62aa6e4166', 1);
@@ -7679,7 +7679,7 @@ insert into fact_recette_regime (recette_id, regime_id) values ('8e0d9c4c97e6670
 insert into fact_recette_regime (recette_id, regime_id) values ('d83012b02ab36be50f56716ba0303440', 4);
 insert into fact_recette_regime (recette_id, regime_id) values ('02613231cce54824ab7e9a7ee15c02d0', 4);
 insert into fact_recette_regime (recette_id, regime_id) values ('4fc36c60de093a5f74dbd85094cfe749', 4);
-insert into fact_recette_regime (recette_id, regime_id) values ('d9724deb7bc8ea27c6c6213513e09e10', 4);
+insert into fact_recette_regime (recette_id, regime_id) values ('d9724deb7bc8ea27c6c6213513e09e10', 3);
 insert into fact_recette_regime (recette_id, regime_id) values ('48312b33fcfa96980dcb8619648805dd', 4);
 insert into fact_recette_regime (recette_id, regime_id) values ('9782f0c32ebcacb45147cfa6cd938e7a', 4);
 insert into fact_recette_regime (recette_id, regime_id) values ('bf783bbcdbe214dc0c534b5aaf89586b', 4);
