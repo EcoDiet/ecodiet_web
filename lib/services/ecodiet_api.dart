@@ -8,6 +8,7 @@ import 'package:logger/logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'favorites_service.dart';
 import '../models/recette.dart';
+import '../models/taste_profile.dart';
 import '../models/user.dart' as app_models;
 import '../models/user.dart' hide User;
 
@@ -2423,6 +2424,162 @@ class EcoDietApi {
       ));
     }
     return preferences;
+  }
+
+  // ============================================================================
+  // PROFIL DE GOÛTS (swipe)
+  // ============================================================================
+  //
+  // Source de vérité : les swipes bruts, table `fact_user_swipe` (voir
+  // database/taste_swipes.sql). L'appareil garde une copie (hors ligne,
+  // inscription avant connexion) ; l'envoi au serveur est retenté tant
+  // qu'il n'a pas réussi (`TasteProfile.needsSync`).
+  //
+  // Contrat du bridge :
+  //   POST /swipes  {user_id, email, source, votes: [{recette_id, verdict,
+  //                  poids, voted_at}]}  → 2xx
+  //   GET  /v1/users/{user_id}/swipes    → [{recette_id, verdict, voted_at}]
+  //   (repli : GET /?table=fact_user_swipe, filtré ici par utilisateur)
+
+  static const String _swipeTable = 'fact_user_swipe';
+
+  /// Clé de stockage local par email : l'inscription enregistre le profil
+  /// avant la première connexion.
+  String? _tasteStorageKey(String? email) {
+    final normalized = (email ?? _currentUser?.email ?? '').toLowerCase().trim();
+    if (normalized.isEmpty) return null;
+    return 'taste_profile_$normalized';
+  }
+
+  Future<TasteProfile?> _readLocalTaste(String key) async {
+    try {
+      final raw = await _storage.read(key: key);
+      if (raw == null || raw.trim().isEmpty) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      return TasteProfile.fromJson(Map<String, dynamic>.from(decoded));
+    } catch (error, stack) {
+      _logIgnored('getTasteProfile', error, stack);
+      return null;
+    }
+  }
+
+  Future<bool> _writeLocalTaste(String key, TasteProfile profile) async {
+    try {
+      await _storage.write(key: key, value: jsonEncode(profile.toJson()));
+      return true;
+    } catch (error, stack) {
+      _logIgnored('saveTasteProfile', error, stack);
+      return false;
+    }
+  }
+
+  /// Swipes de l'utilisateur côté serveur ; `null` si le serveur est
+  /// injoignable (on garde alors la copie locale).
+  Future<List<SwipeVote>?> _fetchRemoteSwipes(app_models.User user) async {
+    if (!_useGcpBridge) return null;
+    List rows;
+    try {
+      final res = await _bridgeGet('/v1/users/${user.userId}/swipes');
+      rows = res is List ? res : const [];
+    } catch (error, stack) {
+      _logIgnored('_fetchRemoteSwipes', error, stack, expected: true);
+      try {
+        final email = user.email.toLowerCase().trim();
+        rows = (await _bridgeGetTable(_swipeTable))
+            .where((r) =>
+                '${r['user_id'] ?? ''}' == '${user.userId}' ||
+                '${r['email'] ?? ''}'.toLowerCase().trim() == email)
+            .toList();
+      } catch (error, stack) {
+        _logIgnored('_fetchRemoteSwipes', error, stack);
+        return null;
+      }
+    }
+    return rows
+        .whereType<Map>()
+        .map((m) => SwipeVote.fromJson(Map<String, dynamic>.from(m)))
+        .whereType<SwipeVote>()
+        .toList();
+  }
+
+  /// Envoie les swipes au serveur. Vrai si le serveur les a acceptés.
+  Future<bool> _pushSwipes(
+    List<SwipeVote> votes, {
+    required String userId,
+    required String email,
+    String source = 'swipe',
+  }) async {
+    if (!_useGcpBridge || votes.isEmpty) return false;
+    try {
+      await _bridgePost('/swipes', _stripNulls({
+        'user_id': userId,
+        'email': email.toLowerCase().trim(),
+        'source': source,
+        'votes': votes.map((v) => v.toJson()).toList(),
+      }));
+      _bridgeTableCache.remove(_swipeTable);
+      return true;
+    } catch (error, stack) {
+      _logIgnored('_pushSwipes', error, stack);
+      return false;
+    }
+  }
+
+  /// Profil de goûts de l'utilisateur connecté (`null` s'il n'a pas swipé).
+  /// Fusionne la copie locale et les swipes du serveur, et renvoie au
+  /// serveur ce qui n'y est pas encore.
+  Future<TasteProfile?> getTasteProfile() async {
+    final key = _tasteStorageKey(null);
+    if (key == null) return null;
+    var profile = await _readLocalTaste(key);
+    final user = _currentUser;
+    if (user == null || user.userId == null) return profile;
+
+    final remote = await _fetchRemoteSwipes(user);
+    if (remote != null && remote.isNotEmpty) {
+      final local = profile ?? const TasteProfile();
+      final merged = mergeVotes(remote, local.votes);
+      // Synchronisé si le serveur a déjà tout ce que l'appareil connaît.
+      final serverHasAll = local.votes.every((v) => remote.any((r) =>
+          r.recipeId == v.recipeId && r.verdict == v.verdict));
+      profile = local.copyWith(
+        votes: merged,
+        syncedAt: serverHasAll ? (local.syncedAt ?? DateTime.now()) : null,
+        clearSyncedAt: !serverHasAll,
+      );
+    }
+
+    if (profile != null && profile.needsSync) {
+      final ok = await _pushSwipes(profile.votes,
+          userId: user.userId!, email: user.email);
+      if (ok) profile = profile.copyWith(syncedAt: DateTime.now());
+    }
+    if (profile != null) await _writeLocalTaste(key, profile);
+    return profile;
+  }
+
+  /// Enregistre le profil : sur l'appareil, puis ses swipes sur le serveur
+  /// si l'utilisateur est connu. `email` / `userId` servent à l'inscription,
+  /// avant la première connexion. Renvoie le profil tel qu'enregistré
+  /// (`syncedAt` renseigné si le serveur a accepté).
+  Future<TasteProfile> saveTasteProfile(
+    TasteProfile profile, {
+    String? email,
+    String? userId,
+    String source = 'swipe',
+  }) async {
+    final key = _tasteStorageKey(email);
+    final mail = (email ?? _currentUser?.email ?? '').trim();
+    final uid = userId ?? _currentUser?.userId;
+    var saved = profile;
+    if (saved.needsSync && uid != null && mail.isNotEmpty) {
+      final ok =
+          await _pushSwipes(saved.votes, userId: uid, email: mail, source: source);
+      if (ok) saved = saved.copyWith(syncedAt: DateTime.now());
+    }
+    if (key != null) await _writeLocalTaste(key, saved);
+    return saved;
   }
 
   // ============================================================================

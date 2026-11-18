@@ -1,4 +1,5 @@
 import 'package:eco_diet_v0/models/recette.dart';
+import 'package:eco_diet_v0/models/taste_profile.dart';
 import 'package:eco_diet_v0/models/user.dart' as models;
 import 'package:eco_diet_v0/pages/home/home_controller.dart';
 import 'package:eco_diet_v0/pages/home/home_models.dart';
@@ -18,6 +19,10 @@ class _FakeApi implements EcoDietApi {
   bool syncSucceeds = false;
   int previewCalls = 0;
   final List<String> toggled = [];
+  final List<String> added = [];
+  TasteProfile? taste;
+  TasteProfile? savedTaste;
+  List<models.UserPreference> prefs = [];
 
   @override
   bool get isBridgeMode => true;
@@ -48,7 +53,23 @@ class _FakeApi implements EcoDietApi {
   @override
   Future<List<Allergene>> getAllAllergenes() async => [];
   @override
-  Future<List<models.UserPreference>> getUserPreferences() async => [];
+  Future<List<models.UserPreference>> getUserPreferences() async => prefs;
+
+  @override
+  Future<TasteProfile?> getTasteProfile() async => taste;
+  @override
+  Future<TasteProfile> saveTasteProfile(TasteProfile profile,
+      {String? email, String? userId, String source = 'swipe'}) async {
+    savedTaste = profile;
+    taste = profile;
+    return profile;
+  }
+
+  @override
+  Future<bool> addToFavorites(String recetteId) async {
+    added.add(recetteId);
+    return true;
+  }
 
   @override
   Future<bool> toggleFavorite(String recetteId) async {
@@ -61,14 +82,17 @@ class _FakeApi implements EcoDietApi {
       throw UnimplementedError('${invocation.memberName}');
 }
 
-RecettePreview _preview(int i, {String titre = 'Recette', int duree = 20}) =>
+RecettePreview _preview(int i,
+        {String titre = 'Recette',
+        int duree = 20,
+        String type = 'Plat principal'}) =>
     RecettePreview(
       recetteId: 'r$i',
       titre: '$titre $i',
       photo: '',
       dureeMinute: duree,
       tempsBinId: 0,
-      typePlatLibelle: 'Plat principal',
+      typePlatLibelle: type,
       regimeLibelle: 'vegetarian',
       ingredients: const ['tomate'],
     );
@@ -192,6 +216,86 @@ void main() {
     await c.load();
 
     expect(await c.toggleFavorite(c.visibleRecipes.single), isFalse);
+  });
+
+  test('le profil de goûts trie « Juste pour vous »', () async {
+    final api = _FakeApi([
+      _preview(1, type: 'Plat principal'),
+      _preview(2, type: 'Dessert'),
+    ])
+      ..taste = const TasteProfile(weights: {'type:dessert': 1.0});
+    final c = HomeController(api: api);
+
+    await c.load();
+
+    expect(c.hasTasteProfile, isTrue);
+    expect(c.recommendedRecipes.first.id, 'r2');
+  });
+
+  test('allergie au lactose : recette au fromage écartée même sans étiquette',
+      () async {
+    final api = _FakeApi([
+      RecettePreview(
+        recetteId: 'mac',
+        titre: 'Mac and cheese',
+        photo: '',
+        dureeMinute: 15,
+        tempsBinId: 0,
+        typePlatLibelle: 'Plat principal',
+        regimeLibelle: 'vegetarian',
+        ingredients: const ['300 g de macaroni', '150 g de cheddar'],
+        allergenes: const ['gluten'],
+      ),
+      _preview(2),
+    ])
+      ..prefs = [models.UserPreference(label: 'Allergènes', value: 'lactose')];
+    final c = HomeController(api: api);
+    await c.load();
+
+    expect(c.recommendedRecipes.map((r) => r.id), ['r2']);
+    // La recette reste visible dans « Nos recettes » (navigation libre).
+    expect(c.visibleRecipes.map((r) => r.id), contains('mac'));
+  });
+
+  test('sans profil de goûts, l ordre des recommandations est inchangé',
+      () async {
+    final c = HomeController(
+      api: _FakeApi([_preview(1), _preview(2, type: 'Dessert')]),
+    );
+    await c.load();
+
+    expect(c.hasTasteProfile, isFalse);
+    expect(c.recommendedRecipes.map((r) => r.id), ['r1', 'r2']);
+  });
+
+  test('les coups de cœur de l inscription rejoignent les favoris une fois connecté',
+      () async {
+    final api = _FakeApi([_preview(1), _preview(2)])
+      ..loggedIn = true
+      ..taste = const TasteProfile(
+        weights: {'type:plat principal': 1.0},
+        pendingFavoriteIds: {'r2'},
+      );
+    final c = HomeController(api: api);
+
+    await c.load();
+
+    expect(api.added, ['r2']);
+    expect(FavoritesService().isFavorite('r2'), isTrue);
+    expect(api.savedTaste!.pendingFavoriteIds, isEmpty);
+    expect(api.savedTaste!.weights, {'type:plat principal': 1.0});
+  });
+
+  test('hors session, les coups de cœur restent en attente', () async {
+    final api = _FakeApi([_preview(1)])
+      ..taste = const TasteProfile(
+        weights: {'type:plat principal': 1.0},
+        pendingFavoriteIds: {'r1'},
+      );
+    await HomeController(api: api).load();
+
+    expect(api.added, isEmpty);
+    expect(api.savedTaste, isNull);
   });
 
   testWidgets('HomePage branchée sur le contrôleur : recherche avec délai',

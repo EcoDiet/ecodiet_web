@@ -46,7 +46,7 @@ class OnboardingBrandingPanel extends StatelessWidget {
           // Indicateur d'étapes animé
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(5, (i) {
+            children: List.generate(onboardingStepTitles.length, (i) {
               final isActive = i == currentStep;
               final isDone = i < currentStep;
               return Row(
@@ -65,14 +65,15 @@ class OnboardingBrandingPanel extends StatelessWidget {
                       borderRadius: BorderRadius.circular(4),
                     ),
                   ),
-                  if (i < 4) const SizedBox(width: 6),
+                  if (i < onboardingStepTitles.length - 1)
+                    const SizedBox(width: 6),
                 ],
               );
             }),
           ),
           const SizedBox(height: 12),
           Text(
-            'Étape ${currentStep + 1} sur 5',
+            'Étape ${currentStep + 1} sur ${onboardingStepTitles.length}',
             style: const TextStyle(
               color: Color(0xFF8FBF97),
               fontSize: 12,

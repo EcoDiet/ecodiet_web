@@ -3,6 +3,7 @@ import '../services/ecodiet_api.dart';
 import '../models/user.dart';
 import '../utils/responsive.dart';
 import '../services/favorites_service.dart';
+import 'taste/taste_entry.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({Key? key}) : super(key: key);
@@ -17,6 +18,7 @@ class _ProfilePageState extends State<ProfilePage> {
   List<UserFolder> folders = [];
   List<UserPreference> preferences = [];
   int favoriteCount = 0;
+  bool hasTasteProfile = false;
 
   User? get _currentUser => _api.currentUser;
 
@@ -67,8 +69,11 @@ class _ProfilePageState extends State<ProfilePage> {
       final loadedFolders = await _api.getFolders();
       final loadedPreferences = await _api.getUserPreferences();
       final favorites = await _api.getFavorites();
+      final taste = await _api.getTasteProfile();
+      if (!mounted) return;
 
       setState(() {
+        hasTasteProfile = taste != null && !taste.isEmpty;
         folders = loadedFolders;
         preferences = loadedPreferences;
         favoriteCount = favorites.length;
@@ -606,6 +611,8 @@ class _ProfilePageState extends State<ProfilePage> {
           ),
         ),
         const SizedBox(height: 16),
+        _buildTasteTile(),
+        const SizedBox(height: 16),
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -748,7 +755,18 @@ class _ProfilePageState extends State<ProfilePage> {
               padding: const EdgeInsets.only(bottom: 8),
               child: _buildPreferenceItem(pref),
             )),
+        _buildTasteTile(),
       ],
+    );
+  }
+
+  Widget _buildTasteTile() {
+    return TasteEntryTile(
+      hasProfile: hasTasteProfile,
+      onTap: () async {
+        final saved = await openTasteSwipe(context);
+        if (saved && mounted) setState(() => hasTasteProfile = true);
+      },
     );
   }
 

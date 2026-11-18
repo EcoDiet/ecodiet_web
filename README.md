@@ -55,6 +55,15 @@ lib/
 │   ├── quiz_page.dart              # Quiz nutritionnel avec progression
 │   ├── folder_page.dart            # Vue dossier / favoris
 │   ├── profile_page.dart           # Profil utilisateur, dossiers, preferences
+│   ├── taste_swipe_page.dart       # Swipe de gouts « Mes gouts » (route /taste)
+│   ├── taste/
+│   │   ├── taste_logic.dart        # Choix des cartes, profil, score (fonctions pures)
+│   │   ├── taste_recommendation.dart # % par ingredient et classement des recos (fonctions pures)
+│   │   ├── taste_swipe_deck.dart   # Pile de cartes : gestes, boutons, clavier, annuler
+│   │   ├── swipe_card.dart         # Carte recette du swipe + couleurs
+│   │   ├── swipe_recipe_details.dart # Fiche deroulee de la recette pendant le swipe
+│   │   ├── taste_summary.dart      # Ecran de fin « Votre profil gourmand »
+│   │   └── taste_entry.dart        # Banniere accueil + ligne profil
 │   └── login_page.dart             # Connexion
 ├── services/
 │   ├── ecodiet_api.dart            # Acces aux donnees (bridge Cloud Run ; branche Supabase dormante)
@@ -105,12 +114,14 @@ Les erreurs reseau recuperees (fallbacks) sont journalisees via `logger` et visi
 | `/recipe` | RecipeInfosPage | id, title, description, duration |
 | `/quiz` | QuizPage | id, title, description |
 | `/folder` | FolderPage | id, label, color |
+| `/taste` | TasteSwipePage | — (renvoie `true` si un profil a ete enregistre) |
 
 ---
 
 ## Fonctionnalites
 
-- **Inscription en 5 etapes** : compte, profil, objectif, regime alimentaire, allergies
+- **Inscription en 6 etapes** : compte, profil, objectif, regime alimentaire, allergies, gouts
+- **Swipe de gouts** : 12 recettes variees (compatibles allergies/regime) a swiper. Droite = ca me tente, gauche = pas pour moi, haut / coeur = coup de coeur (ajoute aux favoris). Le profil obtenu trie « Juste pour vous » apres les filtres stricts. Les coups de coeur donnes a l'inscription rejoignent les favoris a la premiere connexion. Accessible aussi depuis l'accueil et le profil. Toucher une carte (ou « Voir la recette », Entree) deroule sa fiche : chiffres cles, ingredients avec quantites, preparation, ustensiles, allergenes, occasions ; on peut voter depuis la fiche (« Reduire » / Echap pour revenir).
 - **Favoris partages** : ajout depuis la page d'accueil, la page recette, visible dans le profil et les dossiers
 - **Layouts desktop** pour toutes les pages
 - **Quiz** avec barre de progression et feedback visuel des reponses
@@ -127,6 +138,14 @@ Les erreurs reseau recuperees (fallbacks) sont journalisees via `logger` et visi
 | Vert clair | `#8FBF97` / `#63A96E` |
 | Accent orange | `#F4A259` / `#EA853D` |
 | Fond beige | `#F5ECD9` |
+
+### Profil de gouts et recommandations
+
+- **Source de verite : les swipes bruts** (utilisateur, recette, verdict `dislike`/`like`/`super_like`, poids -1/1/2, date), table `fact_user_swipe` (`database/taste_swipes.sql`, BigQuery + variante Supabase). Poids du profil et pourcentages se recalculent depuis ces swipes et le catalogue : la formule peut evoluer sans migration.
+- **Preference par ingredient** : part des recettes aimees qui le contiennent (coup de coeur = 2), moins la part des recettes rejetees qui le contiennent. Les ingredients sont ramenes a une cle commune (`ingredientKey`, « 2 gousses d ail hachees » → `ail`).
+- **Classement « Juste pour vous »** : filtres stricts (allergies, regime ; les allergies sont aussi verifiees sur les ingredients car les etiquettes d'allergenes des donnees sont incompletes, ex. « Mac and cheese » marque seulement gluten) puis score = 65 % ingredients (somme des affinites / racine du nombre d'ingredients) + 35 % type de plat, regime, duree, occasions ; les recettes jamais swipees qui correspondent aux gouts sont entrecoupees de recettes deja aimees (1 sur 3, « Deja aimee »), les rejetees passent en dernier. Chaque carte indique pourquoi elle est proposee.
+- **Hors ligne d'abord** : copie locale par email (`taste_profile_<email>`), envoi au bridge `POST /swipes` retente tant qu'il n'a pas reussi ; a la lecture, fusion appareil / serveur (`GET /v1/users/{id}/swipes`, repli `GET /?table=fact_user_swipe`), le vote le plus recent par recette l'emporte.
+- **A faire cote bridge pour la mise en ligne** : creer `fact_user_swipe`, exposer `POST /swipes` (insertion en ajout seul) et `GET /v1/users/{id}/swipes` (lecture de `v_user_swipe_courant`).
 
 ---
 

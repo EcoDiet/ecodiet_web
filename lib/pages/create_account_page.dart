@@ -7,6 +7,13 @@ import '../services/ecodiet_api.dart';
 import '../utils/responsive.dart';
 import 'create_account/onboarding_options.dart';
 import 'create_account/onboarding_widgets.dart';
+import 'home/home_models.dart';
+import 'home/recipe_filtering.dart' show dietLevelFromLabel;
+import 'taste/taste_logic.dart';
+import 'taste/taste_recommendation.dart';
+import 'taste/taste_summary.dart';
+import 'taste/taste_swipe_deck.dart';
+import 'taste_swipe_page.dart';
 
 
 class CreateAccountPage extends StatefulWidget {
@@ -56,6 +63,14 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
 
   // Étape 5 — Allergies
   final Set<String> _allergies = {};
+
+  // Étape 6 — Goûts (swipe)
+  List<RecipeDisplayModel>? _swipeDeck;
+  List<RecipeDisplayModel> _swipeCatalog = const [];
+  List<SwipeVote>? _swipeVotes;
+  String? _swipeDeckKey;
+  String? _swipeError;
+  int _swipeGeneration = 0;
 
   @override
   void initState() {
@@ -150,6 +165,44 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       duration: const Duration(milliseconds: 350),
       curve: Curves.easeInOut,
     );
+    if (step == _tasteStep) _prepareSwipeDeck();
+  }
+
+  static const int _tasteStep = 5;
+
+  /// Charge les cartes du swipe selon le régime et les allergies choisis.
+  /// Si ces choix n'ont pas changé, le swipe déjà fait est conservé.
+  Future<void> _prepareSwipeDeck({bool force = false}) async {
+    final key = '$_dietType|${(_allergies.toList()..sort()).join(',')}';
+    if (!force && key == _swipeDeckKey && _swipeError == null) return;
+    setState(() {
+      _swipeDeckKey = key;
+      _swipeDeck = null;
+      _swipeVotes = null;
+      _swipeError = null;
+    });
+    try {
+      final session = await loadSwipeSession(
+        _api,
+        SwipeConstraints(
+          blockedKeywords: allergyKeywords(_allergies),
+          minDiet: _dietType == null ? null : dietLevelFromLabel(_dietType!),
+        ),
+      );
+      final deck = session.deck;
+      if (!mounted || key != _swipeDeckKey) return;
+      setState(() {
+        _swipeCatalog = session.catalog;
+        _swipeDeck = deck;
+        _swipeGeneration++;
+        if (deck.isEmpty) {
+          _swipeError = 'Aucune recette à proposer pour le moment.';
+        }
+      });
+    } catch (e) {
+      if (!mounted || key != _swipeDeckKey) return;
+      setState(() => _swipeError = 'Impossible de charger les recettes.');
+    }
   }
 
   void _onBackPressed() {
@@ -197,8 +250,21 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           : null,
       profile: profile,
     );
-    setState(() => _isLoading = false);
+    if (result.isSuccess && _swipeDeck != null && _swipeVotes != null) {
+      // Pas encore connecté : profil rangé sous l'email (copie locale) et
+      // swipes envoyés au serveur avec l'identifiant du nouveau compte ;
+      // coups de cœur ajoutés aux favoris à la première connexion.
+      await saveSwipeResult(
+        _api,
+        _swipeCatalog,
+        _swipeVotes!,
+        email: _emailController.text.trim(),
+        userId: result.data?.userId,
+        source: 'onboarding',
+      );
+    }
     if (!mounted) return;
+    setState(() => _isLoading = false);
     if (result.isSuccess) {
       Navigator.pushReplacementNamed(context, '/login');
     } else {
@@ -378,7 +444,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(10),
               child: LinearProgressIndicator(
-                value: (_currentStep + 1) / 5,
+                value: (_currentStep + 1) / onboardingStepTitles.length,
                 backgroundColor: Colors.grey[200],
                 valueColor: const AlwaysStoppedAnimation<Color>(
                     Color(0xFF2F6B3F)),
@@ -392,7 +458,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
             child: Align(
               alignment: Alignment.centerRight,
               child: Text(
-                'Étape ${_currentStep + 1} sur 5',
+                'Étape ${_currentStep + 1} sur ${onboardingStepTitles.length}',
                 style: TextStyle(fontSize: 11, color: Colors.grey[700]),
               ),
             ),
@@ -441,7 +507,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                   ClipRRect(
                     borderRadius: BorderRadius.circular(10),
                     child: LinearProgressIndicator(
-                      value: (_currentStep + 1) / 5,
+                      value: (_currentStep + 1) / onboardingStepTitles.length,
                       backgroundColor: Colors.grey[200],
                       valueColor: const AlwaysStoppedAnimation<Color>(
                           Color(0xFF2F6B3F)),
@@ -452,7 +518,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: Text(
-                      'Étape ${_currentStep + 1} sur 5',
+                      'Étape ${_currentStep + 1} sur ${onboardingStepTitles.length}',
                       style:
                           TextStyle(fontSize: 11, color: Colors.grey[700]),
                     ),
@@ -482,6 +548,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       _buildStep3(),
       _buildStep4(),
       _buildStep5(),
+      _buildStep6(),
     ];
   }
 
@@ -930,37 +997,97 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 .toList(),
           ),
           const SizedBox(height: 32),
-          Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 50,
-                  child: OutlinedButton(
-                    onPressed: _finishOnboarding,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: const Color(0xFF2F6B3F),
-                      side: const BorderSide(
-                          color: Color(0xFF2F6B3F)),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                    ),
-                    child: const Text('Passer',
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600)),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: OnboardingPrimaryButton(
-                    label: 'Terminer', onPressed: _isLoading ? null : _finishOnboarding),
-              ),
-            ],
+          OnboardingPrimaryButton(
+            label: _allergies.isEmpty ? 'Aucune, continuer' : 'Continuer',
+            onPressed: () => _goToStep(_tasteStep),
           ),
         ],
       ),
     );
   }
 
+  // ── Étape 6 : Goûts (swipe) ─────────────────────────────────────────────────
+
+  Widget _buildStep6() {
+    final deck = _swipeDeck;
+    final votes = _swipeVotes;
+
+    final Widget body;
+    if (_swipeError != null) {
+      body = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(_swipeError!, textAlign: TextAlign.center),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => _prepareSwipeDeck(force: true),
+              child: const Text('Réessayer'),
+            ),
+          ],
+        ),
+      );
+    } else if (deck == null) {
+      body = Center(
+        child: Semantics(
+          label: 'Chargement des recettes',
+          child: const CircularProgressIndicator(color: Color(0xFF2F6B3F)),
+        ),
+      );
+    } else if (votes != null) {
+      body = SingleChildScrollView(
+        child: TasteSummary(
+          profile: buildTasteProfile(deck, votes),
+          ingredients: topIngredients(ingredientPreferences(
+              votes, {for (final r in deck) r.id: r})),
+          note: superLikeNote(
+            votes.where((v) => v.verdict == SwipeVerdict.superLike).length,
+            pending: true,
+          ),
+          primaryLabel: 'Terminer l\'inscription',
+          onPrimary: _isLoading ? null : _finishOnboarding,
+          onRestart: () => setState(() {
+            _swipeVotes = null;
+            _swipeGeneration++;
+          }),
+        ),
+      );
+    } else {
+      body = TasteSwipeDeck(
+        key: ValueKey('onboarding-swipe-$_swipeGeneration'),
+        deck: deck,
+        onFinished: (v) => setState(() => _swipeVotes = v),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            votes == null
+                ? 'Glissez à droite si ça vous tente, à gauche sinon. '
+                    'Le cœur met la recette de côté dans vos favoris. '
+                    'Touchez une carte pour voir la recette en détail.'
+                : 'Merci ! Vos suggestions tiendront compte de vos goûts.',
+            style: TextStyle(fontSize: 13, color: Colors.grey[700]),
+          ),
+          const SizedBox(height: 12),
+          Expanded(child: body),
+          if (votes == null)
+            Center(
+              child: TextButton(
+                onPressed: _isLoading ? null : _finishOnboarding,
+                style: TextButton.styleFrom(
+                  foregroundColor: const Color(0xFF2F6B3F),
+                  minimumSize: const Size(44, 44),
+                ),
+                child: const Text('Passer et terminer l\'inscription'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }

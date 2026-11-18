@@ -94,4 +94,5 @@ const onboardingStepTitles = [
   'Mon objectif',
   'Mon régime',
   'Mes intolérances',
+  'Mes goûts',
 ];

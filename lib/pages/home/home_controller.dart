@@ -1,9 +1,13 @@
 import 'package:flutter/foundation.dart';
 
 import '../../models/recette.dart';
+import '../../models/taste_profile.dart';
 import '../../models/user.dart' show UserPreference;
 import '../../services/ecodiet_api.dart';
 import '../../services/favorites_service.dart';
+import '../taste/taste_logic.dart'
+    show constraintsFromPreferences, isRecipeAllowed;
+import '../taste/taste_recommendation.dart';
 import 'home_models.dart';
 import 'recipe_filtering.dart';
 
@@ -77,6 +81,10 @@ class HomeController extends ChangeNotifier {
   List<String> _utensilOptionsFromRef = [];
   List<String> _dietOptionsFromRef = [];
   List<String> _allergenOptionsFromRef = [];
+  TasteProfile? _tasteProfile;
+  Map<String, List<IngredientPreference>> _reasons = const {};
+  Set<String> _alreadyLiked = const {};
+  List<IngredientPreference> _ingredientPreferences = const [];
 
   String _searchQuery = '';
   RecipeFilters _filters = RecipeFilters.empty();
@@ -94,6 +102,20 @@ class HomeController extends ChangeNotifier {
   bool get hasActiveFilters => _filters.hasAny;
   int get activeFiltersCount => _filters.activeCount;
   bool get isLoggedIn => _api.isLoggedIn;
+
+  /// Vrai si l'utilisateur a déjà fait le swipe de goûts.
+  bool get hasTasteProfile => _tasteProfile != null && !_tasteProfile!.isEmpty;
+
+  /// Ingrédients préférés (pourcentages), recalculés depuis les swipes.
+  List<IngredientPreference> get ingredientPreferences =>
+      _ingredientPreferences;
+
+  /// « Pourquoi cette recette » : « Déjà aimée » pour une recette aimée au
+  /// swipe, sinon les ingrédients aimés qu'elle contient.
+  String? recommendationReasonFor(String recipeId) =>
+      _alreadyLiked.contains(recipeId)
+          ? 'Déjà aimée'
+          : recommendationReason(_reasons[recipeId]);
 
   /// Recommandations, masquées dès qu'une recherche ou un filtre est actif.
   List<RecipeDisplayModel> get recommendedRecipes =>
@@ -199,6 +221,10 @@ class HomeController extends ChangeNotifier {
   }
 
   Future<void> load({bool forceRefresh = false}) async {
+    // Lecture locale peu coûteuse : relue à chaque affichage pour prendre en
+    // compte un swipe fait entre-temps, même quand les recettes sont en cache.
+    _tasteProfile = await _loadTasteProfile();
+
     final cache = _memoryCache;
     if (!forceRefresh &&
         cache != null &&
@@ -206,6 +232,7 @@ class HomeController extends ChangeNotifier {
       final favoriteIds = await _api.getFavoriteIds();
       _memoryCache = cache.touched();
       _apply(cache, favoriteIds);
+      await _applyPendingFavorites();
       return;
     }
 
@@ -239,6 +266,7 @@ class HomeController extends ChangeNotifier {
       );
       _memoryCache = fresh;
       _apply(fresh, results[1] as Set<String>);
+      await _applyPendingFavorites();
     } catch (e) {
       _isLoading = false;
       _loadWarning = 'Erreur chargement data bridge: $e';
@@ -248,6 +276,37 @@ class HomeController extends ChangeNotifier {
   }
 
   // ── Interne ────────────────────────────────────────────────────────────────
+
+  Future<TasteProfile?> _loadTasteProfile() async {
+    try {
+      return await _api.getTasteProfile();
+    } catch (e) {
+      debugPrint('Profil de goûts illisible: $e');
+      return null;
+    }
+  }
+
+  /// Ajoute aux favoris les « coups de cœur » du swipe fait à l'inscription
+  /// (avant connexion), puis les retire du profil.
+  Future<void> _applyPendingFavorites() async {
+    final profile = _tasteProfile;
+    if (profile == null ||
+        profile.pendingFavoriteIds.isEmpty ||
+        !_api.isLoggedIn) {
+      return;
+    }
+    final byId = {for (final r in _recipeSource) r.id: r};
+    for (final id in profile.pendingFavoriteIds) {
+      final recipe = byId[id];
+      if (recipe == null || FavoritesService().isFavorite(id)) continue;
+      recipe.isFavorite = true;
+      FavoritesService().addFavorite(_favoriteOf(recipe));
+      await _api.addToFavorites(id);
+    }
+    _tasteProfile = await _api
+        .saveTasteProfile(profile.copyWith(pendingFavoriteIds: const {}));
+    _notify();
+  }
 
   void _apply(_HomeDataCache data, Set<String> favoriteIds) {
     final models = data.previews
@@ -291,11 +350,24 @@ class HomeController extends ChangeNotifier {
         .toSet()
         .toList()
       ..sort();
-    _recommendedRecipes = buildRecommendedRecipes(
-      models,
-      data.userPreferences,
-      selectedDietFilters: _filters.diets,
-    ).take(10).toList();
+    // Filtres stricts (allergies, régime) d'abord, puis classement selon les
+    // swipes : pourcentages par ingrédient + type, régime, durée.
+    // `buildRecommendedRecipes` se fie aux étiquettes d'allergènes, souvent
+    // incomplètes : on vérifie aussi les ingrédients (lait, fromages…).
+    final constraints = constraintsFromPreferences(data.userPreferences);
+    final recommendations = rankRecommendations(
+      buildRecommendedRecipes(
+        models,
+        data.userPreferences,
+        selectedDietFilters: _filters.diets,
+      ).where((r) => isRecipeAllowed(r, constraints)).toList(),
+      _tasteProfile,
+      catalog: models,
+    );
+    _recommendedRecipes = recommendations.recipes.take(10).toList();
+    _reasons = recommendations.reasons;
+    _alreadyLiked = recommendations.alreadyLiked;
+    _ingredientPreferences = recommendations.preferences;
     _quizzes = data.quizzes
         .map((q) => Quiz(
               id: q.quizId?.toString() ?? '',
