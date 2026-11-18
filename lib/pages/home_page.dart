@@ -1,185 +1,59 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import '../services/ecodiet_api.dart';
-import '../models/recette.dart';
-import '../models/user.dart' show UserPreference;
 import '../utils/responsive.dart';
-import '../services/favorites_service.dart';
 import 'all_recipes_page.dart';
 import 'home/filter_panel.dart';
+import 'home/home_controller.dart';
 import 'home/home_models.dart';
 import 'home/quiz_card.dart';
 import 'home/recipe_card.dart';
-import 'home/recipe_filtering.dart';
 
 export 'home/home_models.dart';
 export '../widgets/favorite_button.dart';
 
-class _HomeDataCache {
-  final DateTime fetchedAt;
-  final List<RecettePreview> previews;
-  final List quizzes;
-  final List<Ingredient> ingredientRefs;
-  final List<Equipement> equipementRefs;
-  final List<Regime> regimeRefs;
-  final List<TypePlat> typePlatRefs;
-  final List<Allergene> allergeneRefs;
-  final List<UserPreference> userPreferences;
-
-  _HomeDataCache({
-    required this.fetchedAt,
-    required this.previews,
-    required this.quizzes,
-    required this.ingredientRefs,
-    required this.equipementRefs,
-    required this.regimeRefs,
-    required this.typePlatRefs,
-    required this.allergeneRefs,
-    required this.userPreferences,
-  });
-}
 class HomePage extends StatefulWidget {
-  const HomePage({Key? key}) : super(key: key);
+  /// `controller` permet d'injecter un état préparé (tests) ; sinon la page
+  /// crée le sien.
+  final HomeController? controller;
+
+  const HomePage({Key? key, this.controller}) : super(key: key);
 
   @override
   State<HomePage> createState() => _HomePageState();
 }
 
 class _HomePageState extends State<HomePage> {
-  static _HomeDataCache? _memoryCache;
-  static const Duration _memoryCacheTtl = Duration(minutes: 3);
-
-  final EcoDietApi _api = EcoDietApi();
+  late final HomeController _c = widget.controller ?? HomeController();
+  late final bool _ownsController = widget.controller == null;
   final GlobalKey<ScaffoldState> _scaffoldKey = GlobalKey<ScaffoldState>();
-
-  List<RecipeDisplayModel> _recipeSource = [];
-  List<RecipeDisplayModel> recommendedRecipes = [];
-  List<RecipeDisplayModel> allRecipes = [];
-  List<Quiz> quizzes = [];
-  bool isLoading = true;
-  static const int _recipesPerPage = 25;
-  int _recipePage = 0;
-  int _filteredRecipeCount = 0;
-  bool _hasNextRecipePage = false;
-  String? _loadWarning;
-  List<String> _ingredientOptionsFromRef = [];
-  List<String> _utensilOptionsFromRef = [];
-  List<String> _dietOptionsFromRef = [];
-  List<String> _allergenOptionsFromRef = [];
-
   final TextEditingController _searchController = TextEditingController();
-  String _searchQuery = '';
   Timer? _debounceTimer;
-  RecipeFilters _filters = RecipeFilters.empty();
-  RecipeSortMode _sortMode = RecipeSortMode.pertinence;
-
-  List<Recipe> get _filteredRecommended =>
-      (_searchQuery.isEmpty && !_hasActiveFilters) ? recommendedRecipes : [];
-
-  List<Recipe> get _filteredAll => allRecipes;
-
-  bool get _hasActiveFilters => _filters.hasAny;
-
-  int get _activeFiltersCount => _filters.activeCount;
-
-  int get _totalRecipePages =>
-      _filteredRecipeCount == 0 ? 1 : ((_filteredRecipeCount - 1) ~/ _recipesPerPage) + 1;
-
-  List<String> get _ingredientOptions {
-    if (_ingredientOptionsFromRef.isNotEmpty) return _ingredientOptionsFromRef;
-    final fromData = _recipeSource
-        .expand((r) => r.ingredients.split(','))
-        .map(ingredientFilterLabel)
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList();
-    fromData.sort();
-    return fromData.isNotEmpty ? fromData : fallbackIngredients;
-  }
-
-  List<String> get _utensilOptions {
-    if (_utensilOptionsFromRef.isNotEmpty) return _utensilOptionsFromRef;
-    final fromData = _recipeSource
-        .expand((r) => r.utensils.split(','))
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList();
-    fromData.sort();
-    return fromData.isNotEmpty ? fromData : fallbackUtensils;
-  }
-
-  List<String> get _dietOptions {
-    if (_dietOptionsFromRef.isNotEmpty) return _dietOptionsFromRef;
-    final categoryText = _recipeSource
-        .expand((r) => [r.category, r.diets])
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList();
-    categoryText.sort();
-    return {
-      ...fallbackDiets,
-      ...categoryText,
-    }.toList()
-      ..sort();
-  }
-
-  List<String> get _allergenOptions {
-    if (_allergenOptionsFromRef.isNotEmpty) return _allergenOptionsFromRef;
-    final fromData = _recipeSource
-        .expand((r) => r.allergens.split(','))
-        .map((e) => e.trim())
-        .where((e) => e.isNotEmpty)
-        .toSet()
-        .toList();
-    fromData.sort();
-    return fromData.isNotEmpty ? fromData : fallbackAllergens;
-  }
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    _c.addListener(_onControllerChanged);
+    _c.load();
   }
 
   @override
   void dispose() {
     _debounceTimer?.cancel();
     _searchController.dispose();
+    _c.removeListener(_onControllerChanged);
+    if (_ownsController) _c.dispose();
     super.dispose();
+  }
+
+  void _onControllerChanged() {
+    if (mounted) setState(() {});
   }
 
   void _onSearchChanged(String value) {
     _debounceTimer?.cancel();
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      if (!mounted) return;
-      setState(() {
-        _searchQuery = value.toLowerCase().trim();
-        _recomputeVisibleRecipes(resetPage: true);
-      });
+      if (mounted) _c.setSearchQuery(value);
     });
-  }
-
-  void _recomputeVisibleRecipes({bool resetPage = false}) {
-    if (resetPage) _recipePage = 0;
-
-    final matching = sortRecipes(
-      _recipeSource
-          .where((r) => matchesSearch(r, _searchQuery))
-          .where((r) => matchesFilters(r, _filters))
-          .toList(),
-      _sortMode,
-    );
-
-    final maxPage =
-        matching.isEmpty ? 0 : (matching.length - 1) ~/ _recipesPerPage;
-    if (_recipePage > maxPage) _recipePage = maxPage;
-
-    final start = _recipePage * _recipesPerPage;
-    allRecipes = matching.skip(start).take(_recipesPerPage).toList();
-    _filteredRecipeCount = matching.length;
-    _hasNextRecipePage = start + _recipesPerPage < matching.length;
   }
 
   void _openFilters() {
@@ -190,208 +64,22 @@ class _HomePageState extends State<HomePage> {
     _openMobileFiltersSheet();
   }
 
-  bool _isCacheUsable() {
-    final cache = _memoryCache;
-    if (cache == null) return false;
-    return DateTime.now().difference(cache.fetchedAt) < _memoryCacheTtl;
-  }
-
-  void _applyLoadedData({
-    required List<RecettePreview> previews,
-    required Set<String> favoriteIds,
-    required List loadedQuizzes,
-    required List<Ingredient> ingredientRefs,
-    required List<Equipement> equipementRefs,
-    required List<Regime> regimeRefs,
-    required List<TypePlat> typePlatRefs,
-    required List<Allergene> allergeneRefs,
-    required List<UserPreference> userPreferences,
-  }) {
-    final models = previews
-        .map((r) => RecipeDisplayModel.fromPreview(r, favoriteIds))
-        .toList();
-
-    final favService = FavoritesService();
-    favService.clear();
-    for (final recipe in models.where((m) => favoriteIds.contains(m.id))) {
-      favService.addFavorite(
-        FavoriteRecipe(
-          id: recipe.id,
-          title: recipe.title,
-          category: recipe.category,
-          duration: recipe.duration,
-          imageUrl: recipe.imageUrl,
-        ),
-      );
-    }
-
-    _memoryCache = _HomeDataCache(
-      fetchedAt: DateTime.now(),
-      previews: previews,
-      quizzes: loadedQuizzes,
-      ingredientRefs: ingredientRefs,
-      equipementRefs: equipementRefs,
-      regimeRefs: regimeRefs,
-      typePlatRefs: typePlatRefs,
-      allergeneRefs: allergeneRefs,
-      userPreferences: userPreferences,
-    );
-
-    setState(() {
-      _loadWarning = (_api.isBridgeMode && models.isEmpty)
-          ? 'Aucune recette re?ue depuis l API Cloud Run. V?rifie le service et son JSON.'
-          : null;
-      _recipeSource = models;
-      _ingredientOptionsFromRef = ingredientRefs
-          .map((i) => ingredientFilterLabel(i.nomIngredient))
-          .where((v) => v.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
-      _utensilOptionsFromRef = equipementRefs
-          .map((e) =>
-              cleanLabel(e.nomEquipement).replaceFirst(RegExp(r'^\d+\s+'), ''))
-          .where((v) => v.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
-      _dietOptionsFromRef = [
-        ...regimeRefs.map((r) => cleanLabel(r.libelle)),
-        ...models.map((m) => cleanLabel(m.category)),
-      ].where((v) => v.isNotEmpty).toSet().toList()
-        ..sort();
-      _allergenOptionsFromRef = allergeneRefs
-          .map((a) => cleanLabel(a.libelle))
-          .where((v) => v.isNotEmpty)
-          .toSet()
-          .toList()
-        ..sort();
-      recommendedRecipes = buildRecommendedRecipes(
-        models,
-        userPreferences,
-        selectedDietFilters: _filters.diets,
-      ).take(10).toList();
-      _recomputeVisibleRecipes();
-      quizzes = loadedQuizzes
-          .map((q) => Quiz(
-                id: q.quizId?.toString() ?? '',
-                title: q.title,
-                description: q.description ?? '',
-                imageUrl: q.imageUrl,
-              ))
-          .toList();
-      isLoading = false;
-    });
-  }
-
-  Future<void> _loadData({bool forceRefresh = false}) async {
-    if (!forceRefresh && _isCacheUsable()) {
-      final cache = _memoryCache!;
-      final favoriteIds = await _api.getFavoriteIds();
-      _applyLoadedData(
-        previews: cache.previews,
-        favoriteIds: favoriteIds,
-        loadedQuizzes: cache.quizzes,
-        ingredientRefs: cache.ingredientRefs,
-        equipementRefs: cache.equipementRefs,
-        regimeRefs: cache.regimeRefs,
-        typePlatRefs: cache.typePlatRefs,
-        allergeneRefs: cache.allergeneRefs,
-        userPreferences: cache.userPreferences,
-      );
-      return;
-    }
-
-    setState(() => isLoading = true);
-
-    try {
-      // Previews legeres: on filtre toute la data puis on affiche 25 cartes.
-      final results = await Future.wait([
-        _api.getAllRecettesPreview(),
-        _api.getFavoriteIds(),
-        _api.getAllQuizzes(),
-        _api.getAllIngredients(),
-        _api.getAllEquipements(),
-        _api.getAllRegimes(),
-        _api.getAllTypesPlat(),
-        _api.getAllAllergenes(),
-        _api.getUserPreferences(),
-      ]);
-
-      final previews = results[0] as List<RecettePreview>;
-      final favoriteIds = results[1] as Set<String>;
-      final loadedQuizzes = results[2] as List;
-      final ingredientRefs = results[3] as List<Ingredient>;
-      final equipementRefs = results[4] as List<Equipement>;
-      final regimeRefs = results[5] as List<Regime>;
-      final typePlatRefs = results[6] as List<TypePlat>;
-      final allergeneRefs = results[7] as List<Allergene>;
-      final userPreferences = results[8] as List<UserPreference>;
-
-      _applyLoadedData(
-        previews: previews,
-        favoriteIds: favoriteIds,
-        loadedQuizzes: loadedQuizzes,
-        ingredientRefs: ingredientRefs,
-        equipementRefs: equipementRefs,
-        regimeRefs: regimeRefs,
-        typePlatRefs: typePlatRefs,
-        allergeneRefs: allergeneRefs,
-        userPreferences: userPreferences,
-      );
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-        _loadWarning = 'Erreur chargement data bridge: $e';
-      });
-      debugPrint('Erreur chargement données: $e');
-    }
-  }
-
-  Future<void> _goToRecipePage(int page) async {
-    if (page < 0 || page == _recipePage || isLoading) return;
-    setState(() {
-      _recipePage = page;
-      _recomputeVisibleRecipes();
-    });
-  }
-
   Future<void> _toggleFavorite(RecipeDisplayModel recipe) async {
-    // Bascule locale immédiate : l'UI répond toujours, même hors ligne.
-    final wasFavorite = FavoritesService().isFavorite(recipe.id);
-    final nowFavorite = !wasFavorite;
-    setState(() => recipe.isFavorite = nowFavorite);
-
-    if (nowFavorite) {
-      FavoritesService().addFavorite(FavoriteRecipe(
-        id: recipe.id,
-        title: recipe.title,
-        category: recipe.category,
-        duration: recipe.duration,
-        imageUrl: recipe.imageUrl,
-      ));
-    } else {
-      FavoritesService().removeFavorite(recipe.id);
-    }
-
-    // Synchronisation backend au mieux (nécessite une session active).
-    final success = await _api.toggleFavorite(recipe.id);
-    if (!mounted) return;
-    if (nowFavorite && !success && !_api.isLoggedIn) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Favori enregistré sur cet appareil. Connecte-toi pour le synchroniser.',
-          ),
-          duration: Duration(seconds: 3),
+    final savedOnlyLocally = await _c.toggleFavorite(recipe);
+    if (!mounted || !savedOnlyLocally) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Favori enregistré sur cet appareil. Connecte-toi pour le synchroniser.',
         ),
-      );
-    }
+        duration: Duration(seconds: 3),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    if (isLoading) {
+    if (_c.isLoading) {
       return Scaffold(
         body: Center(
           child: Semantics(
@@ -402,14 +90,14 @@ class _HomePageState extends State<HomePage> {
       );
     }
 
-    if (_loadWarning != null && _recipeSource.isEmpty) {
+    if (_c.loadWarning != null && !_c.hasRecipes) {
       return Scaffold(
         backgroundColor: const Color(0xFFF5ECD9),
         body: Center(
           child: Padding(
             padding: const EdgeInsets.all(20),
             child: Text(
-              _loadWarning!,
+              _c.loadWarning!,
               textAlign: TextAlign.center,
               style: const TextStyle(color: Color(0xFF7A2E2E), fontSize: 15),
             ),
@@ -435,16 +123,13 @@ class _HomePageState extends State<HomePage> {
               ),
               child: SafeArea(
                 child: DesktopFilterDrawerContent(
-                  initialFilters: _filters,
-                  ingredientOptions: _ingredientOptions,
-                  utensilOptions: _utensilOptions,
-                  dietOptions: _dietOptions,
-                  allergenOptions: _allergenOptions,
+                  initialFilters: _c.filters,
+                  ingredientOptions: _c.ingredientOptions,
+                  utensilOptions: _c.utensilOptions,
+                  dietOptions: _c.dietOptions,
+                  allergenOptions: _c.allergenOptions,
                   onApply: (filters) {
-                    setState(() {
-                      _filters = filters;
-                      _recomputeVisibleRecipes(resetPage: true);
-                    });
+                    _c.applyFilters(filters);
                     Navigator.of(context).maybePop();
                   },
                 ),
@@ -478,7 +163,7 @@ class _HomePageState extends State<HomePage> {
                 // Contenu scrollable
                 Expanded(
                   child: RefreshIndicator(
-                    onRefresh: () => _loadData(forceRefresh: true),
+                    onRefresh: () => _c.load(forceRefresh: true),
                     child: SingleChildScrollView(
                       physics: const AlwaysScrollableScrollPhysics(),
                       padding: EdgeInsets.fromLTRB(
@@ -487,9 +172,9 @@ class _HomePageState extends State<HomePage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           // Message "aucun résultat" si recherche active
-                          if ((_searchQuery.isNotEmpty || _hasActiveFilters) &&
-                              _filteredRecommended.isEmpty &&
-                              _filteredAll.isEmpty) ...[
+                          if ((_c.searchQuery.isNotEmpty || _c.hasActiveFilters) &&
+                              _c.recommendedRecipes.isEmpty &&
+                              _c.visibleRecipes.isEmpty) ...[
                             const SizedBox(height: 48),
                             Center(
                               child: Column(
@@ -498,8 +183,8 @@ class _HomePageState extends State<HomePage> {
                                       size: 48, color: Colors.grey[300]),
                                   const SizedBox(height: 12),
                                   Text(
-                                    _searchQuery.isNotEmpty
-                                        ? 'Aucune recette trouvée pour "$_searchQuery" avec ces filtres.'
+                                    _c.searchQuery.isNotEmpty
+                                        ? 'Aucune recette trouvée pour "${_c.searchQuery}" avec ces filtres.'
                                         : 'Aucune recette ne correspond aux filtres sélectionnés.',
                                     style: TextStyle(
                                         color: Colors.grey[500], fontSize: 14),
@@ -510,7 +195,7 @@ class _HomePageState extends State<HomePage> {
                           ],
 
                           // Section "Juste pour vous"
-                          if (_filteredRecommended.isNotEmpty) ...[
+                          if (_c.recommendedRecipes.isNotEmpty) ...[
                             _buildSectionTitle(
                               'Juste pour vous',
                               icon: Icons.star_rounded,
@@ -519,22 +204,22 @@ class _HomePageState extends State<HomePage> {
                                 MaterialPageRoute(
                                   builder: (_) => AllRecipesPage(
                                     title: 'Juste pour vous',
-                                    recipes: _filteredRecommended,
+                                    recipes: _c.recommendedRecipes,
                                   ),
                                 ),
                               ),
                             ),
                             const SizedBox(height: 12),
                             if (desktop)
-                              _buildRecipeGrid(context, _filteredRecommended)
+                              _buildRecipeGrid(context, _c.recommendedRecipes)
                             else
                               SizedBox(
                                 height: 220,
                                 child: ListView.builder(
                                   scrollDirection: Axis.horizontal,
-                                  itemCount: _filteredRecommended.length,
+                                  itemCount: _c.recommendedRecipes.length,
                                   itemBuilder: (context, index) {
-                                    final recipe = _filteredRecommended[index];
+                                    final recipe = _c.recommendedRecipes[index];
                                     return Padding(
                                       key: ValueKey(recipe.id),
                                       padding: const EdgeInsets.only(right: 12),
@@ -550,23 +235,23 @@ class _HomePageState extends State<HomePage> {
                           ],
 
                           // Section "Nos recettes"
-                          if (_filteredAll.isNotEmpty) ...[
+                          if (_c.visibleRecipes.isNotEmpty) ...[
                             _buildSectionTitle(
-                              'Nos recettes ($_filteredRecipeCount)',
+                              'Nos recettes (${_c.filteredRecipeCount})',
                               icon: Icons.restaurant_rounded,
                               showViewAll: false,
                             ),
                             const SizedBox(height: 12),
                             if (desktop)
-                              _buildRecipeGrid(context, _filteredAll)
+                              _buildRecipeGrid(context, _c.visibleRecipes)
                             else
                               SizedBox(
                                 height: 220,
                                 child: ListView.builder(
                                   scrollDirection: Axis.horizontal,
-                                  itemCount: _filteredAll.length,
+                                  itemCount: _c.visibleRecipes.length,
                                   itemBuilder: (context, index) {
-                                    final recipe = _filteredAll[index];
+                                    final recipe = _c.visibleRecipes[index];
                                     return Padding(
                                       key: ValueKey(recipe.id),
                                       padding: const EdgeInsets.only(right: 12),
@@ -584,9 +269,9 @@ class _HomePageState extends State<HomePage> {
                           ],
 
                           // Section "Testez vos connaissances"
-                          if (quizzes.isNotEmpty &&
-                              _searchQuery.isEmpty &&
-                              !_hasActiveFilters) ...[
+                          if (_c.quizzes.isNotEmpty &&
+                              _c.searchQuery.isEmpty &&
+                              !_c.hasActiveFilters) ...[
                             _buildSectionTitle('Testez vos connaissances',
                                 showViewAll: false,
                                 icon: Icons.psychology_rounded),
@@ -595,7 +280,7 @@ class _HomePageState extends State<HomePage> {
                               Wrap(
                                 spacing: 12,
                                 runSpacing: 12,
-                                children: quizzes
+                                children: _c.quizzes
                                     .map((quiz) => SizedBox(
                                           key: ValueKey(quiz.id),
                                           width: 340,
@@ -604,7 +289,7 @@ class _HomePageState extends State<HomePage> {
                                     .toList(),
                               )
                             else
-                              ...quizzes.map((quiz) => Padding(
+                              ..._c.quizzes.map((quiz) => Padding(
                                     key: ValueKey(quiz.id),
                                     padding: const EdgeInsets.only(bottom: 12),
                                     child: QuizCard(quiz: quiz),
@@ -750,16 +435,13 @@ class _HomePageState extends State<HomePage> {
           hintText: 'Rechercher une recette…',
           hintStyle: TextStyle(fontSize: 13, color: Colors.grey[400]),
           prefixIcon: Icon(Icons.search, size: 20, color: Colors.grey[400]),
-          suffixIcon: _searchQuery.isNotEmpty
+          suffixIcon: _c.searchQuery.isNotEmpty
               ? IconButton(
                   icon: Icon(Icons.close, size: 16, color: Colors.grey[400]),
                   onPressed: () {
                     _debounceTimer?.cancel();
                     _searchController.clear();
-                    setState(() {
-                      _searchQuery = '';
-                      _recomputeVisibleRecipes(resetPage: true);
-                    });
+                    _c.setSearchQuery('');
                   },
                 )
               : null,
@@ -780,7 +462,7 @@ class _HomePageState extends State<HomePage> {
           button: true,
           label: 'Ouvrir les filtres',
           child: Material(
-            color: _hasActiveFilters ? const Color(0xFF2F6B3F) : Colors.white,
+            color: _c.hasActiveFilters ? const Color(0xFF2F6B3F) : Colors.white,
             borderRadius: BorderRadius.circular(10),
             child: InkWell(
               onTap: _openFilters,
@@ -790,7 +472,7 @@ class _HomePageState extends State<HomePage> {
                 height: 44,
                 child: Icon(
                   Icons.tune_rounded,
-                  color: _hasActiveFilters
+                  color: _c.hasActiveFilters
                       ? Colors.white
                       : const Color(0xFF2F6B3F),
                 ),
@@ -798,7 +480,7 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        if (_activeFiltersCount > 0)
+        if (_c.activeFiltersCount > 0)
           Positioned(
             top: -4,
             right: -4,
@@ -809,7 +491,7 @@ class _HomePageState extends State<HomePage> {
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Text(
-                '$_activeFiltersCount',
+                '${_c.activeFiltersCount}',
                 style: const TextStyle(
                   color: Colors.white,
                   fontSize: 11,
@@ -823,14 +505,11 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildSortButton() {
-    final hasSort = _sortMode != RecipeSortMode.pertinence;
+    final hasSort = _c.sortMode != RecipeSortMode.pertinence;
     return PopupMenuButton<RecipeSortMode>(
       tooltip: 'Trier les recettes',
-      initialValue: _sortMode,
-      onSelected: (value) => setState(() {
-        _sortMode = value;
-        _recomputeVisibleRecipes(resetPage: true);
-      }),
+      initialValue: _c.sortMode,
+      onSelected: _c.setSortMode,
       itemBuilder: (context) => RecipeSortMode.values
           .map(
             (mode) => PopupMenuItem<RecipeSortMode>(
@@ -838,7 +517,7 @@ class _HomePageState extends State<HomePage> {
               child: Row(
                 children: [
                   Expanded(child: Text(mode.label)),
-                  if (mode == _sortMode)
+                  if (mode == _c.sortMode)
                     const Icon(Icons.check_rounded, size: 16),
                 ],
               ),
@@ -876,16 +555,13 @@ class _HomePageState extends State<HomePage> {
             child: SafeArea(
               top: false,
               child: MobileFilterSheetContent(
-                initialFilters: _filters,
-                ingredientOptions: _ingredientOptions,
-                utensilOptions: _utensilOptions,
-                dietOptions: _dietOptions,
-                allergenOptions: _allergenOptions,
+                initialFilters: _c.filters,
+                ingredientOptions: _c.ingredientOptions,
+                utensilOptions: _c.utensilOptions,
+                dietOptions: _c.dietOptions,
+                allergenOptions: _c.allergenOptions,
                 onApply: (filters) {
-                  setState(() {
-                    _filters = filters;
-                    _recomputeVisibleRecipes(resetPage: true);
-                  });
+                  _c.applyFilters(filters);
                   Navigator.of(context).maybePop();
                 },
               ),
@@ -928,22 +604,22 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildRecipePagination() {
-    final canGoPrevious = _recipePage > 0 && !isLoading;
-    final canGoNext = _hasNextRecipePage && !isLoading;
+    final canGoPrevious = _c.canGoPrevious;
+    final canGoNext = _c.canGoNext;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
         OutlinedButton.icon(
           onPressed:
-              canGoPrevious ? () => _goToRecipePage(_recipePage - 1) : null,
+              canGoPrevious ? () => _c.goToPage(_c.recipePage - 1) : null,
           icon: const Icon(Icons.chevron_left_rounded),
           label: const Text('Précédent'),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: Text(
-            'Page ${_recipePage + 1} / $_totalRecipePages',
+            'Page ${_c.recipePage + 1} / ${_c.totalRecipePages}',
             style: const TextStyle(
               color: Color(0xFF1F2E1F),
               fontWeight: FontWeight.w600,
@@ -951,7 +627,7 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         OutlinedButton.icon(
-          onPressed: canGoNext ? () => _goToRecipePage(_recipePage + 1) : null,
+          onPressed: canGoNext ? () => _c.goToPage(_c.recipePage + 1) : null,
           icon: const Icon(Icons.chevron_right_rounded),
           label: const Text('Suivant'),
         ),
