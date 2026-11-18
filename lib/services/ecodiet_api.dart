@@ -4,6 +4,7 @@ import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
+import 'package:logger/logger.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'favorites_service.dart';
 import '../models/recette.dart';
@@ -14,6 +15,25 @@ const String kMarmitonImageBaseUrl = 'https://assets.afcdn.com/recipe/';
 const String kGcpImageBaseUrl =
     'https://storage.googleapis.com/gcs_dataiku/dataiku/staging/node_7e227912/ECODIETYNOV/0RUJIdkr/';
 bool kDisableNetworkImages = false;
+
+/// Journal des erreurs récupérées (fallbacks) : visible en debug uniquement.
+final Logger _log = Logger();
+
+/// Trace une erreur volontairement absorbée. `expected` : fallback normal
+/// (ex. tentative de décodage), journalisé au niveau trace.
+void _logIgnored(
+  String where,
+  Object error,
+  StackTrace stack, {
+  bool expected = false,
+}) {
+  final message = '$where: erreur ignoree';
+  if (expected) {
+    _log.t(message, error: error, stackTrace: stack);
+  } else {
+    _log.w(message, error: error, stackTrace: stack);
+  }
+}
 
 /// Retourne l'URL complète d'une image recette à partir du nom de fichier stocké en BDD.
 String recetteImageUrl(String photo) {
@@ -56,7 +76,7 @@ class EcoDietApi {
   final Map<String, RecetteComplete> _bridgeRecetteCompleteCache = {};
   final Map<String, DateTime> _bridgeRecetteCompleteCacheAt = {};
   bool? _bridgeFavoritesEndpointAvailable = false;
-  static const bool _debugFolders = true;
+  static const bool _debugFolders = kDebugMode;
   final FlutterSecureStorage _storage = const FlutterSecureStorage();
   static const Duration _bridgeSessionInactivityLimit = Duration(hours: 2);
   static const String _bridgeSessionUserKey = 'bridge_session_user';
@@ -115,7 +135,9 @@ class EcoDietApi {
         }),
       );
       await _touchBridgeSessionActivity();
-    } catch (_) {}
+    } catch (error, stack) {
+      _logIgnored('_saveBridgeSession', error, stack);
+    }
   }
 
   Future<void> _touchBridgeSessionActivity() async {
@@ -124,14 +146,18 @@ class EcoDietApi {
         key: _bridgeSessionLastActivityKey,
         value: DateTime.now().toUtc().toIso8601String(),
       );
-    } catch (_) {}
+    } catch (error, stack) {
+      _logIgnored('_touchBridgeSessionActivity', error, stack);
+    }
   }
 
   Future<void> _clearBridgeSession() async {
     try {
       await _storage.delete(key: _bridgeSessionUserKey);
       await _storage.delete(key: _bridgeSessionLastActivityKey);
-    } catch (_) {}
+    } catch (error, stack) {
+      _logIgnored('_clearBridgeSession', error, stack);
+    }
   }
 
   Future<bool> _restoreBridgeSession() async {
@@ -175,7 +201,8 @@ class EcoDietApi {
       await _touchBridgeSessionActivity();
       _resetLocalBridgeStateCache();
       return true;
-    } catch (_) {
+    } catch (error, stack) {
+      _logIgnored('_restoreBridgeSession', error, stack);
       return false;
     }
   }
@@ -290,7 +317,8 @@ class EcoDietApi {
           _localFolderRecipes = map;
         }
       }
-    } catch (_) {
+    } catch (error, stack) {
+      _logIgnored('_ensureLocalBridgeStateLoaded', error, stack);
       _localFavoriteIds = <String>{};
       _localFolderRecipes = <int, Set<String>>{};
       _localFolders = <Map<String, dynamic>>[];
@@ -328,7 +356,9 @@ class EcoDietApi {
           '[FOLDER_DEBUG][SAVE] folders=${_localFolders.length} links=${serializable.length} data=$serializable',
         );
       }
-    } catch (_) {}
+    } catch (error, stack) {
+      _logIgnored('_saveLocalBridgeState', error, stack);
+    }
   }
 
   void _resetLocalBridgeStateCache() {
@@ -381,13 +411,16 @@ class EcoDietApi {
 
     try {
       return jsonDecode(trimmed);
-    } catch (_) {
+    } catch (error, stack) {
+      _logIgnored('_decodeBridgeBody', error, stack, expected: true);
       // Some bridge implementations return concatenated JSON objects
       // without an outer array. Try lenient decoding.
       if (!trimmed.startsWith('[') && trimmed.contains('},{')) {
         try {
           return jsonDecode('[$trimmed]');
-        } catch (_) {}
+        } catch (error, stack) {
+          _logIgnored('_decodeBridgeBody', error, stack, expected: true);
+        }
       }
 
       // NDJSON / one object per line fallback.
@@ -399,7 +432,9 @@ class EcoDietApi {
       if (lines.isNotEmpty && lines.every((l) => l.startsWith('{') && l.endsWith('}'))) {
         try {
           return lines.map((l) => jsonDecode(l)).toList();
-        } catch (_) {}
+        } catch (error, stack) {
+          _logIgnored('_decodeBridgeBody', error, stack, expected: true);
+        }
       }
 
       rethrow;
@@ -467,7 +502,9 @@ class EcoDietApi {
       try {
         final rows = await _bridgeGetTable(name);
         if (rows.isNotEmpty) return rows;
-      } catch (_) {}
+      } catch (error, stack) {
+        _logIgnored('_bridgeGetTableAny', error, stack);
+      }
     }
     return [];
   }
@@ -722,7 +759,8 @@ class EcoDietApi {
         nom = userData['nom'] as String? ?? nom;
         prenom = userData['prenom'] as String? ?? prenom;
       }
-    } catch (_) {
+    } catch (error, stack) {
+      _logIgnored('_buildCurrentUser', error, stack);
       // Table profil absente/inaccessible: les metadata Auth suffisent.
     }
 
@@ -754,7 +792,8 @@ class EcoDietApi {
           'prenom': prenom,
         });
       }
-    } catch (_) {
+    } catch (error, stack) {
+      _logIgnored('_ensureUserProfile', error, stack);
       // Ne bloque pas l'auth si la table profil/RLS n'est pas encore prete.
     }
   }
@@ -772,7 +811,8 @@ class EcoDietApi {
       if (existing == null) {
         await createFolder(label: 'Favoris', colorValue: 0xFFE53935);
       }
-    } catch (_) {
+    } catch (error, stack) {
+      _logIgnored('_ensureDefaultFolder', error, stack);
       // Les dossiers ne sont pas critiques pour laisser entrer l'utilisateur.
     }
   }
@@ -880,7 +920,8 @@ class EcoDietApi {
               'prenom': prenom,
             });
           }
-        } catch (_) {
+        } catch (error, stack) {
+          _logIgnored('register', error, stack);
           // RLS ou table inaccessible — l'auth Supabase suffit
         }
 
@@ -987,7 +1028,8 @@ class EcoDietApi {
             nom = userData['nom'] ?? nom;
             prenom = userData['prenom'] ?? prenom;
           }
-        } catch (_) {
+        } catch (error, stack) {
+          _logIgnored('login', error, stack);
           // RLS ou table inaccessible — on continue avec les metadata Auth
         }
 
@@ -1069,11 +1111,15 @@ class EcoDietApi {
       try {
         final res = await _bridgeGet('/v1/recettes');
         return (res as List).map((m) => Recette.fromMap(m)).toList();
-      } catch (_) {}
+      } catch (error, stack) {
+        _logIgnored('getAllRecettes', error, stack);
+      }
       try {
         final rows = await _bridgeGetRecettesFromRoot();
         return rows.map(Recette.fromMap).toList();
-      } catch (_) {}
+      } catch (error, stack) {
+        _logIgnored('getAllRecettes', error, stack);
+      }
       throw Exception(
         'Mode gcp_bridge actif, mais impossible de recuperer les recettes depuis Cloud Run.',
       );
@@ -1096,14 +1142,18 @@ class EcoDietApi {
         final end = (offset + limit) > rows.length ? rows.length : offset + limit;
         final page = rows.sublist(offset, end);
         return await _bridgeBuildPreviewsFromBase(page);
-      } catch (_) {}
+      } catch (error, stack) {
+        _logIgnored('getRecettesPreview', error, stack);
+      }
       try {
         final res = await _bridgeGet(
           '/v1/recettes/preview',
           query: {'limit': '$limit', 'offset': '$offset'},
         );
         return (res as List).map((m) => RecettePreview.fromMap(m)).toList();
-      } catch (_) {}
+      } catch (error, stack) {
+        _logIgnored('getRecettesPreview', error, stack);
+      }
       throw Exception(
         'Mode gcp_bridge actif, mais impossible de recuperer les previews recettes depuis Cloud Run.',
       );
@@ -1130,7 +1180,8 @@ class EcoDietApi {
                 'fact_recette_type_plat(dim_type_plat(libelle))')
             .range(offset, offset + limit - 1);
         return (res as List).map((m) => RecettePreview.fromMap(m)).toList();
-      } catch (_) {
+      } catch (error, stack) {
+        _logIgnored('getRecettesPreview', error, stack);
         return [];
       }
     }
@@ -1164,7 +1215,9 @@ class EcoDietApi {
               .map((r) => '${r['recette_id'] ?? r['recipe_id'] ?? ''}')
               .where((id) => id.isNotEmpty),
         );
-      } catch (_) {}
+      } catch (error, stack) {
+        _logIgnored('getFavoriteIds', error, stack);
+      }
       _localFavoriteIds = ids;
       await _saveLocalBridgeState();
       return ids;
@@ -1204,11 +1257,15 @@ class EcoDietApi {
         final rows = await _bridgeGetRecettesFromRoot();
         final match = rows.where((row) => row['recette_id'] == recetteId);
         if (match.isNotEmpty) return Recette.fromMap(match.first);
-      } catch (_) {}
+      } catch (error, stack) {
+        _logIgnored('getRecetteById', error, stack);
+      }
       try {
         final res = await _bridgeGet('/v1/recettes/$recetteId');
         return Recette.fromMap(res as Map<String, dynamic>);
-      } catch (_) {}
+      } catch (error, stack) {
+        _logIgnored('getRecetteById', error, stack);
+      }
     }
     try {
       final res = await _supabase
@@ -1416,7 +1473,9 @@ class EcoDietApi {
         _bridgeRecetteCompleteCache[recetteId] = complete;
         _bridgeRecetteCompleteCacheAt[recetteId] = DateTime.now();
         return complete;
-      } catch (_) {}
+      } catch (error, stack) {
+        _logIgnored('getRecetteComplete', error, stack);
+      }
       try {
         final res = await _bridgeGet('/v1/recettes/$recetteId/complete');
         final complete =
@@ -1424,7 +1483,9 @@ class EcoDietApi {
         _bridgeRecetteCompleteCache[recetteId] = complete;
         _bridgeRecetteCompleteCacheAt[recetteId] = DateTime.now();
         return complete;
-      } catch (_) {}
+      } catch (error, stack) {
+        _logIgnored('getRecetteComplete', error, stack);
+      }
       return null;
     }
 
@@ -1550,7 +1611,8 @@ class EcoDietApi {
           .map(Ingredient.fromMap)
           .toList();
       if (ingredients.isNotEmpty) return ingredients;
-    } catch (_) {
+    } catch (error, stack) {
+      _logIgnored('_getRecipeIngredients', error, stack);
       // Fallback below handles projects where PostgREST cannot infer nesting.
     }
 
@@ -1574,7 +1636,8 @@ class EcoDietApi {
           .whereType<Map>()
           .map((row) => Ingredient.fromMap(Map<String, dynamic>.from(row)))
           .toList();
-    } catch (_) {
+    } catch (error, stack) {
+      _logIgnored('_getRecipeIngredients', error, stack);
       return [];
     }
   }
@@ -1756,7 +1819,8 @@ class EcoDietApi {
         return rows.any(
           (r) => '${r['recette_id'] ?? r['recipe_id'] ?? ''}' == recetteId,
         );
-      } catch (_) {
+      } catch (error, stack) {
+        _logIgnored('isFavorite', error, stack);
         return FavoritesService().isFavorite(recetteId);
       }
     }
@@ -1786,14 +1850,16 @@ class EcoDietApi {
           'recette_id': recetteId,
         }));
         return true;
-      } catch (_) {
+      } catch (error, stack) {
+        _logIgnored('addToFavorites', error, stack);
         try {
           await _bridgePost('/favorites', _stripNulls({
             'user_id': _currentUser!.userId,
             'recette_id': recetteId,
           }));
           return true;
-        } catch (_) {
+        } catch (error, stack) {
+          _logIgnored('addToFavorites', error, stack);
           return true;
         }
       }
@@ -1823,7 +1889,8 @@ class EcoDietApi {
           'recette_id': recetteId,
         }));
         return true;
-      } catch (_) {
+      } catch (error, stack) {
+        _logIgnored('removeFromFavorites', error, stack);
         return true;
       }
     }
@@ -1867,7 +1934,8 @@ class EcoDietApi {
             .where((r) => allIds.contains('${r['recette_id'] ?? ''}'))
             .map((r) => Recette.fromMap(r))
             .toList();
-      } catch (_) {
+      } catch (error, stack) {
+        _logIgnored('getFavorites', error, stack);
         if (_localFavoriteIds.isEmpty) return [];
         try {
           final base = await _bridgeGetRecettesFromRoot();
@@ -1875,7 +1943,8 @@ class EcoDietApi {
               .where((r) => _localFavoriteIds.contains('${r['recette_id'] ?? ''}'))
               .map((r) => Recette.fromMap(r))
               .toList();
-        } catch (_) {
+        } catch (error, stack) {
+          _logIgnored('getFavorites', error, stack);
           return [];
         }
       }
@@ -1977,7 +2046,9 @@ class EcoDietApi {
               .eq('folder_id', folder.folderId!)
               .count(CountOption.exact);
           folder.recipeCount = countRes.count;
-        } catch (_) {}
+        } catch (error, stack) {
+          _logIgnored('getFolders', error, stack);
+        }
         folders.add(folder);
       }
       return folders;
@@ -2063,7 +2134,8 @@ class EcoDietApi {
           .eq('folder_id', folderId)
           .eq('user_id', _currentUser!.userId!);
       return true;
-    } catch (_) {
+    } catch (error, stack) {
+      _logIgnored('updateFolder', error, stack);
       return false;
     }
   }
@@ -2149,7 +2221,8 @@ class EcoDietApi {
             .where((r) => localIds.contains('${r['recette_id'] ?? ''}'))
             .map((r) => Recette.fromMap(r))
             .toList();
-      } catch (_) {
+      } catch (error, stack) {
+        _logIgnored('getRecipesInFolder', error, stack);
         if (_debugFolders) {
           debugPrint('[FOLDER_DEBUG][GET_RECIPES] bridge base fetch failed');
         }
@@ -2332,7 +2405,9 @@ class EcoDietApi {
             prefs.add(UserPreference(label: 'Allergènes', value: allergies));
           }
         }
-      } catch (_) {}
+      } catch (error, stack) {
+        _logIgnored('getUserPreferences', error, stack);
+      }
       return prefs;
     }
     final preferences = <UserPreference>[];
@@ -2542,7 +2617,8 @@ class EcoDietApi {
           ['dim_ingredients', 'dim_ingredient'],
         );
         return rows.map((m) => Ingredient.fromMap(m)).toList();
-      } catch (_) {
+      } catch (error, stack) {
+        _logIgnored('getAllIngredients', error, stack);
         return [];
       }
     }
@@ -2566,7 +2642,8 @@ class EcoDietApi {
           return value.isNotEmpty && value == normalized;
         });
         return !exists;
-      } catch (_) {
+      } catch (error, stack) {
+        _logIgnored('isPseudoAvailable', error, stack);
         // En cas d'erreur backend, on reste permissif pour ne pas bloquer l'UX.
         return true;
       }
@@ -2580,7 +2657,8 @@ class EcoDietApi {
           .limit(1)
           .maybeSingle();
       return existing == null;
-    } catch (_) {
+    } catch (error, stack) {
+      _logIgnored('isPseudoAvailable', error, stack);
       return true;
     }
   }
@@ -2597,7 +2675,8 @@ class EcoDietApi {
           return value.isNotEmpty && value == normalized;
         });
         return !exists;
-      } catch (_) {
+      } catch (error, stack) {
+        _logIgnored('isEmailAvailable', error, stack);
         return true;
       }
     }
@@ -2610,7 +2689,8 @@ class EcoDietApi {
           .limit(1)
           .maybeSingle();
       return existing == null;
-    } catch (_) {
+    } catch (error, stack) {
+      _logIgnored('isEmailAvailable', error, stack);
       return true;
     }
   }
