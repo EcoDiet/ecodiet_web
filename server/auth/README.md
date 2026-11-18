@@ -23,10 +23,16 @@ de mots de passe) dans le navigateur pour comparer les mots de passe.
 | `POST /auth/email-available` | `email` | `{available}` |
 | `POST /auth/pseudo-available` | `pseudo` | `{available}` |
 | `GET /auth/me` | en-tête `Authorization: Bearer <jeton>` | `{user, preferences}` |
+| `GET /catalog/previews` | public | vignettes des recettes, gzip, ETag, cache 10 min |
 | `GET /me/state` | `Authorization: Bearer <jeton>` | `{state, updated_at}` : favoris, dossiers, préférences, nom |
 | `PUT /me/state` | `Authorization: Bearer <jeton>`, `{state}` (64 Ko max) | `{updated_at}` |
 | `POST /auth/password-reset/request` | `email` | `{ok}`, que le compte existe ou non. Au plus 3 e-mails par heure. |
 | `POST /auth/password-reset/confirm` | `token, password` | `{ok}` · `400` lien invalide, expiré ou déjà utilisé |
+
+Le catalogue remplace les 13 tables brutes que chaque navigateur
+téléchargeait et joignait lui-même : 850 Ko en 13 requêtes deviennent 42 Ko
+compressés en une seule (mesuré sur les 300 recettes actuelles). Les étapes
+ne sont plus envoyées pour les vignettes.
 
 Les données du compte sont un document JSON par utilisateur, stocké dans la
 table `user_state` (`sql/user_state.sql`). L'app le récupère à la connexion,
@@ -44,6 +50,8 @@ session.
 npm test       # tests, sans dépendance installée
 npm run dev    # serveur local en mémoire sur :8790, ne jamais déployer.
                # Les e-mails sont affichés dans la console.
+               # BRIDGE_URL=<service Cloud Run> : catalogue construit à
+               # partir de ses tables.
 ```
 
 Pour tester l'app contre ce serveur :
@@ -68,6 +76,7 @@ flutter run -d chrome --dart-define=AUTH_URL=http://127.0.0.1:8790
    | `AUTH_SECRET` | 32 caractères aléatoires ou plus, via Secret Manager. Jamais dans Git. |
    | `USERS_TABLE` | `projet.dataset.dim_utilisateur` |
    | `ALLOWED_ORIGINS` | `https://gdemerges.github.io,http://localhost:5000` |
+   | `CATALOG_DATASET` | `projet.dataset` des tables recettes. Absent : `/catalog/previews` répond 501 et l'app garde les tables. |
    | `USER_STATE_TABLE` | `projet.dataset.user_state`, à créer avec `sql/user_state.sql` |
    | `RESET_URL` | `https://gdemerges.github.io/ecodiet_web/#/reset_password` |
    | `RESEND_API_KEY`, `MAIL_FROM` | clé [Resend](https://resend.com) via Secret Manager, et expéditeur d'un domaine vérifié. Sans clé, « Mot de passe oublié » répond 503. |

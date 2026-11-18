@@ -13,6 +13,7 @@
 //   POST /auth/email-available {email}                      -> {available}
 //   POST /auth/pseudo-available {pseudo}                    -> {available}
 //   GET  /auth/me              Authorization: Bearer <jeton> -> {user, preferences}
+//   GET  /catalog/previews     (public)                      -> vignettes de recettes
 //   GET  /me/state             Bearer                        -> {state, updated_at}
 //   PUT  /me/state             Bearer, {state}               -> {updated_at}
 //   POST /auth/password-reset/request {email}               -> {ok} (toujours)
@@ -138,6 +139,8 @@ function clientIp(req) {
  * @param {{send: Function}} [options.mailer] envoi des e-mails ; sans lui, la
  *   réinitialisation du mot de passe répond 503
  * @param {string} [options.resetUrl] page de l'app qui reçoit `?token=`
+ * @param {{get: Function}} [options.catalog] catalogue des recettes
+ *   (src/catalog.js) ; sans lui, /catalog/previews répond 501
  * @returns {(req, res) => Promise<boolean>} vrai si la requête a été traitée
  */
 export function createAuthHandler({
@@ -150,6 +153,7 @@ export function createAuthHandler({
   mailer,
   resetUrl = '',
   resetTtlSeconds = 3600,
+  catalog,
   now = () => Date.now(),
 }) {
   if (!secret || secret.length < 32) {
@@ -396,13 +400,50 @@ export function createAuthHandler({
     res.end(JSON.stringify(payload));
   }
 
+  async function sendCatalog(req, res) {
+    if (!catalog) {
+      send(res, 501, { error: 'Catalogue indisponible.' });
+      return;
+    }
+    let data;
+    try {
+      data = await catalog.get();
+    } catch (error) {
+      console.error('catalogue :', error);
+      send(res, 503, { error: 'Catalogue indisponible.' });
+      return;
+    }
+    res.setHeader('ETag', data.etag);
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.setHeader('Vary', 'Origin, Accept-Encoding');
+    if (req.headers['if-none-match'] === data.etag) {
+      res.statusCode = 304;
+      res.end();
+      return;
+    }
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    if (/\bgzip\b/.test(String(req.headers['accept-encoding'] ?? ''))) {
+      res.setHeader('Content-Encoding', 'gzip');
+      res.end(data.gzip);
+    } else {
+      res.end(data.json);
+    }
+  }
+
   return async function handleAuth(req, res) {
     const path = new URL(req.url ?? '/', 'http://localhost').pathname.replace(/\/+$/, '');
-    if (!path.startsWith('/auth/') && !path.startsWith('/me/')) return false;
+    if (!['/auth/', '/me/', '/catalog/'].some((prefix) => path.startsWith(prefix))) {
+      return false;
+    }
     applyCors(req, res);
     if (req.method === 'OPTIONS') {
       res.statusCode = 204;
       res.end();
+      return true;
+    }
+    if (req.method === 'GET' && path === '/catalog/previews') {
+      await sendCatalog(req, res);
       return true;
     }
     const route = routes[`${req.method} ${path}`];

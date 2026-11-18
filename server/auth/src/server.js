@@ -7,6 +7,8 @@
 //   BQ_LOCATION       région BigQuery (ex. EU)
 //   ALLOWED_ORIGINS   origines autorisées, séparées par des virgules
 //   USER_STATE_TABLE  table des données du compte (sql/user_state.sql)
+//   CATALOG_DATASET   dataset des tables recettes (projet.dataset) pour
+//                     /catalog/previews ; absent : route désactivée
 //   RESET_URL         page de l'app pour le nouveau mot de passe, ex.
 //                     https://gdemerges.github.io/ecodiet_web/#/reset_password
 //   RESEND_API_KEY    clé Resend pour envoyer les e-mails (Secret Manager)
@@ -16,6 +18,7 @@
 import http from 'node:http';
 
 import { createBigQueryStore } from './bigquery_store.js';
+import { bigQueryTableLoader, createCatalog } from './catalog.js';
 import { createAuthHandler } from './handler.js';
 import { createResendMailer } from './mailers.js';
 
@@ -28,8 +31,9 @@ for (const name of ['AUTH_SECRET', 'USERS_TABLE']) {
 }
 
 const { BigQuery } = await import('@google-cloud/bigquery');
+const bigquery = new BigQuery();
 const store = createBigQueryStore({
-  bigquery: new BigQuery(),
+  bigquery,
   table: env.USERS_TABLE,
   passwordColumn: env.PASSWORD_COLUMN || 'mdp',
   idColumn: env.USER_ID_COLUMN || 'user_id',
@@ -46,6 +50,15 @@ const handleAuth = createAuthHandler({
     .map((origin) => origin.trim())
     .filter(Boolean),
   resetUrl: env.RESET_URL || '',
+  catalog: env.CATALOG_DATASET
+    ? createCatalog({
+        loadTable: bigQueryTableLoader({
+          bigquery,
+          dataset: env.CATALOG_DATASET,
+          location: env.BQ_LOCATION || undefined,
+        }),
+      })
+    : undefined,
   mailer: env.RESEND_API_KEY
     ? createResendMailer({ apiKey: env.RESEND_API_KEY, from: env.MAIL_FROM })
     : undefined,

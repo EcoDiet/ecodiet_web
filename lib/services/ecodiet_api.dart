@@ -124,6 +124,8 @@ class EcoDietApi {
   void _clearBridgeDataCaches() {
     _bridgeRecettesCache = null;
     _bridgeRecettesCacheAt = null;
+    _catalogCache = null;
+    _catalogCacheAt = null;
     _bridgeTableCache.clear();
     _bridgeTableCacheAt.clear();
     _bridgeRecetteCompleteCache.clear();
@@ -375,6 +377,7 @@ class EcoDietApi {
       final state = body['state'];
       if (status != 200 || state is! Map) return;
       if (state.isEmpty) {
+        _lastSyncedState = jsonEncode(<String, dynamic>{});
         if ((await _localStateDocument()).isNotEmpty) await _pushServerState();
         return;
       }
@@ -1427,6 +1430,11 @@ class EcoDietApi {
   /// Retourne les recettes avec leur type de plat en une seule requête
   Future<List<RecettePreview>> getRecettesPreview(
       {int limit = 20, int offset = 0}) async {
+    final catalog = await _catalogPreviews();
+    if (catalog != null) {
+      if (offset >= catalog.length) return [];
+      return catalog.sublist(offset, (offset + limit).clamp(0, catalog.length));
+    }
     if (_useGcpBridge) {
       try {
         final rows = await _bridgeGetRecettesFromRoot();
@@ -1479,8 +1487,68 @@ class EcoDietApi {
     }
   }
 
+  List<RecettePreview>? _catalogCache;
+  DateTime? _catalogCacheAt;
+  Future<List<RecettePreview>?>? _catalogPending;
+
+  /// Vignettes jointes côté serveur (/catalog/previews) : une requête
+  /// compressée au lieu des 13 tables brutes. `null` si indisponible.
+  Future<List<RecettePreview>?> _catalogPreviews() async {
+    if (!usesAuthService) return null;
+    if (_catalogCache != null && _isCacheValid(_catalogCacheAt)) {
+      return _catalogCache;
+    }
+    // Appels simultanés (accueil : vignettes et filtres) : une seule requête.
+    return _catalogPending ??=
+        _fetchCatalog().whenComplete(() => _catalogPending = null);
+  }
+
+  Future<List<RecettePreview>?> _fetchCatalog() async {
+    try {
+      final response = await _authHttp.get(
+        Uri.parse('$_authBaseUrl/catalog/previews'),
+        headers: {'Accept': 'application/json'},
+      );
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! List || decoded.isEmpty) return null;
+      List<String> strings(dynamic v) =>
+          v is List ? v.map((e) => '$e').where((e) => e.isNotEmpty).toList() : [];
+      String? optional(dynamic v) {
+        final s = v?.toString().trim() ?? '';
+        return s.isEmpty ? null : s;
+      }
+
+      final previews = [
+        for (final raw in decoded.whereType<Map>())
+          RecettePreview(
+            recetteId: '${raw['recette_id'] ?? ''}',
+            titre: '${raw['titre'] ?? ''}',
+            photo: '${raw['photo'] ?? ''}',
+            dureeMinute: _toInt(raw['duree_minute']),
+            tempsBinId: _toInt(raw['temps_bin_id']),
+            typePlatLibelle: optional(raw['type_plat']),
+            regimeLibelle: optional(raw['regime']),
+            ingredients: strings(raw['ingredients']),
+            equipements: strings(raw['equipements']),
+            allergenes: strings(raw['allergenes']),
+            occasions: strings(raw['occasions']),
+          ),
+      ];
+      _catalogCache = previews;
+      _catalogCacheAt = DateTime.now();
+      return previews;
+    } catch (error, stack) {
+      _logIgnored('_catalogPreviews', error, stack);
+      return null;
+    }
+  }
+
   Future<List<RecettePreview>> getAllRecettesPreview(
       {int pageSize = 1000}) async {
+    final catalog = await _catalogPreviews();
+    if (catalog != null) return List.of(catalog);
+
     final recettes = <RecettePreview>[];
     var offset = 0;
 
@@ -3124,6 +3192,19 @@ class EcoDietApi {
   }
 
   Future<List<Ingredient>> getAllIngredients() async {
+    // Avec le catalogue, les noms y sont déjà (même colonne nom_ingredient) :
+    // inutile de télécharger dim_ingredients (~120 Ko) pour les filtres.
+    final catalog = await _catalogPreviews();
+    if (catalog != null) {
+      final names = <String>{
+        for (final r in catalog) ...r.ingredients.where((n) => n.trim().isNotEmpty)
+      }.toList()
+        ..sort();
+      return [
+        for (var i = 0; i < names.length; i++)
+          Ingredient(ingredientId: i + 1, nomIngredient: names[i]),
+      ];
+    }
     if (_useGcpBridge) {
       try {
         final rows = await _bridgeGetTableAny(

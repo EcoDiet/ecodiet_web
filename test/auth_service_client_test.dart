@@ -324,4 +324,45 @@ void main() {
       expect(result.isSuccess, isTrue);
     });
   });
+
+  test('vignettes : catalogue du service en une requête, puis cache', () async {
+    var calls = 0;
+    routes['GET https://auth.example.test/catalog/previews'] = (_) {
+      calls++;
+      return json(200, [
+        {
+          'recette_id': 'r1',
+          'titre': 'Curry',
+          'photo': 'c.jpg',
+          'duree_minute': 30,
+          'temps_bin_id': 2,
+          'type_plat': 'plat principal',
+          'regime': 'vegan',
+          'ingredients': ['Tomate', 'Riz'],
+          'equipements': [],
+          'allergenes': ['gluten'],
+          'occasions': null,
+        },
+        {'recette_id': 'r2', 'titre': 'Soupe', 'type_plat': ''},
+      ]);
+    };
+
+    final both = await Future.wait(
+        [api.getAllRecettesPreview(), api.getRecettesPreview(limit: 1)]);
+    expect(calls, 1, reason: 'appels simultanés regroupés');
+    final all = both.first;
+    expect(all.map((r) => r.recetteId), ['r1', 'r2']);
+    expect(all.first.ingredients, ['Tomate', 'Riz']);
+    expect(all.first.regimeLibelle, 'vegan');
+    expect(all.last.typePlatLibelle, isNull);
+    expect(all.last.occasions, isEmpty);
+
+    final page = await api.getRecettesPreview(limit: 1, offset: 1);
+    expect(page.single.titre, 'Soupe');
+    expect(calls, 1, reason: 'servi depuis le cache');
+
+    final ingredients = await api.getAllIngredients();
+    expect(ingredients.map((i) => i.nomIngredient), ['Riz', 'Tomate']);
+    expect(calls, 1);
+  });
 }
