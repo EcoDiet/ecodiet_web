@@ -5,104 +5,9 @@ import 'package:flutter/services.dart';
 import 'package:email_validator/email_validator.dart';
 import '../services/ecodiet_api.dart';
 import '../utils/responsive.dart';
+import 'create_account/onboarding_options.dart';
+import 'create_account/onboarding_widgets.dart';
 
-// ── Modèles de données des options ──────────────────────────────────────────
-
-class _GoalOption {
-  final String value;
-  final IconData icon;
-  final String label;
-  final String sub;
-  const _GoalOption({
-    required this.value,
-    required this.icon,
-    required this.label,
-    required this.sub,
-  });
-}
-
-class _DietOption {
-  final String value;
-  final String label;
-  final String emoji;
-  const _DietOption({
-    required this.value,
-    required this.label,
-    required this.emoji,
-  });
-}
-
-class _AllergyOption {
-  final String value;
-  final String label;
-  final String emoji;
-  const _AllergyOption({
-    required this.value,
-    required this.label,
-    required this.emoji,
-  });
-}
-
-const _goalOptions = [
-  _GoalOption(
-    value: 'lose_weight',
-    icon: Icons.trending_down,
-    label: 'Perdre du poids',
-    sub: 'Atteindre mon poids idéal',
-  ),
-  _GoalOption(
-    value: 'maintain',
-    icon: Icons.balance,
-    label: 'Maintenir mon poids',
-    sub: 'Garder ma forme actuelle',
-  ),
-  _GoalOption(
-    value: 'gain_muscle',
-    icon: Icons.fitness_center,
-    label: 'Prendre de la masse',
-    sub: 'Développer ma masse musculaire',
-  ),
-  _GoalOption(
-    value: 'eat_healthy',
-    icon: Icons.spa_outlined,
-    label: 'Manger équilibré',
-    sub: 'Adopter de meilleures habitudes',
-  ),
-  _GoalOption(
-    value: 'reduce_carbon',
-    icon: Icons.eco_outlined,
-    label: 'Réduire mon empreinte carbone',
-    sub: 'Manger local et durable',
-  ),
-];
-
-const _dietOptions = [
-  _DietOption(value: 'omnivore', label: 'Omnivore', emoji: '🥩'),
-  _DietOption(value: 'vegetarian', label: 'Végétarien', emoji: '🥦'),
-  _DietOption(value: 'vegan', label: 'Végétalien', emoji: '🌱'),
-  _DietOption(value: 'pescatarian', label: 'Pescétarien', emoji: '🐟'),
-  _DietOption(value: 'flexitarian', label: 'Flexitarien', emoji: '🥗'),
-];
-
-const _allergyOptions = [
-  _AllergyOption(value: 'gluten', label: 'Gluten', emoji: '🌾'),
-  _AllergyOption(value: 'lactose', label: 'Lactose', emoji: '🥛'),
-  _AllergyOption(value: 'nuts', label: 'Fruits à coque', emoji: '🌰'),
-  _AllergyOption(value: 'seafood', label: 'Fruits de mer', emoji: '🦐'),
-  _AllergyOption(value: 'eggs', label: 'Œufs', emoji: '🥚'),
-  _AllergyOption(value: 'soy', label: 'Soja', emoji: '🫘'),
-  _AllergyOption(value: 'peanuts', label: 'Arachides', emoji: '🥜'),
-];
-
-const _stepTitles = [
-  'Créer un compte',
-  'Mon profil',
-  'Mon objectif',
-  'Mon régime',
-  'Mes intolérances',
-];
-
-// ── Page principale ──────────────────────────────────────────────────────────
 
 class CreateAccountPage extends StatefulWidget {
   const CreateAccountPage({Key? key}) : super(key: key);
@@ -374,6 +279,21 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     _goToStep(1);
   }
 
+  Widget _genderChip(String label, IconData icon, String value) {
+    return GenderChip(
+      label: label,
+      icon: icon,
+      selected: _gender == value,
+      onTap: () => setState(() => _gender = value),
+    );
+  }
+
+  void _toggleAllergy(String value) {
+    setState(() {
+      if (!_allergies.remove(value)) _allergies.add(value);
+    });
+  }
+
   // ── Build principal ─────────────────────────────────────────────────────────
 
   @override
@@ -388,7 +308,11 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
             // Panneau branding gauche
             Expanded(
               flex: 5,
-              child: _buildBrandingPanel(),
+              child: OnboardingBrandingPanel(
+                currentStep: _currentStep,
+                onLogoTap: () =>
+                    Navigator.pushReplacementNamed(context, '/login'),
+              ),
             ),
             // Panneau formulaire droite
             Expanded(
@@ -415,76 +339,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  // ── Panneau branding (desktop gauche) ───────────────────────────────────────
-
-  Widget _buildBrandingPanel() {
-    return Container(
-      color: const Color(0xFF1F3A24),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          GestureDetector(
-            onTap: () => Navigator.pushReplacementNamed(context, '/login'),
-            child: Image.asset('lib/assets/logo/EcoDiet-Logo-beige.png', height: 200, semanticLabel: 'Logo EcoDiet'),
-          ),
-          const SizedBox(height: 20),
-          const Text(
-            'Mangez sainement, naturellement.',
-            style: TextStyle(color: Color(0xFF8FBF97), fontSize: 16),
-          ),
-          const SizedBox(height: 48),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-            decoration: BoxDecoration(
-              border: Border.all(color: const Color(0xFF2F5435)),
-              borderRadius: BorderRadius.circular(24),
-            ),
-            child: const Text(
-              'Des recettes saines pour la planète',
-              style: TextStyle(color: Color(0xFF8FBF97), fontSize: 13),
-            ),
-          ),
-          const SizedBox(height: 48),
-          // Indicateur d'étapes animé
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: List.generate(5, (i) {
-              final isActive = i == _currentStep;
-              final isDone = i < _currentStep;
-              return Row(
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 300),
-                    curve: Curves.easeInOut,
-                    width: isActive ? 28 : 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: isDone
-                          ? const Color(0xFF63A96E)
-                          : isActive
-                              ? const Color(0xFF8FBF97)
-                              : const Color(0xFF2F5435),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                  ),
-                  if (i < 4) const SizedBox(width: 6),
-                ],
-              );
-            }),
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Étape ${_currentStep + 1} sur 5',
-            style: const TextStyle(
-              color: Color(0xFF8FBF97),
-              fontSize: 12,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -571,7 +425,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                       ),
                       Expanded(
                         child: Text(
-                          _stepTitles[_currentStep],
+                          onboardingStepTitles[_currentStep],
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.bold,
@@ -631,73 +485,6 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     ];
   }
 
-  // ── Helpers UI ──────────────────────────────────────────────────────────────
-
-  Widget _buildLabel(String text) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Text(
-        text,
-        style: const TextStyle(
-          fontSize: 13,
-          fontWeight: FontWeight.w600,
-          color: Color(0xFF1F2E1F),
-        ),
-      ),
-    );
-  }
-
-  InputDecoration _fieldDecoration(String hint,
-      {Widget? suffixIcon, Widget? prefixIcon}) {
-    return InputDecoration(
-      hintText: hint,
-      hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
-      filled: true,
-      fillColor: Colors.white,
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: const BorderSide(color: Colors.grey),
-      ),
-      enabledBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide: BorderSide(color: Colors.grey.shade300),
-      ),
-      focusedBorder: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(8),
-        borderSide:
-            const BorderSide(color: Color(0xFF63A96E), width: 2),
-      ),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-      suffixIcon: suffixIcon,
-      prefixIcon: prefixIcon,
-    );
-  }
-
-  Widget _buildPrimaryButton(String label, VoidCallback? onPressed) {
-    return SizedBox(
-      width: double.infinity,
-      height: 50,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: onPressed != null
-              ? const Color(0xFF2F6B3F)
-              : Colors.grey[300],
-          foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(8)),
-          elevation: 0,
-        ),
-        child: Text(
-          label,
-          style: const TextStyle(
-              fontSize: 15, fontWeight: FontWeight.w600),
-        ),
-      ),
-    );
-  }
-
   // ── Étape 1 : Compte ────────────────────────────────────────────────────────
 
   Widget _buildStep1() {
@@ -713,10 +500,10 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildLabel('Prénom'),
+                    const OnboardingLabel(text: 'Prénom'),
                     TextField(
                       controller: _firstNameController,
-                      decoration: _fieldDecoration('Jean'),
+                      decoration: onboardingFieldDecoration('Jean'),
                       textCapitalization: TextCapitalization.words,
                     ),
                   ],
@@ -727,10 +514,10 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildLabel('Nom'),
+                    const OnboardingLabel(text: 'Nom'),
                     TextField(
                       controller: _lastNameController,
-                      decoration: _fieldDecoration('Dupont'),
+                      decoration: onboardingFieldDecoration('Dupont'),
                       textCapitalization: TextCapitalization.words,
                     ),
                   ],
@@ -740,10 +527,10 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           ),
           const SizedBox(height: 12),
 
-          _buildLabel('Email'),
+          const OnboardingLabel(text: 'Email'),
           TextField(
             controller: _emailController,
-            decoration: _fieldDecoration(
+            decoration: onboardingFieldDecoration(
               'jean@exemple.com',
               prefixIcon: Icon(Icons.mail_outline,
                   size: 18, color: Colors.grey[400]),
@@ -779,10 +566,10 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           ],
           const SizedBox(height: 12),
 
-          _buildLabel('Pseudo'),
+          const OnboardingLabel(text: 'Pseudo'),
           TextField(
             controller: _pseudoController,
-            decoration: _fieldDecoration(
+            decoration: onboardingFieldDecoration(
               'Ex : jean_du_94',
               prefixIcon: Icon(Icons.alternate_email,
                   size: 18, color: Colors.grey[400]),
@@ -817,11 +604,11 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           ],
           const SizedBox(height: 12),
 
-          _buildLabel('Mot de passe'),
+          const OnboardingLabel(text: 'Mot de passe'),
           TextField(
             controller: _passwordController,
             obscureText: _obscurePassword,
-            decoration: _fieldDecoration(
+            decoration: onboardingFieldDecoration(
               '8 caractères minimum',
               prefixIcon: Icon(Icons.lock_outline,
                   size: 18, color: Colors.grey[400]),
@@ -840,11 +627,11 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           ),
           const SizedBox(height: 12),
 
-          _buildLabel('Confirmer le mot de passe'),
+          const OnboardingLabel(text: 'Confirmer le mot de passe'),
           TextField(
             controller: _confirmController,
             obscureText: _obscureConfirm,
-            decoration: _fieldDecoration(
+            decoration: onboardingFieldDecoration(
               'Répétez le mot de passe',
               prefixIcon: Icon(Icons.lock_outline,
                   size: 18, color: Colors.grey[400]),
@@ -867,7 +654,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           _buildPasswordStrength(),
           const SizedBox(height: 24),
 
-          _buildPrimaryButton('Continuer', () => _validateStep1()),
+          OnboardingPrimaryButton(label: 'Continuer', onPressed: () => _validateStep1()),
           const SizedBox(height: 16),
 
           Row(
@@ -900,7 +687,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
   }
 
   Widget _buildPasswordStrength() {
-    return _PasswordStrengthIndicator(controller: _passwordController);
+    return PasswordStrengthIndicator(controller: _passwordController);
   }
 
   // ── Étape 2 : Profil ────────────────────────────────────────────────────────
@@ -917,19 +704,19 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           ),
           const SizedBox(height: 20),
 
-          _buildLabel('Genre'),
+          const OnboardingLabel(text: 'Genre'),
           Row(
             children: [
-              _buildGenderChip('Homme', Icons.male_outlined, 'male'),
+              _genderChip('Homme', Icons.male_outlined, 'male'),
               const SizedBox(width: 8),
-              _buildGenderChip('Femme', Icons.female_outlined, 'female'),
+              _genderChip('Femme', Icons.female_outlined, 'female'),
               const SizedBox(width: 8),
-              _buildGenderChip('Autre', Icons.person_outline, 'other'),
+              _genderChip('Autre', Icons.person_outline, 'other'),
             ],
           ),
           const SizedBox(height: 16),
 
-          _buildLabel('Date de naissance'),
+          const OnboardingLabel(text: 'Date de naissance'),
           Semantics(
             label: _birthDate != null
                 ? 'Date de naissance : ${_birthDate!.day.toString().padLeft(2, '0')}/${_birthDate!.month.toString().padLeft(2, '0')}/${_birthDate!.year}'
@@ -978,10 +765,10 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildLabel('Taille (cm)'),
+                    const OnboardingLabel(text: 'Taille (cm)'),
                     TextField(
                       controller: _heightController,
-                      decoration: _fieldDecoration('Ex : 170'),
+                      decoration: onboardingFieldDecoration('Ex : 170'),
                       keyboardType: TextInputType.number,
                       inputFormatters: [
                         FilteringTextInputFormatter.digitsOnly
@@ -995,10 +782,10 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    _buildLabel('Poids actuel (kg)'),
+                    const OnboardingLabel(text: 'Poids actuel (kg)'),
                     TextField(
                       controller: _weightController,
-                      decoration: _fieldDecoration('Ex : 68'),
+                      decoration: onboardingFieldDecoration('Ex : 68'),
                       keyboardType: const TextInputType.numberWithOptions(
                           decimal: true),
                     ),
@@ -1009,69 +796,19 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
           ),
           const SizedBox(height: 14),
 
-          _buildLabel('Poids cible (kg)'),
+          const OnboardingLabel(text: 'Poids cible (kg)'),
           TextField(
             controller: _targetWeightController,
-            decoration: _fieldDecoration('Ex : 65'),
+            decoration: onboardingFieldDecoration('Ex : 65'),
             keyboardType:
                 const TextInputType.numberWithOptions(decimal: true),
           ),
           const SizedBox(height: 28),
 
-          _buildPrimaryButton('Continuer', () => _goToStep(2)),
+          OnboardingPrimaryButton(label: 'Continuer', onPressed: () => _goToStep(2)),
         ],
       ),
     );
-  }
-
-  Widget _buildGenderChip(String label, IconData icon, String value) {
-    final selected = _gender == value;
-    return Expanded(
-      child: Semantics(
-        label: label,
-        selected: selected,
-        button: true,
-        child: InkWell(
-          onTap: () => setState(() => _gender = value),
-          borderRadius: BorderRadius.circular(24),
-          child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: selected
-                ? const Color(0xFF2F6B3F)
-                : Colors.white,
-            border: Border.all(
-              color: selected
-                  ? const Color(0xFF2F6B3F)
-                  : Colors.grey.shade300,
-            ),
-            borderRadius: BorderRadius.circular(24),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon,
-                  size: 16,
-                  color:
-                      selected ? Colors.white : const Color(0xFF1F2E1F)),
-              const SizedBox(width: 5),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: selected
-                      ? Colors.white
-                      : const Color(0xFF1F2E1F),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    ),
-  );
   }
 
   Future<void> _pickBirthDate() async {
@@ -1106,98 +843,21 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
             style: TextStyle(fontSize: 13, color: Colors.grey[600]),
           ),
           const SizedBox(height: 16),
-          ..._goalOptions.map(_buildGoalCard),
+          ...goalOptions.map(
+            (option) => GoalCard(
+              option: option,
+              selected: _mainGoal == option.value,
+              onTap: () => setState(() => _mainGoal = option.value),
+            ),
+          ),
           const SizedBox(height: 8),
-          _buildPrimaryButton(
-            'Continuer',
-            _mainGoal != null ? () => _goToStep(3) : null,
+          OnboardingPrimaryButton(
+            label: 'Continuer',
+            onPressed: _mainGoal != null ? () => _goToStep(3) : null,
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildGoalCard(_GoalOption option) {
-    final selected = _mainGoal == option.value;
-    return Semantics(
-      label: '${option.label} : ${option.sub}',
-      selected: selected,
-      button: true,
-      child: InkWell(
-        onTap: () => setState(() => _mainGoal = option.value),
-        borderRadius: BorderRadius.circular(12),
-        child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFF2F6B3F).withValues(alpha: 0.06)
-              : Colors.white,
-          border: Border.all(
-            color: selected
-                ? const Color(0xFF2F6B3F)
-                : Colors.grey.shade200,
-            width: selected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                color: selected
-                    ? const Color(0xFF2F6B3F).withValues(alpha: 0.12)
-                    : const Color(0xFF8FBF97).withValues(alpha: 0.18),
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Icon(
-                option.icon,
-                size: 22,
-                color: selected
-                    ? const Color(0xFF2F6B3F)
-                    : const Color(0xFF63A96E),
-              ),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    option.label,
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1F2E1F),
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    option.sub,
-                    style: TextStyle(
-                        fontSize: 12, color: Colors.grey[700]),
-                  ),
-                ],
-              ),
-            ),
-            if (selected)
-              const Icon(Icons.check_circle,
-                  color: Color(0xFF2F6B3F), size: 22),
-          ],
-        ),
-      ),
-    ),
-  );
   }
 
   // ── Étape 4 : Régime ────────────────────────────────────────────────────────
@@ -1217,67 +877,24 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
             spacing: 10,
             runSpacing: 10,
             children:
-                _dietOptions.map(_buildDietChip).toList(),
+                dietOptions
+                .map(
+                  (option) => DietChip(
+                    option: option,
+                    selected: _dietType == option.value,
+                    onTap: () => setState(() => _dietType = option.value),
+                  ),
+                )
+                .toList(),
           ),
           const SizedBox(height: 32),
-          _buildPrimaryButton(
-            'Continuer',
-            _dietType != null ? () => _goToStep(4) : null,
+          OnboardingPrimaryButton(
+            label: 'Continuer',
+            onPressed: _dietType != null ? () => _goToStep(4) : null,
           ),
         ],
       ),
     );
-  }
-
-  Widget _buildDietChip(_DietOption option) {
-    final selected = _dietType == option.value;
-    return Semantics(
-      label: option.label,
-      selected: selected,
-      button: true,
-      child: InkWell(
-        onTap: () => setState(() => _dietType = option.value),
-        borderRadius: BorderRadius.circular(30),
-        child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFF2F6B3F)
-              : Colors.white,
-          border: Border.all(
-            color: selected
-                ? const Color(0xFF2F6B3F)
-                : Colors.grey.shade300,
-            width: 1.5,
-          ),
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 4,
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(option.emoji, style: const TextStyle(fontSize: 20)),
-            const SizedBox(width: 8),
-            Text(
-              option.label,
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w500,
-                color:
-                    selected ? Colors.white : const Color(0xFF1F2E1F),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
   }
 
   // ── Étape 5 : Allergies ─────────────────────────────────────────────────────
@@ -1302,7 +919,15 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
             spacing: 10,
             runSpacing: 10,
             children:
-                _allergyOptions.map(_buildAllergyChip).toList(),
+                allergyOptions
+                .map(
+                  (option) => AllergyChip(
+                    option: option,
+                    selected: _allergies.contains(option.value),
+                    onTap: () => _toggleAllergy(option.value),
+                  ),
+                )
+                .toList(),
           ),
           const SizedBox(height: 32),
           Row(
@@ -1328,8 +953,8 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
               ),
               const SizedBox(width: 12),
               Expanded(
-                child: _buildPrimaryButton(
-                    'Terminer', _isLoading ? null : _finishOnboarding),
+                child: OnboardingPrimaryButton(
+                    label: 'Terminer', onPressed: _isLoading ? null : _finishOnboarding),
               ),
             ],
           ),
@@ -1338,136 +963,4 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
     );
   }
 
-  Widget _buildAllergyChip(_AllergyOption option) {
-    final selected = _allergies.contains(option.value);
-    return Semantics(
-      label: option.label,
-      selected: selected,
-      button: true,
-      child: InkWell(
-        onTap: () => setState(() {
-          if (selected) {
-            _allergies.remove(option.value);
-          } else {
-            _allergies.add(option.value);
-          }
-        }),
-        borderRadius: BorderRadius.circular(30),
-        child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        decoration: BoxDecoration(
-          color: selected
-              ? const Color(0xFF2F6B3F)
-              : Colors.white,
-          border: Border.all(
-            color: selected
-                ? const Color(0xFF2F6B3F)
-                : Colors.grey.shade300,
-            width: 1.5,
-          ),
-          borderRadius: BorderRadius.circular(30),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 4,
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(option.emoji, style: const TextStyle(fontSize: 18)),
-            const SizedBox(width: 8),
-            Text(
-              option.label,
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
-                color:
-                    selected ? Colors.white : const Color(0xFF1F2E1F),
-              ),
-            ),
-          ],
-        ),
-      ),
-    ),
-  );
-  }
-}
-
-class _PasswordStrengthIndicator extends StatefulWidget {
-  final TextEditingController controller;
-
-  const _PasswordStrengthIndicator({required this.controller});
-
-  @override
-  State<_PasswordStrengthIndicator> createState() =>
-      _PasswordStrengthIndicatorState();
-}
-
-class _PasswordStrengthIndicatorState
-    extends State<_PasswordStrengthIndicator> {
-  @override
-  void initState() {
-    super.initState();
-    widget.controller.addListener(_rebuild);
-  }
-
-  @override
-  void dispose() {
-    widget.controller.removeListener(_rebuild);
-    super.dispose();
-  }
-
-  void _rebuild() {
-    if (mounted) setState(() {});
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final pwd = widget.controller.text;
-    if (pwd.isEmpty) return const SizedBox.shrink();
-
-    int strength = 0;
-    if (pwd.length >= 8) strength++;
-    if (pwd.contains(RegExp(r'[A-Z]'))) strength++;
-    if (pwd.contains(RegExp(r'[0-9]'))) strength++;
-    if (pwd.contains(RegExp(r'[!@#\$%^&*(),.?":{}|<>]'))) strength++;
-
-    final colors = [
-      Colors.red[400]!,
-      Colors.orange[400]!,
-      const Color(0xFF63A96E),
-      const Color(0xFF2F6B3F),
-    ];
-    final labels = ['Faible', 'Moyen', 'Bon', 'Excellent'];
-
-    return Row(
-      children: [
-        ...List.generate(
-          4,
-          (i) => Expanded(
-            child: Container(
-              height: 4,
-              margin: EdgeInsets.only(right: i < 3 ? 4 : 0),
-              decoration: BoxDecoration(
-                color: i < strength ? colors[strength - 1] : Colors.grey[200],
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-          ),
-        ),
-        const SizedBox(width: 10),
-        Text(
-          strength > 0 ? labels[strength - 1] : '',
-          style: TextStyle(
-            fontSize: 11,
-            color: strength > 0 ? colors[strength - 1] : Colors.transparent,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ],
-    );
-  }
 }
