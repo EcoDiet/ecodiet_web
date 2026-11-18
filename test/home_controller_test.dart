@@ -69,6 +69,7 @@ RecettePreview _preview(int i, {String titre = 'Recette', int duree = 20}) =>
       dureeMinute: duree,
       tempsBinId: 0,
       typePlatLibelle: 'Plat principal',
+      regimeLibelle: 'vegetarian',
       ingredients: const ['tomate'],
     );
 
@@ -137,6 +138,13 @@ void main() {
 
     expect(c.activeFiltersCount, 1);
     expect(c.visibleRecipes.map((r) => r.id), ['r1']);
+  });
+
+  test('les régimes des recettes sont proposés dans les filtres', () async {
+    final c = HomeController(api: _FakeApi([_preview(1)]));
+    await c.load();
+
+    expect(c.dietOptions, containsAll(['vegetarian', 'plat principal']));
   });
 
   test('un échec de chargement produit un avertissement', () async {

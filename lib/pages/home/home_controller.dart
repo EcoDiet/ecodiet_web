@@ -280,6 +280,9 @@ class HomeController extends ChangeNotifier {
     _dietOptionsFromRef = [
       ...data.regimeRefs.map((r) => asciiFilterLabel(r.libelle)),
       ...models.map((m) => asciiFilterLabel(m.category)),
+      // Régimes présents dans les recettes : en mode bridge, la table de
+      // référence des régimes n'est pas chargée.
+      ...models.map((m) => asciiFilterLabel(m.diets)),
     ].where((v) => v.isNotEmpty).toSet().toList()
       ..sort();
     _allergenOptionsFromRef = data.allergeneRefs

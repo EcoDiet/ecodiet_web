@@ -332,26 +332,64 @@ bool matchesFilters(RecipeDisplayModel recipe, RecipeFilters filters) {
   return true;
 }
 
-bool matchesDiet(RecipeDisplayModel recipe, String filter, String dietText) {
-  final text =
-      '${recipe.title} ${recipe.ingredients} ${recipe.category} ${recipe.diets}'
-          .toLowerCase();
-  final hasMeat = RegExp(
-    r'(boeuf|b[œoe]uf|porc|poulet|dinde|agneau|veau|jambon|lardon|saucisse|steak|magret|canard|viande|hot ?dog|knack)',
-  ).hasMatch(text);
-  final hasFish = RegExp(
-    r'(poisson|saumon|thon|cabillaud|truite|sole|crevette|fruits de mer|moule|saint jacques|st jacques)',
-  ).hasMatch(text);
-  final hasAnimalProducts =
-      RegExp(r'(oeuf|œuf|lait|fromage|beurre|creme|crème|yaourt|miel)')
-          .hasMatch(text);
+/// Régimes ordonnés du moins au plus restrictif : une recette d'un niveau
+/// convient à tous les régimes de niveau inférieur (une recette végane est
+/// aussi végétarienne et pescétarienne).
+enum DietLevel { carnivore, pescetarian, vegetarian, vegan }
 
-  if (filter.contains('vegetar')) return !hasMeat && !hasFish;
-  if (filter.contains('vegan') || filter.contains('végétalien')) {
-    return !hasMeat && !hasFish && !hasAnimalProducts;
+/// Lit un libellé de régime (« vegetarian », « Végétarien », « vegan »…).
+/// Retourne `null` si le libellé n'est pas un régime reconnu.
+DietLevel? dietLevelFromLabel(String raw) {
+  final s = normalizeAscii(raw).toLowerCase();
+  if (s.contains('vegan') || s.contains('vegetalien')) return DietLevel.vegan;
+  if (s.contains('vegetar')) return DietLevel.vegetarian;
+  if (s.contains('pesc')) return DietLevel.pescetarian;
+  if (s.contains('carniv') || s.contains('omniv')) return DietLevel.carnivore;
+  return null;
+}
+
+final _meatPattern = RegExp(
+  r'(boeuf|porc|poulet|dinde|agneau|veau|jambon|lard|saucisse|steak|magret|canard|viande|charcut|hot ?dog|knack)',
+);
+final _fishPattern = RegExp(
+  r'(poisson|saumon|thon|cabillaud|truite|sole|sardine|anchois|crevette|fruits de mer|moule|saint jacques|st jacques)',
+);
+final _animalProductPattern =
+    RegExp(r'(oeuf|lait|fromage|beurre|creme|yaourt|miel)');
+
+/// Devine le régime par mots-clés (titre, ingrédients, catégorie,
+/// allergènes). Solution de secours, moins fiable que le régime des données.
+DietLevel inferDietLevel(RecipeDisplayModel recipe) {
+  final text = normalizeAscii(
+    '${recipe.title} ${recipe.ingredients} ${recipe.category} ${recipe.allergens}',
+  ).toLowerCase();
+  if (_meatPattern.hasMatch(text)) return DietLevel.carnivore;
+  if (_fishPattern.hasMatch(text)) return DietLevel.pescetarian;
+  if (_animalProductPattern.hasMatch(text)) return DietLevel.vegetarian;
+  return DietLevel.vegan;
+}
+
+/// Régime de la recette : celui fourni par les données (`fact_recette_regime`)
+/// s'il est reconnu, sinon déduit par mots-clés.
+DietLevel recipeDietLevel(RecipeDisplayModel recipe) =>
+    dietLevelFromLabel(recipe.diets) ?? inferDietLevel(recipe);
+
+/// `filter` est déjà normalisé (ASCII, minuscules). Les filtres qui ne sont
+/// pas des régimes (type de plat, « sans gluten »…) restent une recherche
+/// textuelle dans `dietText`.
+bool matchesDiet(RecipeDisplayModel recipe, String filter, String dietText) {
+  final required = _requiredLevelForFilter(filter);
+  if (required == null) return dietText.contains(filter);
+  return recipeDietLevel(recipe).index >= required.index;
+}
+
+DietLevel? _requiredLevelForFilter(String filter) {
+  if (filter.contains('vegan') || filter.contains('vegetalien')) {
+    return DietLevel.vegan;
   }
-  if (filter.contains('pesc')) return !hasMeat;
-  return dietText.contains(filter);
+  if (filter.contains('vegetar')) return DietLevel.vegetarian;
+  if (filter.contains('pesc')) return DietLevel.pescetarian;
+  return null;
 }
 
 int? parseDurationMinutes(String duration) {
@@ -426,35 +464,23 @@ List<RecipeDisplayModel> buildRecommendedRecipes(
 
   bool violatesRegime(RecipeDisplayModel r) {
     if (regimeKeywords.isEmpty) return false;
-    final text = normalizeAscii(
-      '${r.title} ${r.diets} ${r.category} ${r.ingredients} ${r.allergens}',
-    ).toLowerCase();
-
-    final vegetarian = regimeKeywords.any(
-      (k) => k.contains('vegetar') || k.contains('végétar'),
-    );
     final vegan = regimeKeywords.any(
-      (k) => k.contains('vegan') || k.contains('végétalien'),
+      (k) => k.contains('vegan') || k.contains('vegetalien'),
     );
+    final vegetarian = regimeKeywords.any((k) => k.contains('vegetar'));
     final pescetarian = regimeKeywords.any(
       (k) => k.contains('pesc') || k.contains('poisson'),
     );
-
-    final hasMeat = RegExp(
-      r'(boeuf|b[oe]uf|porc|poulet|dinde|agneau|veau|jambon|lardon|saucisse|viande|steak|charcut|hot ?dog|knack|lard|canard|magret)',
-    ).hasMatch(text);
-    final hasFish = RegExp(
-      r'(thon|saumon|poisson|cabillaud|truite|sardine|anchois|fruits de mer|crevette|moule)',
-    ).hasMatch(text);
-    final hasAnimalProducts =
-        RegExp(r'(oeuf|œuf|lait|fromage|beurre|creme|crème|yaourt|miel)')
-            .hasMatch(text);
-
-    if (vegetarian && hasMeat) return true;
-    if (vegan && (hasMeat || hasAnimalProducts)) return true;
-    if (pescetarian && hasMeat) return true;
-    if (!pescetarian && vegetarian && hasFish) return true;
-    return false;
+    // Végétarien + pescétarien : le poisson reste autorisé.
+    final required = vegan
+        ? DietLevel.vegan
+        : pescetarian
+            ? DietLevel.pescetarian
+            : vegetarian
+                ? DietLevel.vegetarian
+                : null;
+    if (required == null) return false;
+    return recipeDietLevel(r).index < required.index;
   }
 
   // Si l'utilisateur a choisi un régime dans les filtres UI, on l'applique aussi ici.
