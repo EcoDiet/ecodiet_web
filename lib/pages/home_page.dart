@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../services/ecodiet_api.dart';
 import '../models/recette.dart';
@@ -7,91 +6,14 @@ import '../models/user.dart' show UserPreference;
 import '../utils/responsive.dart';
 import '../services/favorites_service.dart';
 import 'all_recipes_page.dart';
+import 'home/filter_panel.dart';
+import 'home/home_models.dart';
+import 'home/quiz_card.dart';
+import 'home/recipe_card.dart';
+import 'home/recipe_filtering.dart';
 
-/// Modèle local pour une recette avec favoris
-class RecipeDisplayModel {
-  final String id;
-  final String title;
-  final String category;
-  final String ingredients;
-  final String utensils;
-  final String diets;
-  final String allergens;
-  final String occasions;
-  final String duration;
-  final double? budgetEur;
-  final String? imageUrl;
-  bool isFavorite;
-
-  RecipeDisplayModel({
-    required this.id,
-    required this.title,
-    required this.category,
-    required this.ingredients,
-    this.utensils = '',
-    this.diets = '',
-    this.allergens = '',
-    this.occasions = '',
-    required this.duration,
-    this.budgetEur,
-    this.imageUrl,
-    this.isFavorite = false,
-  });
-
-  static RecipeDisplayModel fromPreview(
-      RecettePreview recette, Set<String> favoriteIds) {
-    final rawCategory = (recette.typePlatLibelle ?? 'Recette').trim();
-    final category = _formatTypeLabel(rawCategory);
-    final diets = (recette.regimeLibelle ?? '').trim();
-
-    return RecipeDisplayModel(
-      id: recette.recetteId,
-      title: recette.titre,
-      category: category,
-      ingredients: recette.ingredients.join(', '),
-      utensils: recette.equipements.join(', '),
-      diets: diets,
-      allergens: recette.allergenes.join(', '),
-      occasions: recette.occasions.join(', '),
-      duration: recette.dureeMinute > 0 ? "${recette.dureeMinute} min" : '',
-      budgetEur: null,
-      imageUrl:
-          recette.photo.isNotEmpty ? recetteImageUrl(recette.photo) : null,
-      isFavorite: favoriteIds.contains(recette.recetteId),
-    );
-  }
-
-  static String _formatTypeLabel(String rawType) {
-    final normalized = rawType
-        .trim()
-        .toLowerCase()
-        .replaceAll('_', ' ')
-        .replaceAll('-', ' ')
-        .replaceAll(RegExp(r'\s+'), ' ');
-    if (normalized == 'apperitif') return 'aperitif';
-    return normalized;
-  }
-}
-
-// Alias pour compatibilité avec AllRecipesPage
-typedef Recipe = RecipeDisplayModel;
-
-/// Modèle pour un quiz (local, avec icône)
-class Quiz {
-  final String id;
-  final String title;
-  final String description;
-  final String? imageUrl;
-  final IconData icon;
-
-  Quiz({
-    required this.id,
-    required this.title,
-    required this.description,
-    this.imageUrl,
-    this.icon = Icons.quiz_outlined,
-  });
-}
+export 'home/home_models.dart';
+export '../widgets/favorite_button.dart';
 
 class _HomeDataCache {
   final DateTime fetchedAt;
@@ -116,15 +38,6 @@ class _HomeDataCache {
     required this.userPreferences,
   });
 }
-
-enum RecipeSortMode {
-  pertinence,
-  titreAsc,
-  titreDesc,
-  tempsAsc,
-  tempsDesc,
-}
-
 class HomePage extends StatefulWidget {
   const HomePage({Key? key}) : super(key: key);
 
@@ -160,48 +73,6 @@ class _HomePageState extends State<HomePage> {
   RecipeFilters _filters = RecipeFilters.empty();
   RecipeSortMode _sortMode = RecipeSortMode.pertinence;
 
-  static const List<String> _fallbackIngredients = [
-    'Poulet',
-    'Tofu',
-    'Tomate',
-    'Courgette',
-    'Œuf',
-    'Riz',
-    'Pâtes',
-    'Fromage',
-    'Poisson',
-    'Lentilles',
-  ];
-
-  static const List<String> _fallbackUtensils = [
-    'Poêle',
-    'Four',
-    'Casserole',
-    'Mixeur',
-    'Cuiseur vapeur',
-    'Wok',
-    'Grill',
-  ];
-
-  static const List<String> _fallbackDiets = [
-    'Végétarien',
-    'Végan',
-    'Carnivore',
-    'Pescétarien',
-    'Sans gluten',
-    'Sans lactose',
-  ];
-
-  static const List<String> _fallbackAllergens = [
-    'Gluten',
-    'Lactose',
-    'Arachides',
-    'Fruits à coque',
-    'Œufs',
-    'Soja',
-    'Poisson',
-  ];
-
   List<Recipe> get _filteredRecommended =>
       (_searchQuery.isEmpty && !_hasActiveFilters) ? recommendedRecipes : [];
 
@@ -218,12 +89,12 @@ class _HomePageState extends State<HomePage> {
     if (_ingredientOptionsFromRef.isNotEmpty) return _ingredientOptionsFromRef;
     final fromData = _recipeSource
         .expand((r) => r.ingredients.split(','))
-        .map(_ingredientFilterLabel)
+        .map(ingredientFilterLabel)
         .where((e) => e.isNotEmpty)
         .toSet()
         .toList();
     fromData.sort();
-    return fromData.isNotEmpty ? fromData : _fallbackIngredients;
+    return fromData.isNotEmpty ? fromData : fallbackIngredients;
   }
 
   List<String> get _utensilOptions {
@@ -235,7 +106,7 @@ class _HomePageState extends State<HomePage> {
         .toSet()
         .toList();
     fromData.sort();
-    return fromData.isNotEmpty ? fromData : _fallbackUtensils;
+    return fromData.isNotEmpty ? fromData : fallbackUtensils;
   }
 
   List<String> get _dietOptions {
@@ -248,7 +119,7 @@ class _HomePageState extends State<HomePage> {
         .toList();
     categoryText.sort();
     return {
-      ..._fallbackDiets,
+      ...fallbackDiets,
       ...categoryText,
     }.toList()
       ..sort();
@@ -263,232 +134,7 @@ class _HomePageState extends State<HomePage> {
         .toSet()
         .toList();
     fromData.sort();
-    return fromData.isNotEmpty ? fromData : _fallbackAllergens;
-  }
-
-  String _cleanLabel(String value) {
-    return _normalizeAscii(value)
-        .replaceAll('"""', '')
-        .replaceAll('"', '')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
-
-  String _normalizeAscii(String input) {
-    var s = input;
-    const repl = {
-      'à': 'a',
-      'á': 'a',
-      'â': 'a',
-      'ä': 'a',
-      'ã': 'a',
-      'å': 'a',
-      'ç': 'c',
-      'è': 'e',
-      'é': 'e',
-      'ê': 'e',
-      'ë': 'e',
-      'ì': 'i',
-      'í': 'i',
-      'î': 'i',
-      'ï': 'i',
-      'ñ': 'n',
-      'ò': 'o',
-      'ó': 'o',
-      'ô': 'o',
-      'ö': 'o',
-      'õ': 'o',
-      'ù': 'u',
-      'ú': 'u',
-      'û': 'u',
-      'ü': 'u',
-      'ý': 'y',
-      'ÿ': 'y',
-      'œ': 'oe',
-      'æ': 'ae',
-      'Ã©': 'e',
-      'Ã¨': 'e',
-      'Ãª': 'e',
-      'Ã«': 'e',
-      'Ã ': 'a',
-      'Ã¢': 'a',
-      'Ã§': 'c',
-      'Ã®': 'i',
-      'Ã¯': 'i',
-      'Ã´': 'o',
-      'Ã¶': 'o',
-      'Ã¹': 'u',
-      'Ã»': 'u',
-      'Ã¼': 'u',
-      'Å“': 'oe',
-    };
-    repl.forEach((k, v) => s = s.replaceAll(k, v));
-    return s;
-  }
-
-  String _ingredientFilterLabel(String raw) {
-    final cleaned = _normalizeAscii(raw)
-        .toLowerCase()
-        .replaceAll('"', ' ')
-        .replaceAll(RegExp(r'[0-9]+([.,][0-9]+)?'), ' ')
-        .replaceAll(RegExp(r'[^a-z\s-]'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-
-    final canonicalIngredients = <String, String>{
-      'poivre en grains': 'Poivre',
-      'grains de poivre': 'Poivre',
-      'grain poivre': 'Poivre',
-      'grains poivre': 'Poivre',
-      'poivre noir': 'Poivre',
-      'poivre blanc': 'Poivre',
-      'poivre': 'Poivre',
-      'pommes de terre': 'Pomme de terre',
-      'pomme de terre': 'Pomme de terre',
-      'pois chiches': 'Pois chiches',
-      'haricots verts': 'Haricots verts',
-      'huile olive': 'Huile d olive',
-      'huile dolive': 'Huile d olive',
-      'pates': 'Pates',
-      'pâtes': 'Pates',
-      'nouilles': 'Nouilles',
-      'spaghetti': 'Pates',
-      'tagliatelles': 'Pates',
-      'riz': 'Riz',
-      'farine': 'Farine',
-      'pain': 'Pain',
-      'poulet': 'Poulet',
-      'dinde': 'Dinde',
-      'canard': 'Canard',
-      'boeuf': 'Boeuf',
-      'bœuf': 'Boeuf',
-      'veau': 'Veau',
-      'porc': 'Porc',
-      'agneau': 'Agneau',
-      'jambon': 'Jambon',
-      'lardons': 'Lardons',
-      'saucisse': 'Saucisse',
-      'saumon': 'Saumon',
-      'thon': 'Thon',
-      'cabillaud': 'Cabillaud',
-      'poisson': 'Poisson',
-      'crevettes': 'Crevettes',
-      'crevette': 'Crevettes',
-      'oeufs': 'Oeuf',
-      'oeuf': 'Oeuf',
-      'œufs': 'Oeuf',
-      'œuf': 'Oeuf',
-      'tomates': 'Tomate',
-      'tomate': 'Tomate',
-      'courgettes': 'Courgette',
-      'courgette': 'Courgette',
-      'carottes': 'Carotte',
-      'carotte': 'Carotte',
-      'oignons': 'Oignon',
-      'oignon': 'Oignon',
-      'ail': 'Ail',
-      'champignons': 'Champignon',
-      'champignon': 'Champignon',
-      'lentilles': 'Lentilles',
-      'poireaux': 'Poireau',
-      'poireau': 'Poireau',
-      'aubergines': 'Aubergine',
-      'aubergine': 'Aubergine',
-      'poivrons': 'Poivron',
-      'poivron': 'Poivron',
-      'fromage': 'Fromage',
-      'mozzarella': 'Mozzarella',
-      'parmesan': 'Parmesan',
-      'gruyère': 'Gruyere',
-      'gruyere': 'Gruyere',
-      'lait': 'Lait',
-      'crème': 'Creme',
-      'creme': 'Creme',
-      'beurre': 'Beurre',
-      'citron': 'Citron',
-      'curry': 'Curry',
-    };
-
-    for (final entry in canonicalIngredients.entries) {
-      final pattern = RegExp(
-        '(^|\\s)${RegExp.escape(entry.key)}(\\s|\$)',
-        caseSensitive: false,
-      );
-      if (pattern.hasMatch(cleaned)) return entry.value;
-    }
-
-    final stopWords = {
-      'a',
-      'au',
-      'aux',
-      'd',
-      'de',
-      'des',
-      'du',
-      'en',
-      'et',
-      'la',
-      'le',
-      'les',
-      'ou',
-      'un',
-      'une',
-      'g',
-      'kg',
-      'l',
-      'cl',
-      'ml',
-      'cm',
-      'cuillère',
-      'cuillères',
-      'café',
-      'soupe',
-      'verre',
-      'verres',
-      'bol',
-      'bols',
-      'boîte',
-      'boîtes',
-      'bouteille',
-      'bouteilles',
-      'bouquet',
-      'branche',
-      'branches',
-      'gousse',
-      'gousses',
-      'pincée',
-      'pincées',
-      'sachet',
-      'tranche',
-      'tranches',
-      'morceau',
-      'morceaux',
-      'environ',
-      'denviron',
-      'selon',
-      'goût',
-      'facultatif',
-      'frais',
-      'fraîche',
-      'haché',
-      'hachée',
-      'émincé',
-      'émincée',
-      'fermier',
-      'fermière',
-      'coupé',
-      'coupée',
-    };
-
-    final words = cleaned
-        .split(' ')
-        .map((word) => word.trim())
-        .where((word) => word.length > 1 && !stopWords.contains(word))
-        .toList();
-
-    if (words.isEmpty) return '';
-    final label = words.take(2).join(' ');
-    return label[0].toUpperCase() + label.substring(1);
+    return fromData.isNotEmpty ? fromData : fallbackAllergens;
   }
 
   @override
@@ -515,147 +161,15 @@ class _HomePageState extends State<HomePage> {
     });
   }
 
-  bool _matchesSearch(RecipeDisplayModel recipe) {
-    if (_searchQuery.isEmpty) return true;
-    final q = _searchQuery;
-    return recipe.title.toLowerCase().contains(q) ||
-        recipe.category.toLowerCase().contains(q) ||
-        recipe.ingredients.toLowerCase().contains(q) ||
-        recipe.utensils.toLowerCase().contains(q) ||
-        recipe.diets.toLowerCase().contains(q) ||
-        recipe.allergens.toLowerCase().contains(q) ||
-        recipe.occasions.toLowerCase().contains(q);
-  }
-
-  bool _matchesFilters(RecipeDisplayModel recipe) {
-    final ingredientTags = recipe.ingredients
-        .split(',')
-        .map(_ingredientFilterLabel)
-        .where((v) => v.isNotEmpty)
-        .map((v) => v.toLowerCase())
-        .toSet();
-    final utensilText = _normalizeAscii(recipe.utensils).toLowerCase();
-    final dietText =
-        _normalizeAscii('${recipe.category} ${recipe.diets}').toLowerCase();
-    final allergenText = _normalizeAscii(recipe.allergens).toLowerCase();
-
-    if (_filters.ingredients.isNotEmpty &&
-        !_filters.ingredients
-            .any((v) => ingredientTags.contains(_ingredientFilterLabel(v).toLowerCase()))) {
-      return false;
-    }
-
-    if (_filters.utensils.isNotEmpty &&
-        !_filters.utensils.any(
-            (v) => utensilText.contains(_normalizeAscii(v).toLowerCase()))) {
-      return false;
-    }
-
-    final duration = _parseDurationMinutes(recipe.duration);
-    if (_filters.minTimeMinutes != null &&
-        duration != null &&
-        duration < _filters.minTimeMinutes!) {
-      return false;
-    }
-    if (_filters.maxTimeMinutes != null &&
-        duration != null &&
-        duration > _filters.maxTimeMinutes!) {
-      return false;
-    }
-
-    if (_filters.diets.isNotEmpty &&
-        !_filters.diets.any((v) =>
-            _matchesDiet(recipe, _normalizeAscii(v).toLowerCase(), dietText))) {
-      return false;
-    }
-
-    if (_filters.allergens.isNotEmpty &&
-        _filters.allergens.any(
-            (v) => allergenText.contains(_normalizeAscii(v).toLowerCase()))) {
-      return false;
-    }
-
-    return true;
-  }
-
-  bool _matchesDiet(RecipeDisplayModel recipe, String filter, String dietText) {
-    final text =
-        '${recipe.title} ${recipe.ingredients} ${recipe.category} ${recipe.diets}'
-            .toLowerCase();
-    final hasMeat = RegExp(
-      r'(boeuf|b[œoe]uf|porc|poulet|dinde|agneau|veau|jambon|lardon|saucisse|steak|magret|canard|viande|hot ?dog|knack)',
-    ).hasMatch(text);
-    final hasFish = RegExp(
-      r'(poisson|saumon|thon|cabillaud|truite|sole|crevette|fruits de mer|moule|saint jacques|st jacques)',
-    ).hasMatch(text);
-    final hasAnimalProducts =
-        RegExp(r'(oeuf|œuf|lait|fromage|beurre|creme|crème|yaourt|miel)')
-            .hasMatch(text);
-
-    if (filter.contains('vegetar')) return !hasMeat && !hasFish;
-    if (filter.contains('vegan') || filter.contains('végétalien')) {
-      return !hasMeat && !hasFish && !hasAnimalProducts;
-    }
-    if (filter.contains('pesc')) return !hasMeat;
-    return dietText.contains(filter);
-  }
-
-  int? _parseDurationMinutes(String duration) {
-    final match = RegExp(r'(\d+)').firstMatch(duration);
-    if (match == null) return null;
-    return int.tryParse(match.group(1)!);
-  }
-
-  List<Recipe> _sortRecipes(List<Recipe> recipes) {
-    final sorted = [...recipes];
-    switch (_sortMode) {
-      case RecipeSortMode.pertinence:
-        return sorted;
-      case RecipeSortMode.titreAsc:
-        sorted.sort(
-            (a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
-        return sorted;
-      case RecipeSortMode.titreDesc:
-        sorted.sort(
-            (a, b) => b.title.toLowerCase().compareTo(a.title.toLowerCase()));
-        return sorted;
-      case RecipeSortMode.tempsAsc:
-        sorted.sort((a, b) {
-          final aMin = _parseDurationMinutes(a.duration) ?? 99999;
-          final bMin = _parseDurationMinutes(b.duration) ?? 99999;
-          return aMin.compareTo(bMin);
-        });
-        return sorted;
-      case RecipeSortMode.tempsDesc:
-        sorted.sort((a, b) {
-          final aMin = _parseDurationMinutes(a.duration) ?? -1;
-          final bMin = _parseDurationMinutes(b.duration) ?? -1;
-          return bMin.compareTo(aMin);
-        });
-        return sorted;
-    }
-  }
-
-  String _sortLabel(RecipeSortMode mode) {
-    switch (mode) {
-      case RecipeSortMode.pertinence:
-        return 'Pertinence';
-      case RecipeSortMode.titreAsc:
-        return 'Titre A-Z';
-      case RecipeSortMode.titreDesc:
-        return 'Titre Z-A';
-      case RecipeSortMode.tempsAsc:
-        return 'Temps croissant';
-      case RecipeSortMode.tempsDesc:
-        return 'Temps décroissant';
-    }
-  }
-
   void _recomputeVisibleRecipes({bool resetPage = false}) {
     if (resetPage) _recipePage = 0;
 
-    final matching = _sortRecipes(
-      _recipeSource.where(_matchesSearch).where(_matchesFilters).toList(),
+    final matching = sortRecipes(
+      _recipeSource
+          .where((r) => matchesSearch(r, _searchQuery))
+          .where((r) => matchesFilters(r, _filters))
+          .toList(),
+      _sortMode,
     );
 
     final maxPage =
@@ -729,32 +243,33 @@ class _HomePageState extends State<HomePage> {
           : null;
       _recipeSource = models;
       _ingredientOptionsFromRef = ingredientRefs
-          .map((i) => _ingredientFilterLabel(i.nomIngredient))
+          .map((i) => ingredientFilterLabel(i.nomIngredient))
           .where((v) => v.isNotEmpty)
           .toSet()
           .toList()
         ..sort();
       _utensilOptionsFromRef = equipementRefs
           .map((e) =>
-              _cleanLabel(e.nomEquipement).replaceFirst(RegExp(r'^\d+\s+'), ''))
+              cleanLabel(e.nomEquipement).replaceFirst(RegExp(r'^\d+\s+'), ''))
           .where((v) => v.isNotEmpty)
           .toSet()
           .toList()
         ..sort();
       _dietOptionsFromRef = [
-        ...regimeRefs.map((r) => _cleanLabel(r.libelle)),
-        ...models.map((m) => _cleanLabel(m.category)),
+        ...regimeRefs.map((r) => cleanLabel(r.libelle)),
+        ...models.map((m) => cleanLabel(m.category)),
       ].where((v) => v.isNotEmpty).toSet().toList()
         ..sort();
       _allergenOptionsFromRef = allergeneRefs
-          .map((a) => _cleanLabel(a.libelle))
+          .map((a) => cleanLabel(a.libelle))
           .where((v) => v.isNotEmpty)
           .toSet()
           .toList()
         ..sort();
-      recommendedRecipes = _buildRecommendedRecipes(
+      recommendedRecipes = buildRecommendedRecipes(
         models,
         userPreferences,
+        selectedDietFilters: _filters.diets,
       ).take(10).toList();
       _recomputeVisibleRecipes();
       quizzes = loadedQuizzes
@@ -767,89 +282,6 @@ class _HomePageState extends State<HomePage> {
           .toList();
       isLoading = false;
     });
-  }
-
-  List<RecipeDisplayModel> _buildRecommendedRecipes(
-    List<RecipeDisplayModel> source,
-    List<UserPreference> prefs,
-  ) {
-    if (source.isEmpty) return const [];
-
-    final blockedKeywords = <String>{};
-    final regimeKeywords = <String>{};
-
-    for (final p in prefs) {
-      final label = _normalizeAscii(p.label).toLowerCase();
-      final values = _normalizeAscii(p.value)
-          .toLowerCase()
-          .split(RegExp(r'[,;/|]'))
-          .map((e) => e.trim())
-          .where((e) => e.isNotEmpty);
-      if (label.contains('allerg') || label.contains('intoler')) {
-        blockedKeywords.addAll(values);
-      } else if (label.contains('regime') || label.contains('régime')) {
-        regimeKeywords.addAll(values);
-      }
-    }
-
-    bool violatesAllergens(RecipeDisplayModel r) {
-      if (blockedKeywords.isEmpty) return false;
-      final text =
-          _normalizeAscii('${r.allergens} ${r.ingredients}').toLowerCase();
-      return blockedKeywords.any((k) => k.isNotEmpty && text.contains(k));
-    }
-
-    bool violatesRegime(RecipeDisplayModel r) {
-      if (regimeKeywords.isEmpty) return false;
-      final text = _normalizeAscii(
-        '${r.title} ${r.diets} ${r.category} ${r.ingredients} ${r.allergens}',
-      ).toLowerCase();
-
-      final vegetarian = regimeKeywords.any(
-        (k) => k.contains('vegetar') || k.contains('végétar'),
-      );
-      final vegan = regimeKeywords.any(
-        (k) => k.contains('vegan') || k.contains('végétalien'),
-      );
-      final pescetarian = regimeKeywords.any(
-        (k) => k.contains('pesc') || k.contains('poisson'),
-      );
-
-      final hasMeat = RegExp(
-        r'(boeuf|b[oe]uf|porc|poulet|dinde|agneau|veau|jambon|lardon|saucisse|viande|steak|charcut|hot ?dog|knack|lard|canard|magret)',
-      ).hasMatch(text);
-      final hasFish = RegExp(
-        r'(thon|saumon|poisson|cabillaud|truite|sardine|anchois|fruits de mer|crevette|moule)',
-      ).hasMatch(text);
-      final hasAnimalProducts =
-          RegExp(r'(oeuf|œuf|lait|fromage|beurre|creme|crème|yaourt|miel)')
-              .hasMatch(text);
-
-      if (vegetarian && hasMeat) return true;
-      if (vegan && (hasMeat || hasAnimalProducts)) return true;
-      if (pescetarian && hasMeat) return true;
-      if (!pescetarian && vegetarian && hasFish) return true;
-      return false;
-    }
-
-    // Si l'utilisateur a choisi un régime dans les filtres UI, on l'applique aussi ici.
-    final selectedDiets =
-        _filters.diets.map((d) => _normalizeAscii(d).toLowerCase()).toSet();
-    if (selectedDiets.any((d) => d.contains('vegetar'))) {
-      regimeKeywords.add('vegetarien');
-    }
-    if (selectedDiets.any((d) => d.contains('vegan') || d.contains('vegetalien'))) {
-      regimeKeywords.add('vegan');
-    }
-    if (selectedDiets.any((d) => d.contains('pesc'))) {
-      regimeKeywords.add('pescetarien');
-    }
-
-    final filtered = source
-        .where((r) => !violatesAllergens(r) && !violatesRegime(r))
-        .toList();
-    if (filtered.isNotEmpty) return filtered;
-    return source;
   }
 
   Future<void> _loadData({bool forceRefresh = false}) async {
@@ -1002,7 +434,7 @@ class _HomePageState extends State<HomePage> {
                     BorderRadius.horizontal(left: Radius.circular(24)),
               ),
               child: SafeArea(
-                child: _DesktopFilterDrawerContent(
+                child: DesktopFilterDrawerContent(
                   initialFilters: _filters,
                   ingredientOptions: _ingredientOptions,
                   utensilOptions: _utensilOptions,
@@ -1106,7 +538,10 @@ class _HomePageState extends State<HomePage> {
                                     return Padding(
                                       key: ValueKey(recipe.id),
                                       padding: const EdgeInsets.only(right: 12),
-                                      child: _buildRecipeCard(context, recipe),
+                                      child: RecipeCard(
+          recipe: recipe,
+          onToggleFavorite: () => _toggleFavorite(recipe),
+        ),
                                     );
                                   },
                                 ),
@@ -1135,7 +570,10 @@ class _HomePageState extends State<HomePage> {
                                     return Padding(
                                       key: ValueKey(recipe.id),
                                       padding: const EdgeInsets.only(right: 12),
-                                      child: _buildRecipeCard(context, recipe),
+                                      child: RecipeCard(
+          recipe: recipe,
+          onToggleFavorite: () => _toggleFavorite(recipe),
+        ),
                                     );
                                   },
                                 ),
@@ -1161,8 +599,7 @@ class _HomePageState extends State<HomePage> {
                                     .map((quiz) => SizedBox(
                                           key: ValueKey(quiz.id),
                                           width: 340,
-                                          child: _buildQuizCard(quiz,
-                                              desktop: true),
+                                          child: QuizCard(quiz: quiz, desktop: true),
                                         ))
                                     .toList(),
                               )
@@ -1170,7 +607,7 @@ class _HomePageState extends State<HomePage> {
                               ...quizzes.map((quiz) => Padding(
                                     key: ValueKey(quiz.id),
                                     padding: const EdgeInsets.only(bottom: 12),
-                                    child: _buildQuizCard(quiz),
+                                    child: QuizCard(quiz: quiz),
                                   )),
                           ],
                         ],
@@ -1400,7 +837,7 @@ class _HomePageState extends State<HomePage> {
               value: mode,
               child: Row(
                 children: [
-                  Expanded(child: Text(_sortLabel(mode))),
+                  Expanded(child: Text(mode.label)),
                   if (mode == _sortMode)
                     const Icon(Icons.check_rounded, size: 16),
                 ],
@@ -1438,7 +875,7 @@ class _HomePageState extends State<HomePage> {
             ),
             child: SafeArea(
               top: false,
-              child: _MobileFilterSheetContent(
+              child: MobileFilterSheetContent(
                 initialFilters: _filters,
                 ingredientOptions: _ingredientOptions,
                 utensilOptions: _utensilOptions,
@@ -1481,7 +918,10 @@ class _HomePageState extends State<HomePage> {
         final recipe = recipes[i];
         return KeyedSubtree(
           key: ValueKey(recipe.id),
-          child: _buildRecipeCard(context, recipe),
+          child: RecipeCard(
+          recipe: recipe,
+          onToggleFavorite: () => _toggleFavorite(recipe),
+        ),
         );
       },
     );
@@ -1560,1050 +1000,4 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _buildRecipeCard(BuildContext context, RecipeDisplayModel recipe) {
-    final desktop = isDesktop(context);
-    return Semantics(
-      label:
-          'Recette : ${recipe.title}, ${recipe.category}, ${recipe.duration}',
-      button: true,
-      child: InkWell(
-        onTap: () => Navigator.pushNamed(
-          context,
-          '/recipe',
-          arguments: {
-            'id': recipe.id,
-            'title': recipe.title,
-            'description': recipe.category,
-            'duration': recipe.duration,
-          },
-        ),
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          width: desktop ? null : 200,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Image
-              ClipRRect(
-                borderRadius:
-                    const BorderRadius.vertical(top: Radius.circular(12)),
-                child: SizedBox(
-                  height: 110,
-                  width: double.infinity,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      // Gradient de fond affiché si l'image échoue ou est absente
-                      Container(
-                        decoration: const BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                        ),
-                        child: Center(
-                          child: Icon(Icons.eco,
-                              size: 40, color: Colors.white.withValues(alpha: 0.6)),
-                        ),
-                      ),
-                      if (recipe.imageUrl != null)
-                        CachedNetworkImage(
-                          imageUrl: recipe.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => const SizedBox.shrink(),
-                          placeholder: (_, __) => const SizedBox.shrink(),
-                        ),
-                      // Badge durée
-                      Positioned(
-                        top: 8,
-                        right: 8,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 8, vertical: 3),
-                          decoration: BoxDecoration(
-                            color: Colors.black.withValues(alpha: 0.35),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const Icon(Icons.timer_outlined,
-                                  size: 11, color: Colors.white),
-                              const SizedBox(width: 3),
-                              Text(
-                                recipe.duration,
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              // Contenu
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            recipe.title,
-                            style: const TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1F2E1F),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            recipe.category,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFF2F6B3F),
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            recipe.ingredients,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[700],
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    FavoriteButton(
-                      recipeId: recipe.id,
-                      onToggle: () => _toggleFavorite(recipe),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuizCard(Quiz quiz, {bool desktop = false}) {
-    void onTap() => Navigator.pushNamed(
-          context,
-          '/quiz',
-          arguments: {
-            'id': quiz.id,
-            'title': quiz.title,
-            'description': quiz.description,
-          },
-        );
-
-    if (desktop) {
-      // Carte horizontale compacte : pas de bannière image, hauteur libre
-      return Semantics(
-        label: 'Quiz : ${quiz.title}',
-        button: true,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Row(
-              children: [
-                // Icône colorée à gauche
-                Container(
-                  width: 64,
-                  height: 64,
-                  margin: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFFF4A259), Color(0xFFEA853D)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(quiz.icon, size: 28, color: Colors.white),
-                ),
-                // Texte
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          quiz.title,
-                          style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1F2E1F),
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          quiz.description,
-                          style:
-                              TextStyle(fontSize: 11, color: Colors.grey[700]),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                // Bouton jouer
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: const Color(0xFFF4A259),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Jouer',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    // Mobile : carte verticale avec bannière
-    return Semantics(
-      label: 'Quiz : ${quiz.title}',
-      button: true,
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
-              ),
-            ],
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                height: 80,
-                width: double.infinity,
-                decoration: BoxDecoration(
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(12),
-                  ),
-                  gradient: quiz.imageUrl == null
-                      ? const LinearGradient(
-                          colors: [Color(0xFFF4A259), Color(0xFFEA853D)],
-                          begin: Alignment.topLeft,
-                          end: Alignment.bottomRight,
-                        )
-                      : null,
-                  image: quiz.imageUrl != null
-                      ? DecorationImage(
-                          image: CachedNetworkImageProvider(quiz.imageUrl!),
-                          fit: BoxFit.cover,
-                        )
-                      : null,
-                ),
-                child: quiz.imageUrl == null
-                    ? Center(
-                        child: Icon(quiz.icon,
-                            size: 36, color: Colors.white.withValues(alpha: 0.7)),
-                      )
-                    : null,
-              ),
-              Padding(
-                padding: const EdgeInsets.all(12),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            quiz.title,
-                            style: const TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1F2E1F),
-                            ),
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            quiz.description,
-                            style: TextStyle(
-                                fontSize: 11, color: Colors.grey[600]),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 10, vertical: 5),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF4A259),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: const Text(
-                        'Jouer',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
 }
-
-class RecipeFilters {
-  Set<String> ingredients;
-  Set<String> utensils;
-  Set<String> diets;
-  Set<String> allergens;
-  int? minTimeMinutes;
-  int? maxTimeMinutes;
-
-  RecipeFilters({
-    required this.ingredients,
-    required this.utensils,
-    required this.diets,
-    required this.allergens,
-    this.minTimeMinutes,
-    this.maxTimeMinutes,
-  });
-
-  factory RecipeFilters.empty() {
-    return RecipeFilters(
-      ingredients: <String>{},
-      utensils: <String>{},
-      diets: <String>{},
-      allergens: <String>{},
-    );
-  }
-
-  RecipeFilters copy() {
-    return RecipeFilters(
-      ingredients: {...ingredients},
-      utensils: {...utensils},
-      diets: {...diets},
-      allergens: {...allergens},
-      minTimeMinutes: minTimeMinutes,
-      maxTimeMinutes: maxTimeMinutes,
-    );
-  }
-
-  bool get hasAny => activeCount > 0;
-
-  int get activeCount {
-    var count = 0;
-    count += ingredients.length;
-    count += utensils.length;
-    count += diets.length;
-    count += allergens.length;
-    if (minTimeMinutes != null || maxTimeMinutes != null) count++;
-    return count;
-  }
-
-  void reset() {
-    ingredients.clear();
-    utensils.clear();
-    diets.clear();
-    allergens.clear();
-    minTimeMinutes = null;
-    maxTimeMinutes = null;
-  }
-}
-
-class _DesktopFilterDrawerContent extends StatelessWidget {
-  final RecipeFilters initialFilters;
-  final List<String> ingredientOptions;
-  final List<String> utensilOptions;
-  final List<String> dietOptions;
-  final List<String> allergenOptions;
-  final ValueChanged<RecipeFilters> onApply;
-
-  const _DesktopFilterDrawerContent({
-    required this.initialFilters,
-    required this.ingredientOptions,
-    required this.utensilOptions,
-    required this.dietOptions,
-    required this.allergenOptions,
-    required this.onApply,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _FilterPanel(
-      desktop: true,
-      initialFilters: initialFilters,
-      ingredientOptions: ingredientOptions,
-      utensilOptions: utensilOptions,
-      dietOptions: dietOptions,
-      allergenOptions: allergenOptions,
-      onApply: onApply,
-      onClose: () => Navigator.of(context).maybePop(),
-    );
-  }
-}
-
-class _MobileFilterSheetContent extends StatelessWidget {
-  final RecipeFilters initialFilters;
-  final List<String> ingredientOptions;
-  final List<String> utensilOptions;
-  final List<String> dietOptions;
-  final List<String> allergenOptions;
-  final ValueChanged<RecipeFilters> onApply;
-
-  const _MobileFilterSheetContent({
-    required this.initialFilters,
-    required this.ingredientOptions,
-    required this.utensilOptions,
-    required this.dietOptions,
-    required this.allergenOptions,
-    required this.onApply,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return _FilterPanel(
-      desktop: false,
-      initialFilters: initialFilters,
-      ingredientOptions: ingredientOptions,
-      utensilOptions: utensilOptions,
-      dietOptions: dietOptions,
-      allergenOptions: allergenOptions,
-      onApply: onApply,
-      onClose: () => Navigator.of(context).maybePop(),
-    );
-  }
-}
-
-class _FilterPanel extends StatefulWidget {
-  final bool desktop;
-  final RecipeFilters initialFilters;
-  final List<String> ingredientOptions;
-  final List<String> utensilOptions;
-  final List<String> dietOptions;
-  final List<String> allergenOptions;
-  final ValueChanged<RecipeFilters> onApply;
-  final VoidCallback onClose;
-
-  const _FilterPanel({
-    required this.desktop,
-    required this.initialFilters,
-    required this.ingredientOptions,
-    required this.utensilOptions,
-    required this.dietOptions,
-    required this.allergenOptions,
-    required this.onApply,
-    required this.onClose,
-  });
-
-  @override
-  State<_FilterPanel> createState() => _FilterPanelState();
-}
-
-class _FilterPanelState extends State<_FilterPanel> {
-  late RecipeFilters _draft;
-  late TextEditingController _minTimeController;
-  late TextEditingController _maxTimeController;
-
-  @override
-  void initState() {
-    super.initState();
-    _draft = widget.initialFilters.copy();
-    _minTimeController = TextEditingController(
-      text: _draft.minTimeMinutes?.toString() ?? '',
-    );
-    _maxTimeController = TextEditingController(
-      text: _draft.maxTimeMinutes?.toString() ?? '',
-    );
-  }
-
-  @override
-  void dispose() {
-    _minTimeController.dispose();
-    _maxTimeController.dispose();
-    super.dispose();
-  }
-
-  void _reset() {
-    setState(() {
-      _draft.reset();
-      _minTimeController.text = '';
-      _maxTimeController.text = '';
-    });
-  }
-
-  void _setTimeRange(int? min, int? max) {
-    setState(() {
-      _draft.minTimeMinutes = min;
-      _draft.maxTimeMinutes = max;
-      _minTimeController.text = min?.toString() ?? '';
-      _maxTimeController.text = max?.toString() ?? '';
-    });
-  }
-
-  String _timeRangeLabel() {
-    final min = _draft.minTimeMinutes;
-    final max = _draft.maxTimeMinutes;
-    if (min == null && max == null) return '';
-    if (min == null) return '< ${max! + 1} min';
-    if (max == null) return '> ${min - 1} min';
-    if (min == 30 && max == 60) return '30-60 min';
-    if (min == 61 && max == 120) return '1-2 h';
-    return '$min-$max min';
-  }
-
-  bool _isSelectedTimeRange(int? min, int? max) {
-    return _draft.minTimeMinutes == min && _draft.maxTimeMinutes == max;
-  }
-
-  Widget _activeFilterChip(String label, VoidCallback onDeleted) {
-    return InputChip(
-      label: Text(label),
-      onDeleted: onDeleted,
-      visualDensity: VisualDensity.compact,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-      backgroundColor: const Color(0xFFE9F2E6),
-      side: BorderSide.none,
-      deleteIconColor: const Color(0xFF2F6B3F),
-      labelStyle: const TextStyle(
-        color: Color(0xFF1F2E1F),
-        fontSize: 12,
-        fontWeight: FontWeight.w600,
-      ),
-    );
-  }
-
-  Widget _buildActiveFilters() {
-    if (_draft.activeCount == 0) return const SizedBox.shrink();
-
-    final chips = <Widget>[
-      ..._draft.ingredients.map(
-        (value) => _activeFilterChip(value, () {
-          setState(() => _draft.ingredients.remove(value));
-        }),
-      ),
-      ..._draft.diets.map(
-        (value) => _activeFilterChip(value, () {
-          setState(() => _draft.diets.remove(value));
-        }),
-      ),
-      ..._draft.allergens.map(
-        (value) => _activeFilterChip('Sans $value', () {
-          setState(() => _draft.allergens.remove(value));
-        }),
-      ),
-      ..._draft.utensils.map(
-        (value) => _activeFilterChip(value, () {
-          setState(() => _draft.utensils.remove(value));
-        }),
-      ),
-    ];
-
-    if (_draft.minTimeMinutes != null || _draft.maxTimeMinutes != null) {
-      chips.add(
-        _activeFilterChip(_timeRangeLabel(), () => _setTimeRange(null, null)),
-      );
-    }
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-      child: Wrap(spacing: 8, runSpacing: 8, children: chips),
-    );
-  }
-
-  Widget _buildTimeFilterCard() {
-    return _FilterCard(
-      title: 'Temps de cuisine',
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          _TimeFilterChip(
-            label: 'Tous',
-            selected: _isSelectedTimeRange(null, null),
-            onSelected: () => _setTimeRange(null, null),
-          ),
-          _TimeFilterChip(
-            label: '< 30 min',
-            selected: _isSelectedTimeRange(null, 29),
-            onSelected: () => _setTimeRange(null, 29),
-          ),
-          _TimeFilterChip(
-            label: '30-60 min',
-            selected: _isSelectedTimeRange(30, 60),
-            onSelected: () => _setTimeRange(30, 60),
-          ),
-          _TimeFilterChip(
-            label: '1-2 h',
-            selected: _isSelectedTimeRange(61, 120),
-            onSelected: () => _setTimeRange(61, 120),
-          ),
-          _TimeFilterChip(
-            label: '> 2 h',
-            selected: _isSelectedTimeRange(121, null),
-            onSelected: () => _setTimeRange(121, null),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _apply() {
-    final min = int.tryParse(_minTimeController.text.trim());
-    final max = int.tryParse(_maxTimeController.text.trim());
-    _draft.minTimeMinutes = min;
-    _draft.maxTimeMinutes = max;
-    if (_draft.minTimeMinutes != null &&
-        _draft.maxTimeMinutes != null &&
-        _draft.minTimeMinutes! > _draft.maxTimeMinutes!) {
-      final tmp = _draft.minTimeMinutes!;
-      _draft.minTimeMinutes = _draft.maxTimeMinutes;
-      _draft.maxTimeMinutes = tmp;
-    }
-    widget.onApply(_draft.copy());
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 16, 12),
-          child: Row(
-            children: [
-              const Text(
-                'Filtres',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1F2E1F),
-                ),
-              ),
-              const SizedBox(width: 10),
-              if (_draft.activeCount > 0)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2F6B3F),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Text(
-                    '${_draft.activeCount} ${_draft.activeCount > 1 ? 'actifs' : 'actif'}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.close_rounded),
-                onPressed: widget.onClose,
-              ),
-            ],
-          ),
-        ),
-        _buildActiveFilters(),
-        const Divider(height: 1),
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-            children: [
-              _FilterMultiSelectCard(
-                title: 'Ingrédients',
-                hintText: 'Ex: poulet, riz, tomate',
-                options: widget.ingredientOptions,
-                selected: _draft.ingredients,
-                onChanged: (values) =>
-                    setState(() => _draft.ingredients = values),
-              ),
-              const SizedBox(height: 12),
-              _buildTimeFilterCard(),
-              const SizedBox(height: 12),
-              _FilterMultiSelectCard(
-                title: 'Type de plat / régime',
-                hintText: 'Plat principal, vegan, dessert...',
-                options: widget.dietOptions,
-                selected: _draft.diets,
-                onChanged: (values) => setState(() => _draft.diets = values),
-              ),
-              const SizedBox(height: 12),
-              _FilterMultiSelectCard(
-                title: 'Allergènes à exclure',
-                hintText: 'Gluten, lactose, soja...',
-                options: widget.allergenOptions,
-                selected: _draft.allergens,
-                onChanged: (values) =>
-                    setState(() => _draft.allergens = values),
-              ),
-              const SizedBox(height: 12),
-              Theme(
-                data: Theme.of(context).copyWith(
-                  dividerColor: Colors.transparent,
-                ),
-                child: ExpansionTile(
-                  tilePadding: const EdgeInsets.symmetric(horizontal: 4),
-                  childrenPadding: EdgeInsets.zero,
-                  title: const Text(
-                    'Plus de filtres',
-                    style: TextStyle(
-                      color: Color(0xFF1F2E1F),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  children: [
-                    _FilterMultiSelectCard(
-                      title: 'Ustensiles',
-                      hintText: 'Four, poele, casserole...',
-                      options: widget.utensilOptions,
-                      selected: _draft.utensils,
-                      onChanged: (values) =>
-                          setState(() => _draft.utensils = values),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        ),
-        const Divider(height: 1),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: _reset,
-                  style: OutlinedButton.styleFrom(
-                    side: const BorderSide(color: Color(0xFF2F6B3F)),
-                    foregroundColor: const Color(0xFF2F6B3F),
-                    minimumSize: const Size.fromHeight(44),
-                  ),
-                  child: const Text('Réinitialiser'),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: ElevatedButton(
-                  onPressed: _apply,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF2F6B3F),
-                    foregroundColor: Colors.white,
-                    minimumSize: const Size.fromHeight(44),
-                  ),
-                  child: const Text('Appliquer'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _FilterCard extends StatelessWidget {
-  final String title;
-  final Widget child;
-
-  const _FilterCard({
-    required this.title,
-    required this.child,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: const Color(0xFFE6DCC9)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w700,
-              color: Color(0xFF1F2E1F),
-            ),
-          ),
-          const SizedBox(height: 10),
-          child,
-        ],
-      ),
-    );
-  }
-}
-
-class _TimeFilterChip extends StatelessWidget {
-  final String label;
-  final bool selected;
-  final VoidCallback onSelected;
-
-  const _TimeFilterChip({
-    required this.label,
-    required this.selected,
-    required this.onSelected,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ChoiceChip(
-      label: Text(label),
-      selected: selected,
-      onSelected: (_) => onSelected(),
-      selectedColor: const Color(0xFF2F6B3F),
-      labelStyle: TextStyle(
-        color: selected ? Colors.white : const Color(0xFF1F2E1F),
-        fontWeight: FontWeight.w600,
-      ),
-      side: BorderSide(
-        color: selected ? const Color(0xFF2F6B3F) : const Color(0xFFE6DCC9),
-      ),
-      backgroundColor: Colors.white,
-      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-    );
-  }
-}
-
-class _FilterMultiSelectCard extends StatefulWidget {
-  final String title;
-  final String hintText;
-  final List<String> options;
-  final Set<String> selected;
-  final ValueChanged<Set<String>> onChanged;
-
-  const _FilterMultiSelectCard({
-    required this.title,
-    required this.hintText,
-    required this.options,
-    required this.selected,
-    required this.onChanged,
-  });
-
-  @override
-  State<_FilterMultiSelectCard> createState() => _FilterMultiSelectCardState();
-}
-
-class _FilterMultiSelectCardState extends State<_FilterMultiSelectCard> {
-  String _query = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final q = _query.trim().toLowerCase();
-    final visible = widget.options
-        .where((o) =>
-            !widget.selected.contains(o) &&
-            (q.isEmpty || o.toLowerCase().contains(q)))
-        .take(10)
-        .toList();
-
-    return _FilterCard(
-      title: widget.title,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Autocomplete<String>(
-            optionsBuilder: (value) {
-              final q = value.text.trim().toLowerCase();
-              if (q.isEmpty) {
-                return widget.options
-                    .where((o) => !widget.selected.contains(o))
-                    .take(6);
-              }
-              return widget.options
-                  .where((o) =>
-                      o.toLowerCase().contains(q) &&
-                      !widget.selected.contains(o))
-                  .take(6);
-            },
-            onSelected: (choice) {
-              final next = {...widget.selected, choice};
-              widget.onChanged(next);
-              setState(() => _query = '');
-            },
-            fieldViewBuilder:
-                (context, controller, focusNode, onFieldSubmitted) {
-              return TextField(
-                controller: controller,
-                focusNode: focusNode,
-                onChanged: (value) => setState(() => _query = value),
-                decoration: InputDecoration(
-                  hintText: widget.hintText,
-                  prefixIcon: const Icon(Icons.search_rounded, size: 18),
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                ),
-              );
-            },
-          ),
-          if (widget.selected.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: widget.selected
-                  .map((s) => InputChip(
-                        label: Text(s),
-                        onDeleted: () {
-                          final next = {...widget.selected}..remove(s);
-                          widget.onChanged(next);
-                        },
-                      ))
-                  .toList(),
-            ),
-          ],
-          if (visible.isNotEmpty) ...[
-            const SizedBox(height: 10),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: visible
-                  .map(
-                    (option) => ActionChip(
-                      label: Text(option),
-                      avatar: const Icon(Icons.add_rounded, size: 16),
-                      onPressed: () {
-                        final next = {...widget.selected, option};
-                        widget.onChanged(next);
-                      },
-                    ),
-                  )
-                  .toList(),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-/// Bouton favori isolé : seul ce widget se reconstruit quand les favoris changent.
-class FavoriteButton extends StatefulWidget {
-  final String recipeId;
-  final VoidCallback onToggle;
-
-  const FavoriteButton({
-    Key? key,
-    required this.recipeId,
-    required this.onToggle,
-  }) : super(key: key);
-
-  @override
-  State<FavoriteButton> createState() => _FavoriteButtonState();
-}
-
-class _FavoriteButtonState extends State<FavoriteButton> {
-  late final VoidCallback _listener;
-
-  @override
-  void initState() {
-    super.initState();
-    _listener = () {
-      if (mounted) setState(() {});
-    };
-    FavoritesService().addListener(_listener);
-  }
-
-  @override
-  void dispose() {
-    FavoritesService().removeListener(_listener);
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isFav = FavoritesService().isFavorite(widget.recipeId);
-    return IconButton(
-      onPressed: widget.onToggle,
-      tooltip: isFav ? 'Retirer des favoris' : 'Ajouter aux favoris',
-      style: IconButton.styleFrom(
-        backgroundColor: Colors.red[50],
-        minimumSize: const Size(44, 44),
-      ),
-      icon: Icon(
-        isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-        size: 20,
-        color: Colors.red[400],
-      ),
-    );
-  }
-}
-
