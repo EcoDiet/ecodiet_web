@@ -217,4 +217,29 @@ void main() {
     expect(find.text('Soupe 2'), findsOneWidget);
     expect(find.text('Curry 1'), findsNothing);
   });
+
+  testWidgets('Voir tout : le cœur enregistre le favori via l API',
+      (tester) async {
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    final api = _FakeApi([_preview(1, titre: 'Curry')]);
+    final c = HomeController(api: api);
+    await tester.pumpWidget(MaterialApp(home: HomePage(controller: c)));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.text('Voir tout'));
+    await tester.pumpAndSettle();
+    expect(find.text('Juste pour vous'), findsOneWidget);
+
+    await tester.tap(find.byTooltip('Ajouter aux favoris'));
+    await tester.pumpAndSettle();
+
+    expect(api.toggled, ['r1']);
+    expect(FavoritesService().isFavorite('r1'), isTrue);
+    expect(find.byTooltip('Retirer des favoris'), findsOneWidget);
+    // Hors session : invitation à se connecter, comme depuis l'accueil.
+    expect(find.textContaining('Connecte-toi'), findsOneWidget);
+  });
 }

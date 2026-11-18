@@ -1,6 +1,5 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import '../services/favorites_service.dart';
 import '../utils/responsive.dart';
 import 'home_page.dart';
 
@@ -8,10 +7,15 @@ class AllRecipesPage extends StatefulWidget {
   final String title;
   final List<Recipe> recipes;
 
+  /// Bascule le favori (état local, synchronisation et message éventuel) :
+  /// fourni par l'accueil pour que le favori soit enregistré comme ailleurs.
+  final ValueChanged<Recipe> onToggleFavorite;
+
   const AllRecipesPage({
     Key? key,
     required this.title,
     required this.recipes,
+    required this.onToggleFavorite,
   }) : super(key: key);
 
   @override
@@ -19,16 +23,6 @@ class AllRecipesPage extends StatefulWidget {
 }
 
 class _AllRecipesPageState extends State<AllRecipesPage> {
-  void _toggleFavorite(Recipe recipe) {
-    FavoritesService().toggle(FavoriteRecipe(
-      id: recipe.id,
-      title: recipe.title,
-      category: recipe.category,
-      duration: recipe.duration,
-      imageUrl: recipe.imageUrl,
-    ));
-  }
-
   @override
   Widget build(BuildContext context) {
     final desktop = isDesktop(context);
@@ -212,7 +206,7 @@ class _AllRecipesPageState extends State<AllRecipesPage> {
                     ),
                     FavoriteButton(
                       recipeId: recipe.id,
-                      onToggle: () => _toggleFavorite(recipe),
+                      onToggle: () => widget.onToggleFavorite(recipe),
                     ),
                   ],
                 ),
