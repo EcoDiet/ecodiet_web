@@ -203,6 +203,15 @@ export function createAuthHandler({
   };
 
   const routes = {
+    'GET /health': async () => [
+      200,
+      {
+        ok: true,
+        service: 'ecodiet-auth',
+        timestamp: new Date().toISOString(),
+      },
+    ],
+
     'POST /auth/register': async (req) => {
       const body = await readJson(req);
       const email = normalizeEmail(body.email);
@@ -433,7 +442,10 @@ export function createAuthHandler({
 
   return async function handleAuth(req, res) {
     const path = new URL(req.url ?? '/', 'http://localhost').pathname.replace(/\/+$/, '');
-    if (!['/auth/', '/me/', '/catalog/'].some((prefix) => path.startsWith(prefix))) {
+    if (
+      path !== '/health' &&
+      !['/auth/', '/me/', '/catalog/'].some((prefix) => path.startsWith(prefix))
+    ) {
       return false;
     }
     applyCors(req, res);
