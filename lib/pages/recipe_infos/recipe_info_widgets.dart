@@ -456,7 +456,7 @@ class RecipeActionButtons extends StatelessWidget {
               onPressed: onAddToFolder,
               icon: const Icon(Icons.folder_outlined, size: 18),
               label: const Text(
-                'Ajouter Ã  un dossier',
+                'Ajouter à un dossier',
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               ),
               style: ElevatedButton.styleFrom(
@@ -503,7 +503,7 @@ class RecipeActionButtons extends StatelessWidget {
             onPressed: onAddToFolder,
             icon: const Icon(Icons.folder_outlined, size: 20),
             label: const Text(
-              'Ajouter Ã  un dossier',
+              'Ajouter à un dossier',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
             ),
             style: ElevatedButton.styleFrom(

@@ -320,7 +320,7 @@ class HomeController extends ChangeNotifier {
     }
 
     _loadWarning = (_api.isBridgeMode && models.isEmpty)
-        ? 'Aucune recette re?ue depuis l API Cloud Run. V?rifie le service et son JSON.'
+        ? 'Aucune recette reçue depuis l\'API Cloud Run. Vérifie le service et son JSON.'
         : null;
     _recipeSource = models;
     _ingredientOptionsFromRef = data.ingredientRefs

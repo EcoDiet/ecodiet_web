@@ -87,7 +87,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
 
     final r = recette!.recette;
 
-    // Bascule locale immÃ©diate : l'UI rÃ©pond toujours, mÃªme hors ligne.
+    // Bascule locale immédiate : l'UI répond toujours, même hors ligne.
     setState(() => isFavorite = !isFavorite);
 
     if (isFavorite) {
@@ -102,14 +102,14 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
       FavoritesService().removeFavorite(r.recetteId);
     }
 
-    // Synchronisation backend au mieux (nÃ©cessite une session active).
+    // Synchronisation backend au mieux (nécessite une session active).
     final success = await _api.toggleFavorite(r.recetteId);
     if (!mounted) return;
     if (isFavorite && !success && !_api.isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
-            'Favori enregistrÃ© sur cet appareil. Connecte-toi pour le synchroniser.',
+            'Favori enregistré sur cet appareil. Connecte-toi pour le synchroniser.',
           ),
           duration: Duration(seconds: 3),
         ),
@@ -139,14 +139,14 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
             ),
             const SizedBox(height: 20),
             const Text(
-              'Ajouter Ã  un dossier',
+              'Ajouter à un dossier',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 16),
             if (_folders.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 20),
-                child: Center(child: Text('Aucun dossier crÃ©Ã©')),
+                child: Center(child: Text('Aucun dossier créé')),
               )
             else
               ..._folders.map((folder) => ListTile(
@@ -165,7 +165,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                           SnackBar(
                             content: Text(
                               success
-                                  ? 'AjoutÃ© Ã  "${folder.label}"'
+                                  ? 'Ajouté à "${folder.label}"'
                                   : 'Erreur lors de l\'ajout',
                             ),
                           ),
@@ -323,7 +323,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
       return _buildMobileScaffold();
     }
 
-    // Ã¢â€â‚¬Ã¢â€â‚¬ Desktop layout Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+    // ── Desktop layout ──────────────────────────────────────────────────────
     return Scaffold(
       body: SafeArea(
         child: Center(
@@ -349,7 +349,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     );
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬ Mobile Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // ── Mobile ─────────────────────────────────────────────────────────────────
 
   Widget _buildMobileScaffold() {
     if (isLoading) {
@@ -496,7 +496,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
             height: 1.2,
           ),
         ),
-        // CatÃ©gorie pill
+        // Catégorie pill
         if (category != null && category.isNotEmpty) ...[
           const SizedBox(height: 8),
           Container(
@@ -572,7 +572,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
           InfoStat(
               Icons.access_time_rounded, 'Temps', durationStr),
           const InfoDivider(),
-          InfoStat(Icons.signal_cellular_alt_rounded, 'DifficultÃ©',
+          InfoStat(Icons.signal_cellular_alt_rounded, 'Difficulté',
               difficulty),
         ],
       ),
@@ -591,7 +591,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
 
     if (recette != null && recette!.allergenes.isNotEmpty) {
       chips.add(MetaChip(
-        'AllergÃ¨ne',
+        'Allergène',
         recette!.allergenes.first.libelle,
         const Color(0xFFD94F3D),
       ));
@@ -603,7 +603,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     }
     final regime = recette?.regime?.libelle.trim() ?? '';
     if (regime.isNotEmpty) {
-      chips.add(MetaChip('RÃ©gime', regime, const Color(0xFF4F8D4F)));
+      chips.add(MetaChip('Régime', regime, const Color(0xFF4F8D4F)));
     }
     if (occasions.isNotEmpty) {
       chips.add(MetaChip('Occasion', occasions.first, const Color(0xFFCF8748)));
@@ -615,7 +615,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     );
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬ Desktop Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // ── Desktop ────────────────────────────────────────────────────────────────
 
   Widget _buildDesktopHeader() {
     return Padding(
@@ -701,7 +701,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     );
   }
 
-  // Ã¢â€â‚¬Ã¢â€â‚¬ Shared helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+  // ── Shared helpers ─────────────────────────────────────────────────────────
 
   Widget _buildInfoCards() {
     final durationStr = widget.duration ??
@@ -719,7 +719,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         const SizedBox(width: 12),
         InfoCard(
           icon: Icons.trending_up,
-          label: 'DifficultÃ©s',
+          label: 'Difficultés',
           value: difficulty,
           color: const Color(0xFF2F6B3F),
         ),
