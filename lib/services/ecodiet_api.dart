@@ -997,9 +997,10 @@ class EcoDietApi {
           passwordHash: null,
         );
         _currentUser = user;
-        await _saveBridgeSession(user);
+        await _applyLocalIdentity();
+        await _saveBridgeSession(_currentUser!);
         _resetLocalBridgeStateCache();
-        return ApiResult.success(user);
+        return ApiResult.success(_currentUser!);
       } catch (e) {
         return ApiResult.error(
           'Erreur lors de la connexion bridge: $e',
@@ -1075,6 +1076,29 @@ class EcoDietApi {
   }) async {
     if (_currentUser == null) {
       return ApiResult.error('Non connecté');
+    }
+
+    if (_useGcpBridge) {
+      // Pas de route de mise à jour côté Cloud Run : le nom est conservé dans
+      // la session de l'appareil.
+      _currentUser = app_models.User(
+        userId: _currentUser!.userId,
+        email: _currentUser!.email,
+        nom: nom ?? _currentUser!.nom,
+        prenom: prenom ?? _currentUser!.prenom,
+        photoUrl: photoUrl ?? _currentUser!.photoUrl,
+      );
+      await _saveBridgeSession(_currentUser!);
+      try {
+        await _storage.write(
+          key: _storageKey('identity'),
+          value: jsonEncode(
+              {'nom': _currentUser!.nom, 'prenom': _currentUser!.prenom}),
+        );
+      } catch (error, stack) {
+        _logIgnored('updateProfile', error, stack);
+      }
+      return ApiResult.success(_currentUser!);
     }
 
     try {
@@ -2358,7 +2382,9 @@ class EcoDietApi {
 
   Future<List<UserPreference>> getUserPreferences() async {
     if (_useGcpBridge) {
-      final prefs = <UserPreference>[];
+      var regime = '';
+      var allergies = '';
+      var intolerances = '';
       try {
         final rows = await _bridgeGetTableAny(['dim_utilisateur']);
         final email = _currentUser?.email.toLowerCase().trim();
@@ -2381,35 +2407,29 @@ class EcoDietApi {
             return '';
           }
 
-          final regime = readFirstNonEmpty([
-            'regime_alimentaire',
-            'regime',
-            'diet',
-          ]);
-          final allergies = readFirstNonEmpty([
-            'allergies',
-            'allergenes',
-            'allergenes',
-          ]);
-          final intolerances = readFirstNonEmpty([
-            'intolerances',
-            'intolerance',
-          ]);
-          if (regime.isNotEmpty) {
-            prefs.add(UserPreference(label: 'Régime', value: regime));
-          }
-          if (intolerances.isNotEmpty) {
-            prefs.add(
-                UserPreference(label: 'Intolérances', value: intolerances));
-          }
-          if (allergies.isNotEmpty) {
-            prefs.add(UserPreference(label: 'Allergènes', value: allergies));
-          }
+          regime = readFirstNonEmpty(['regime_alimentaire', 'regime', 'diet']);
+          allergies = readFirstNonEmpty(['allergies', 'allergenes']);
+          intolerances = readFirstNonEmpty(['intolerances', 'intolerance']);
         }
       } catch (error, stack) {
         _logIgnored('getUserPreferences', error, stack);
       }
-      return prefs;
+
+      // Préférences modifiées dans le profil : prioritaires sur la base, qui
+      // n'expose pas encore de route de mise à jour.
+      final local = await _readLocalPreferences();
+      if (local != null) {
+        regime = local.regime ?? '';
+        allergies = local.allergies.join(',');
+      }
+
+      return [
+        if (regime.isNotEmpty) UserPreference(label: 'Régime', value: regime),
+        if (intolerances.isNotEmpty)
+          UserPreference(label: 'Intolérances', value: intolerances),
+        if (allergies.isNotEmpty)
+          UserPreference(label: 'Allergènes', value: allergies),
+      ];
     }
     final preferences = <UserPreference>[];
     final regime = await getUserRegime();
@@ -2424,6 +2444,73 @@ class EcoDietApi {
       ));
     }
     return preferences;
+  }
+
+  /// Enregistre le régime et les allergies (codes des options d'inscription,
+  /// ex. `vegetarian`, `gluten`). En mode bridge, stocké sur l'appareil pour
+  /// l'utilisateur connecté : le service Cloud Run n'a pas encore de route de
+  /// mise à jour du profil.
+  Future<bool> saveUserPreferences({
+    required String? regime,
+    required Set<String> allergies,
+  }) async {
+    if (_currentUser == null || !_useGcpBridge) return false;
+    try {
+      await _storage.write(
+        key: _storageKey('preferences'),
+        value: jsonEncode({
+          'regime': regime,
+          'allergies': (allergies.toList()..sort()),
+        }),
+      );
+      return true;
+    } catch (error, stack) {
+      _logIgnored('saveUserPreferences', error, stack);
+      return false;
+    }
+  }
+
+  /// Nom et prénom modifiés dans le profil (mode bridge), prioritaires sur
+  /// ceux de la base à la connexion.
+  Future<void> _applyLocalIdentity() async {
+    final user = _currentUser;
+    if (user == null) return;
+    try {
+      final raw = await _storage.read(key: _storageKey('identity'));
+      if (raw == null || raw.trim().isEmpty) return;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return;
+      _currentUser = app_models.User(
+        userId: user.userId,
+        email: user.email,
+        nom: decoded['nom']?.toString() ?? user.nom,
+        prenom: decoded['prenom']?.toString() ?? user.prenom,
+        photoUrl: user.photoUrl,
+      );
+    } catch (error, stack) {
+      _logIgnored('_applyLocalIdentity', error, stack);
+    }
+  }
+
+  Future<({String? regime, List<String> allergies})?>
+      _readLocalPreferences() async {
+    if (_currentUser == null) return null;
+    try {
+      final raw = await _storage.read(key: _storageKey('preferences'));
+      if (raw == null || raw.trim().isEmpty) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final regime = decoded['regime']?.toString();
+      final allergies = decoded['allergies'];
+      return (
+        regime: (regime == null || regime.isEmpty) ? null : regime,
+        allergies:
+            allergies is List ? allergies.map((e) => '$e').toList() : <String>[],
+      );
+    } catch (error, stack) {
+      _logIgnored('_readLocalPreferences', error, stack);
+      return null;
+    }
   }
 
   // ============================================================================

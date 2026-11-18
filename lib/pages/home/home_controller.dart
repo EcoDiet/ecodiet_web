@@ -61,9 +61,13 @@ class HomeController extends ChangeNotifier {
   static const Duration _memoryCacheTtl = Duration(minutes: 3);
   static _HomeDataCache? _memoryCache;
 
+  /// Vide le cache partagé : les données (préférences comprises) seront
+  /// rechargées au prochain affichage de l'accueil.
+  static void invalidateCache() => _memoryCache = null;
+
   /// Vide le cache partagé (utile en test).
   @visibleForTesting
-  static void resetCache() => _memoryCache = null;
+  static void resetCache() => invalidateCache();
 
   final EcoDietApi _api;
   bool _disposed = false;

@@ -3,6 +3,8 @@ import 'package:logger/logger.dart';
 
 import '../../models/user.dart';
 import '../../services/ecodiet_api.dart';
+import '../create_account/onboarding_options.dart';
+import '../home/home_controller.dart';
 
 /// Nom affiché : prénom et nom, sinon la partie locale de l'e-mail.
 String profileDisplayName(User? user) {
@@ -32,6 +34,40 @@ bool isFavoritesFolder(UserFolder folder) =>
 String countLabel(int count, String noun) =>
     '$count $noun${count > 1 ? 's' : ''}';
 
+/// Libellé d'un code de régime ou d'allergie des options d'inscription
+/// (`vegetarian` → « Végétarien ») ; le texte brut sinon.
+String preferenceValueLabel(UserPreference pref) {
+  final label = pref.label.toLowerCase();
+  final codes = pref.value
+      .split(RegExp(r'[,;/|]'))
+      .map((v) => v.trim())
+      .where((v) => v.isNotEmpty);
+  String labelOf(String code) {
+    for (final o in dietOptions) {
+      if (o.value == code) return o.label;
+    }
+    for (final o in allergyOptions) {
+      if (o.value == code) return o.label;
+    }
+    return code;
+  }
+
+  if (label.contains('régime') ||
+      label.contains('regime') ||
+      label.contains('allerg')) {
+    return codes.map(labelOf).join(', ');
+  }
+  return pref.value;
+}
+
+/// Saisie de la boîte « Modifier le profil ».
+typedef ProfileEdit = ({
+  String prenom,
+  String nom,
+  String? regime,
+  Set<String> allergies,
+});
+
 /// État et actions de la page profil. L'API est injectable pour les tests.
 class ProfileController extends ChangeNotifier {
   ProfileController({EcoDietApi? api}) : _api = api ?? EcoDietApi();
@@ -55,8 +91,58 @@ class ProfileController extends ChangeNotifier {
   String get displayName => profileDisplayName(_api.currentUser);
   String get displayEmail => profileDisplayEmail(_api.currentUser);
   String get avatar => avatarLetter(displayName);
-  String get profileTag =>
-      _preferences.isNotEmpty ? _preferences.first.value : 'Aucune preference';
+  String get profileTag => _preferences.isNotEmpty
+      ? preferenceValueLabel(_preferences.first)
+      : 'Aucune preference';
+
+  /// Préférences avec des libellés lisibles (« Végétarien », « Gluten »).
+  List<UserPreference> get displayPreferences => [
+        for (final p in _preferences)
+          UserPreference(label: p.label, value: preferenceValueLabel(p)),
+      ];
+
+  /// Valeurs actuelles, pour pré-remplir la boîte de modification.
+  ProfileEdit get currentEdit {
+    String? regime;
+    final allergies = <String>{};
+    for (final p in _preferences) {
+      final label = p.label.toLowerCase();
+      final values = p.value
+          .split(RegExp(r'[,;/|]'))
+          .map((v) => v.trim())
+          .where((v) => v.isNotEmpty);
+      if (label.contains('allerg')) {
+        allergies.addAll(values);
+      } else if (label.contains('régime') || label.contains('regime')) {
+        regime ??= values.isEmpty ? null : values.first;
+      }
+    }
+    final user = _api.currentUser;
+    return (
+      prenom: (user?.prenom ?? '').trim(),
+      nom: (user?.nom ?? '').trim(),
+      regime: regime,
+      allergies: allergies,
+    );
+  }
+
+  /// Enregistre nom, régime et allergies, puis recharge le profil. Les
+  /// recommandations de l'accueil sont recalculées au prochain affichage.
+  Future<bool> saveProfile(ProfileEdit edit) async {
+    final before = currentEdit;
+    if (edit.prenom != before.prenom || edit.nom != before.nom) {
+      final result =
+          await _api.updateProfile(prenom: edit.prenom, nom: edit.nom);
+      if (!result.isSuccess) return false;
+    }
+    final saved = await _api.saveUserPreferences(
+      regime: edit.regime,
+      allergies: edit.allergies,
+    );
+    HomeController.invalidateCache();
+    await load();
+    return saved;
+  }
 
   /// Le dossier « Favoris » affiche le nombre de favoris, pas son compteur.
   int recipeCountOf(UserFolder folder) =>

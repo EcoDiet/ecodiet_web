@@ -14,10 +14,14 @@ Future<void> openFolder(BuildContext context, UserFolder folder) {
 
 class ProfileMobileHero extends StatelessWidget {
   const ProfileMobileHero(
-      {super.key, required this.avatar, required this.name});
+      {super.key,
+      required this.avatar,
+      required this.name,
+      required this.onEdit});
 
   final String avatar;
   final String name;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -72,7 +76,7 @@ class ProfileMobileHero extends StatelessWidget {
             borderRadius: BorderRadius.circular(20),
             child: InkWell(
               borderRadius: BorderRadius.circular(20),
-              onTap: () {},
+              onTap: onEdit,
               child: const Padding(
                 padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 child: Row(
@@ -107,7 +111,8 @@ class ProfileDesktopBanner extends StatelessWidget {
       required this.email,
       required this.favoriteCount,
       required this.folderCount,
-      required this.profileTag});
+      required this.profileTag,
+      required this.onEdit});
 
   final String avatar;
   final String name;
@@ -115,6 +120,7 @@ class ProfileDesktopBanner extends StatelessWidget {
   final int favoriteCount;
   final int folderCount;
   final String profileTag;
+  final VoidCallback onEdit;
 
   @override
   Widget build(BuildContext context) {
@@ -256,7 +262,7 @@ class ProfileDesktopBanner extends StatelessWidget {
 
                 // Bouton modifier
                 OutlinedButton.icon(
-                  onPressed: () {},
+                  onPressed: onEdit,
                   icon: const Icon(Icons.edit_outlined, size: 16),
                   label: const Text('Modifier'),
                   style: OutlinedButton.styleFrom(
@@ -484,10 +490,12 @@ class DesktopPreferencesSection extends StatelessWidget {
       {super.key,
       required this.preferences,
       required this.onLogout,
+      required this.onEdit,
       this.extra});
 
   final List<UserPreference> preferences;
   final VoidCallback onLogout;
+  final VoidCallback onEdit;
 
   /// Bloc affiché entre les préférences et la déconnexion (« Mes goûts »).
   final Widget? extra;
@@ -519,7 +527,7 @@ class DesktopPreferencesSection extends StatelessWidget {
               final pref = entry.value;
               return Column(
                 children: [
-                  DesktopPrefRow(pref: pref, index: i),
+                  DesktopPrefRow(pref: pref, index: i, onTap: onEdit),
                   if (i < preferences.length - 1)
                     Divider(
                         height: 1,
@@ -584,10 +592,15 @@ class DesktopPreferencesSection extends StatelessWidget {
 
 /// Les trois premières préférences ont chacune leur icône et leur couleur.
 class DesktopPrefRow extends StatelessWidget {
-  const DesktopPrefRow({super.key, required this.pref, required this.index});
+  const DesktopPrefRow(
+      {super.key,
+      required this.pref,
+      required this.index,
+      required this.onTap});
 
   final UserPreference pref;
   final int index;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -602,7 +615,7 @@ class DesktopPrefRow extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () {},
+        onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
           child: Row(
@@ -702,9 +715,10 @@ class MobileFoldersSection extends StatelessWidget {
 
 class MobilePreferencesSection extends StatelessWidget {
   const MobilePreferencesSection(
-      {super.key, required this.preferences, this.extra});
+      {super.key, required this.preferences, required this.onEdit, this.extra});
 
   final List<UserPreference> preferences;
+  final VoidCallback onEdit;
 
   /// Bloc affiché sous les préférences (« Mes goûts »).
   final Widget? extra;
@@ -718,7 +732,7 @@ class MobilePreferencesSection extends StatelessWidget {
         const SizedBox(height: 12),
         ...preferences.map((pref) => Padding(
               padding: const EdgeInsets.only(bottom: 8),
-              child: PreferenceItem(pref: pref),
+              child: PreferenceItem(pref: pref, onTap: onEdit),
             )),
         if (extra != null) extra!,
       ],
@@ -873,9 +887,10 @@ class FolderItem extends StatelessWidget {
 }
 
 class PreferenceItem extends StatelessWidget {
-  const PreferenceItem({super.key, required this.pref});
+  const PreferenceItem({super.key, required this.pref, required this.onTap});
 
   final UserPreference pref;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -896,7 +911,7 @@ class PreferenceItem extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () {},
+          onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
             child: Row(

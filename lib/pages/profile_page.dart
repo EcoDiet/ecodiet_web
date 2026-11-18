@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../models/user.dart' show UserFolder;
 import '../utils/responsive.dart';
 import 'profile/folder_dialogs.dart';
+import 'profile/profile_edit_dialog.dart';
 import 'profile/profile_controller.dart';
 import 'profile/profile_widgets.dart';
 import 'taste/taste_entry.dart';
@@ -86,6 +87,18 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _editProfile() async {
+    final edit = await showProfileEditDialog(context, _c.currentEdit);
+    if (edit == null) return;
+    final saved = await _c.saveProfile(edit);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(saved
+          ? 'Profil enregistré.'
+          : 'Enregistrement impossible : connecte-toi pour modifier ton profil.'),
+    ));
+  }
+
   Future<void> _logout() async {
     await _c.logout();
     if (!mounted) return;
@@ -127,7 +140,11 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        ProfileMobileHero(avatar: _c.avatar, name: _c.displayName),
+        ProfileMobileHero(
+          avatar: _c.avatar,
+          name: _c.displayName,
+          onEdit: _editProfile,
+        ),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
           child: Column(
@@ -143,7 +160,8 @@ class _ProfilePageState extends State<ProfilePage> {
               ),
               const SizedBox(height: 24),
               MobilePreferencesSection(
-                preferences: _c.preferences,
+                preferences: _c.displayPreferences,
+                onEdit: _editProfile,
                 extra: _buildTasteTile(),
               ),
             ],
@@ -164,6 +182,7 @@ class _ProfilePageState extends State<ProfilePage> {
           favoriteCount: _c.favoriteCount,
           folderCount: _c.folders.length,
           profileTag: _c.profileTag,
+          onEdit: _editProfile,
         ),
         const SizedBox(height: 24),
         Row(
@@ -185,8 +204,9 @@ class _ProfilePageState extends State<ProfilePage> {
             Expanded(
               flex: 4,
               child: DesktopPreferencesSection(
-                preferences: _c.preferences,
+                preferences: _c.displayPreferences,
                 onLogout: _logout,
+                onEdit: _editProfile,
                 extra: _buildTasteTile(),
               ),
             ),

@@ -38,9 +38,32 @@ class _FakeApi implements EcoDietApi {
     return List.of(folders);
   }
 
+  List<UserPreference> prefs = [
+    UserPreference(label: 'Régime', value: 'Végétarien'),
+  ];
+
   @override
-  Future<List<UserPreference>> getUserPreferences() async =>
-      [UserPreference(label: 'Régime', value: 'Végétarien')];
+  Future<List<UserPreference>> getUserPreferences() async => List.of(prefs);
+
+  @override
+  Future<bool> saveUserPreferences(
+      {required String? regime, required Set<String> allergies}) async {
+    calls.add('prefs $regime ${(allergies.toList()..sort()).join(',')}');
+    prefs = [
+      if (regime != null) UserPreference(label: 'Régime', value: regime),
+      if (allergies.isNotEmpty)
+        UserPreference(label: 'Allergènes', value: allergies.join(',')),
+    ];
+    return user != null;
+  }
+
+  @override
+  Future<ApiResult<User>> updateProfile(
+      {String? nom, String? prenom, String? photoUrl}) async {
+    calls.add('name $prenom $nom');
+    user = User(email: user!.email, prenom: prenom, nom: nom);
+    return ApiResult.success(user!);
+  }
 
   @override
   Future<List<Recette>> getFavorites() async => [
@@ -137,8 +160,7 @@ void main() {
     await c.load();
     expect(c.hasTasteProfile, isFalse);
 
-    api.taste = const TasteProfile(
-        votes: [SwipeVote('r1', SwipeVerdict.like)]);
+    api.taste = const TasteProfile(votes: [SwipeVote('r1', SwipeVerdict.like)]);
     await c.load();
     expect(c.hasTasteProfile, isTrue);
 
@@ -265,6 +287,93 @@ void main() {
 
       expect(api.calls, ['logout']);
       expect(find.text('page login'), findsOneWidget);
+    });
+  });
+
+  group('modification du profil', () {
+    test('codes affichés avec leurs libellés', () async {
+      final api = _FakeApi(user: User(email: 'ana@b.fr'))
+        ..prefs = [
+          UserPreference(label: 'Régime', value: 'vegetarian'),
+          UserPreference(label: 'Allergènes', value: 'gluten,nuts'),
+        ];
+      final c = ProfileController(api: api);
+      await c.load();
+
+      expect(c.displayPreferences.map((p) => p.value),
+          ['Végétarien', 'Gluten, Fruits à coque']);
+      expect(c.profileTag, 'Végétarien');
+      expect(c.currentEdit.regime, 'vegetarian');
+      expect(c.currentEdit.allergies, {'gluten', 'nuts'});
+      c.dispose();
+    });
+
+    test('enregistrer : nom seulement s il change, puis préférences', () async {
+      final api = _FakeApi(user: User(email: 'ana@b.fr', prenom: 'Ana'));
+      final c = ProfileController(api: api);
+      await c.load();
+
+      final ok = await c.saveProfile((
+        prenom: 'Ana',
+        nom: '',
+        regime: 'vegan',
+        allergies: {'soy'},
+      ));
+      expect(ok, isTrue);
+      expect(api.calls, ['prefs vegan soy']);
+      expect(c.displayPreferences.map((p) => p.value), ['Végétalien', 'Soja']);
+
+      await c.saveProfile(
+          (prenom: 'Anna', nom: 'Lopez', regime: null, allergies: <String>{}));
+      expect(api.calls.last, 'prefs null ');
+      expect(api.calls, contains('name Anna Lopez'));
+      expect(c.displayName, 'Anna Lopez');
+      expect(c.displayPreferences, isEmpty);
+      c.dispose();
+    });
+
+    testWidgets('« Modifier » ouvre la boîte et enregistre les choix',
+        (tester) async {
+      tester.view.physicalSize = const Size(1400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final api = _FakeApi(user: User(email: 'ana@b.fr', prenom: 'Ana'));
+      await tester.pumpWidget(MaterialApp(
+        home: ProfilePage(controller: ProfileController(api: api)),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Modifier'));
+      await tester.pumpAndSettle();
+      expect(find.text('Modifier le profil'), findsOneWidget);
+
+      await tester.tap(find.text('Pescétarien'));
+      await tester.tap(find.text('Gluten'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Enregistrer'));
+      await tester.pumpAndSettle();
+
+      expect(api.calls, ['prefs pescatarian gluten']);
+      expect(find.text('Pescétarien'), findsWidgets);
+      expect(find.text('Profil enregistré.'), findsOneWidget);
+    });
+
+    testWidgets('une ligne de préférence ouvre aussi la boîte', (tester) async {
+      tester.view.physicalSize = const Size(400, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      final api = _FakeApi(user: User(email: 'ana@b.fr'));
+      await tester.pumpWidget(MaterialApp(
+        home: ProfilePage(controller: ProfileController(api: api)),
+      ));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Régime'));
+      await tester.pumpAndSettle();
+      expect(find.widgetWithText(TextField, 'Prénom'), findsOneWidget);
+      await tester.tap(find.text('Annuler'));
+      await tester.pumpAndSettle();
+      expect(api.calls, isEmpty);
     });
   });
 }
