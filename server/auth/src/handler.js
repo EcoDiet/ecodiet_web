@@ -13,6 +13,8 @@
 //   POST /auth/email-available {email}                      -> {available}
 //   POST /auth/pseudo-available {pseudo}                    -> {available}
 //   GET  /auth/me              Authorization: Bearer <jeton> -> {user, preferences}
+//   GET  /me/state             Bearer                        -> {state, updated_at}
+//   PUT  /me/state             Bearer, {state}               -> {updated_at}
 //   POST /auth/password-reset/request {email}               -> {ok} (toujours)
 //   POST /auth/password-reset/confirm {token, password}     -> {ok}
 
@@ -22,6 +24,9 @@ import { burnTime, hashPassword, verifyPassword } from './passwords.js';
 import { createToken, verifyToken } from './tokens.js';
 
 const MAX_BODY_BYTES = 16 * 1024;
+const MAX_STATE_BYTES = 64 * 1024;
+/** Clés du document d'état acceptées (le reste est ignoré). */
+export const STATE_KEYS = ['favorites', 'folders', 'folder_recipes', 'preferences', 'identity'];
 const MIN_PASSWORD_LENGTH = 8;
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -101,12 +106,12 @@ export function createLoginLimiter({ maxFailures = 5, windowMs = 15 * 60 * 1000 
   };
 }
 
-async function readJson(req) {
+async function readJson(req, maxBytes = MAX_BODY_BYTES) {
   let size = 0;
   const chunks = [];
   for await (const chunk of req) {
     size += chunk.length;
-    if (size > MAX_BODY_BYTES) throw new HttpError(413, 'Requête trop volumineuse.');
+    if (size > maxBytes) throw new HttpError(413, 'Requête trop volumineuse.');
     chunks.push(chunk);
   }
   if (!chunks.length) return {};
@@ -150,6 +155,27 @@ export function createAuthHandler({
   if (!secret || secret.length < 32) {
     throw new Error('AUTH_SECRET doit contenir au moins 32 caractères.');
   }
+
+  const readState = async (email) => {
+    if (!store.getState) return null;
+    try {
+      return (await store.getState(email))?.state ?? null;
+    } catch (error) {
+      console.warn('auth: état du compte illisible :', error.message);
+      return null;
+    }
+  };
+
+  /** Nom modifié dans l'app, prioritaire sur dim_utilisateur. */
+  const withIdentity = (row, state) => {
+    const identity = state?.identity;
+    if (!identity || typeof identity !== 'object') return row;
+    return {
+      ...row,
+      ...(typeof identity.nom === 'string' ? { nom: identity.nom } : {}),
+      ...(typeof identity.prenom === 'string' ? { prenom: identity.prenom } : {}),
+    };
+  };
 
   const issue = (row) => ({
     token: createToken(
@@ -225,6 +251,7 @@ export function createAuthHandler({
         throw new HttpError(401, 'Identifiants invalides.');
       }
       limiter.reset(key);
+      const state = await readState(row.email ? normalizeEmail(row.email) : email);
       if (check.needsRehash) {
         try {
           await store.updatePasswordHash(row, await hashPassword(password));
@@ -234,7 +261,7 @@ export function createAuthHandler({
           console.warn('auth: re-hachage reporté :', error.message);
         }
       }
-      return [200, issue(row)];
+      return [200, issue(withIdentity(row, state))];
     },
 
     'POST /auth/email-available': async (req) => {
@@ -256,7 +283,44 @@ export function createAuthHandler({
       if (!claims) throw new HttpError(401, 'Session expirée ou invalide.');
       const row = await store.findByEmail(claims.email);
       if (!row) throw new HttpError(401, 'Session expirée ou invalide.');
-      return [200, { user: publicUser(row), preferences: preferencesOf(row) }];
+      const state = await readState(claims.email);
+      const preferences = preferencesOf(row);
+      const saved = state?.preferences;
+      if (saved && typeof saved === 'object') {
+        if ('regime' in saved) preferences.regime = String(saved.regime ?? '');
+        if (Array.isArray(saved.allergies)) preferences.allergies = saved.allergies.join(',');
+      }
+      return [200, { user: publicUser(withIdentity(row, state)), preferences }];
+    },
+
+    'GET /me/state': async (req) => {
+      const claims = sessionClaims(req);
+      if (!claims) throw new HttpError(401, 'Session expirée ou invalide.');
+      if (!store.getState) throw new HttpError(501, 'Stockage indisponible.');
+      const saved = await store.getState(claims.email);
+      return [200, { state: saved?.state ?? {}, updated_at: saved?.updated_at ?? null }];
+    },
+
+    'PUT /me/state': async (req) => {
+      const claims = sessionClaims(req);
+      if (!claims) throw new HttpError(401, 'Session expirée ou invalide.');
+      if (!store.saveState) throw new HttpError(501, 'Stockage indisponible.');
+      const body = await readJson(req, MAX_STATE_BYTES + 1024);
+      const input = body.state;
+      if (!input || typeof input !== 'object' || Array.isArray(input)) {
+        throw new HttpError(400, 'État invalide.');
+      }
+      const state = {};
+      for (const key of STATE_KEYS) {
+        if (input[key] !== undefined) state[key] = input[key];
+      }
+      const text = JSON.stringify(state);
+      if (Buffer.byteLength(text) > MAX_STATE_BYTES) {
+        throw new HttpError(413, 'Données du compte trop volumineuses.');
+      }
+      const updatedAt = new Date(now()).toISOString();
+      await store.saveState(claims.email, text, updatedAt);
+      return [200, { updated_at: updatedAt }];
     },
 
     'POST /auth/password-reset/request': async (req) => {
@@ -320,7 +384,7 @@ export function createAuthHandler({
       res.setHeader('Access-Control-Allow-Origin', origin);
       res.setHeader('Vary', 'Origin');
       res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+      res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, OPTIONS');
       res.setHeader('Access-Control-Max-Age', '3600');
     }
   }
@@ -334,7 +398,7 @@ export function createAuthHandler({
 
   return async function handleAuth(req, res) {
     const path = new URL(req.url ?? '/', 'http://localhost').pathname.replace(/\/+$/, '');
-    if (!path.startsWith('/auth/')) return false;
+    if (!path.startsWith('/auth/') && !path.startsWith('/me/')) return false;
     applyCors(req, res);
     if (req.method === 'OPTIONS') {
       res.statusCode = 204;

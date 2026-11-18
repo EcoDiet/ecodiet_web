@@ -173,6 +173,7 @@ class EcoDietApi {
   Future<void> _clearBridgeSession() async {
     try {
       _sessionToken = null;
+      _lastSyncedState = null;
       await _storage.delete(key: _bridgeSessionUserKey);
       await _storage.delete(key: _bridgeSessionLastActivityKey);
     } catch (error, stack) {
@@ -230,6 +231,7 @@ class EcoDietApi {
       );
       await _touchBridgeSessionActivity();
       _resetLocalBridgeStateCache();
+      await _pullServerState();
       return true;
     } catch (error, stack) {
       _logIgnored('_restoreBridgeSession', error, stack);
@@ -247,17 +249,19 @@ class EcoDietApi {
 
   /// Appel JSON au service d'authentification : (code HTTP, corps).
   Future<(int, Map<String, dynamic>)> _authCall(String path,
-      {Map<String, dynamic>? body}) async {
+      {Map<String, dynamic>? body, bool put = false}) async {
     final uri = Uri.parse('$_authBaseUrl$path');
     final headers = {
       'Accept': 'application/json',
       if (body != null) 'Content-Type': 'application/json',
-      if (body == null && _sessionToken != null)
-        'Authorization': 'Bearer $_sessionToken',
+      if (_sessionToken != null) 'Authorization': 'Bearer $_sessionToken',
     };
     final response = body == null
         ? await _authHttp.get(uri, headers: headers)
-        : await _authHttp.post(uri, headers: headers, body: jsonEncode(body));
+        : put
+            ? await _authHttp.put(uri, headers: headers, body: jsonEncode(body))
+            : await _authHttp.post(uri,
+                headers: headers, body: jsonEncode(body));
     Map<String, dynamic> decoded = {};
     try {
       final value = jsonDecode(utf8.decode(response.bodyBytes));
@@ -301,6 +305,7 @@ class EcoDietApi {
       }
       _sessionToken = token;
       _currentUser = _userFromAuth(Map<String, dynamic>.from(user), email);
+      await _pullServerState();
       await _applyLocalIdentity();
       await _saveBridgeSession(_currentUser!);
       _resetLocalBridgeStateCache();
@@ -322,6 +327,91 @@ class EcoDietApi {
       _logIgnored(route, error, stack);
     }
     return true;
+  }
+
+  // Données du compte (favoris, dossiers, préférences, nom) : enregistrées
+  // sur le serveur (/me/state), l'appareil en garde une copie qui sert de
+  // cache et de mode hors connexion.
+  static const List<String> _stateKeys = [
+    'favorites',
+    'folders',
+    'folder_recipes',
+    'preferences',
+    'identity',
+  ];
+
+  /// Dernier document échangé avec le serveur : évite les envois inutiles
+  /// (une simple lecture réenregistre l'état local).
+  String? _lastSyncedState;
+
+  Future<Map<String, dynamic>> _localStateDocument() async {
+    final doc = <String, dynamic>{};
+    for (final key in _stateKeys) {
+      final raw = await _storage.read(key: _storageKey(key));
+      if (raw == null || raw.trim().isEmpty) continue;
+      try {
+        final value = jsonDecode(raw);
+        // Collection vide = clé absente : même document des deux côtés.
+        if ((value is List && value.isEmpty) || (value is Map && value.isEmpty)) {
+          continue;
+        }
+        doc[key] = value;
+      } catch (error, stack) {
+        _logIgnored('_localStateDocument', error, stack, expected: true);
+      }
+    }
+    return doc;
+  }
+
+  /// Récupère les données du compte depuis le serveur (connexion, reprise de
+  /// session). Compte encore vide côté serveur : l'appareil y envoie ce
+  /// qu'il a déjà.
+  Future<void> _pullServerState() async {
+    if (!usesAuthService || _sessionToken == null || _currentUser == null) {
+      return;
+    }
+    try {
+      final (status, body) = await _authCall('/me/state');
+      final state = body['state'];
+      if (status != 200 || state is! Map) return;
+      if (state.isEmpty) {
+        if ((await _localStateDocument()).isNotEmpty) await _pushServerState();
+        return;
+      }
+      for (final key in _stateKeys) {
+        final value = state[key];
+        if (value == null) {
+          await _storage.delete(key: _storageKey(key));
+        } else {
+          await _storage.write(key: _storageKey(key), value: jsonEncode(value));
+        }
+      }
+      _resetLocalBridgeStateCache();
+      _lastSyncedState = jsonEncode(await _localStateDocument());
+    } catch (error, stack) {
+      _logIgnored('_pullServerState', error, stack);
+    }
+  }
+
+  /// Envoie les données du compte au serveur après une modification.
+  Future<void> _pushServerState() async {
+    if (!usesAuthService || _sessionToken == null || _currentUser == null) {
+      return;
+    }
+    try {
+      final doc = await _localStateDocument();
+      final encoded = jsonEncode(doc);
+      if (encoded == _lastSyncedState) return;
+      final (status, body) =
+          await _authCall('/me/state', body: {'state': doc}, put: true);
+      if (status == 200) _lastSyncedState = encoded;
+      if (status != 200) {
+        _logIgnored('_pushServerState', 'HTTP $status ${body['error'] ?? ''}',
+            StackTrace.current);
+      }
+    } catch (error, stack) {
+      _logIgnored('_pushServerState', error, stack);
+    }
   }
 
   /// Demande un lien de réinitialisation par e-mail. `null` si la demande
@@ -498,6 +588,7 @@ class EcoDietApi {
         key: _storageKey('folder_recipes'),
         value: jsonEncode(serializable),
       );
+      await _pushServerState();
       if (_debugFolders) {
         debugPrint(
           '[FOLDER_DEBUG][SAVE] folders=${_localFolders.length} links=${serializable.length} data=$serializable',
@@ -1254,8 +1345,8 @@ class EcoDietApi {
     }
 
     if (_useGcpBridge) {
-      // Pas de route de mise à jour côté Cloud Run : le nom est conservé dans
-      // la session de l'appareil.
+      // Nom conservé sur l'appareil et, avec le service d'authentification,
+      // dans les données du compte (/me/state).
       _currentUser = app_models.User(
         userId: _currentUser!.userId,
         email: _currentUser!.email,
@@ -1270,6 +1361,7 @@ class EcoDietApi {
           value: jsonEncode(
               {'nom': _currentUser!.nom, 'prenom': _currentUser!.prenom}),
         );
+        await _pushServerState();
       } catch (error, stack) {
         _logIgnored('updateProfile', error, stack);
       }
@@ -2624,9 +2716,8 @@ class EcoDietApi {
   }
 
   /// Enregistre le régime et les allergies (codes des options d'inscription,
-  /// ex. `vegetarian`, `gluten`). En mode bridge, stocké sur l'appareil pour
-  /// l'utilisateur connecté : le service Cloud Run n'a pas encore de route de
-  /// mise à jour du profil.
+  /// ex. `vegetarian`, `gluten`) pour l'utilisateur connecté : sur l'appareil,
+  /// et sur le serveur avec le service d'authentification (/me/state).
   Future<bool> saveUserPreferences({
     required String? regime,
     required Set<String> allergies,
@@ -2640,6 +2731,7 @@ class EcoDietApi {
           'allergies': (allergies.toList()..sort()),
         }),
       );
+      await _pushServerState();
       return true;
     } catch (error, stack) {
       _logIgnored('saveUserPreferences', error, stack);

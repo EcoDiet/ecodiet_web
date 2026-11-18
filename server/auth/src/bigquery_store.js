@@ -14,6 +14,8 @@ const TABLE = /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+){1,2}$/;
  * @param {string} [options.idColumn] identifiant (défaut `user_id`)
  * @param {'string'|'int'} [options.idType] type de l'identifiant
  * @param {string} [options.location] région BigQuery (ex. `EU`)
+ * @param {string} [options.stateTable] table des données du compte
+ *   (sql/user_state.sql) ; sans elle, /me/state répond 501
  */
 export function createBigQueryStore({
   bigquery,
@@ -22,7 +24,11 @@ export function createBigQueryStore({
   idColumn = 'user_id',
   idType = 'string',
   location,
+  stateTable,
 }) {
+  if (stateTable && !TABLE.test(stateTable)) {
+    throw new Error(`Nom de table invalide : ${stateTable}`);
+  }
   if (!TABLE.test(table)) throw new Error(`Nom de table invalide : ${table}`);
   for (const column of [passwordColumn, idColumn]) {
     if (!IDENTIFIER.test(column)) throw new Error(`Nom de colonne invalide : ${column}`);
@@ -37,7 +43,33 @@ export function createBigQueryStore({
   const newId = () =>
     idType === 'int' ? Date.now() * 1000 + randomInt(1000) : randomUUID();
 
+  const stateRef = stateTable ? `\`${stateTable}\`` : null;
+
+  const stateMethods = stateRef
+    ? {
+        async getState(email) {
+          const rows = await run(
+            `SELECT state, updated_at FROM ${stateRef} WHERE email = @email LIMIT 1`,
+            { email },
+          );
+          if (!rows[0]) return null;
+          const updatedAt = rows[0].updated_at?.value ?? rows[0].updated_at;
+          return { state: JSON.parse(rows[0].state), updated_at: String(updatedAt) };
+        },
+        async saveState(email, text, updatedAt) {
+          await run(
+            `MERGE ${stateRef} T USING (SELECT @email AS email) S ON T.email = S.email
+             WHEN MATCHED THEN UPDATE SET state = @state, updated_at = TIMESTAMP(@updatedAt)
+             WHEN NOT MATCHED THEN INSERT (email, state, updated_at)
+               VALUES (@email, @state, TIMESTAMP(@updatedAt))`,
+            { email, state: text, updatedAt },
+          );
+        },
+      }
+    : {};
+
   return {
+    ...stateMethods,
     passwordHashOf: (row) => String(row[passwordColumn] ?? ''),
 
     async findByEmail(email) {

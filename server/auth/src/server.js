@@ -6,6 +6,7 @@
 //   USER_ID_TYPE      string (UUID, défaut) ou int
 //   BQ_LOCATION       région BigQuery (ex. EU)
 //   ALLOWED_ORIGINS   origines autorisées, séparées par des virgules
+//   USER_STATE_TABLE  table des données du compte (sql/user_state.sql)
 //   RESET_URL         page de l'app pour le nouveau mot de passe, ex.
 //                     https://gdemerges.github.io/ecodiet_web/#/reset_password
 //   RESEND_API_KEY    clé Resend pour envoyer les e-mails (Secret Manager)
@@ -34,6 +35,7 @@ const store = createBigQueryStore({
   idColumn: env.USER_ID_COLUMN || 'user_id',
   idType: env.USER_ID_TYPE === 'int' ? 'int' : 'string',
   location: env.BQ_LOCATION || undefined,
+  stateTable: env.USER_STATE_TABLE || undefined,
 });
 
 const handleAuth = createAuthHandler({

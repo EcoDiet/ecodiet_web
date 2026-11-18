@@ -70,8 +70,8 @@ void main() {
     expect(result.isSuccess, isTrue);
     expect(api.currentUser!.prenom, 'Ana');
     expect(api.sessionToken, token);
-    expect(requests.single.url.path, '/auth/login');
-    expect(jsonDecode(requests.single.body),
+    expect(requests.first.url.path, '/auth/login');
+    expect(jsonDecode(requests.first.body),
         {'email': 'ana@b.fr', 'password': 'secret123'});
   });
 
@@ -234,5 +234,94 @@ void main() {
     expect(find.textContaining('Mot de passe enregistré'), findsOneWidget);
     expect(jsonDecode(requests.single.body),
         {'token': 'jeton', 'password': 'nouveau-mdp'});
+  });
+
+  group('données du compte sur le serveur', () {
+    final token = _token(exp: 4102444800);
+    late List<Map<String, dynamic>> pushed;
+
+    setUp(() {
+      pushed = [];
+      routes['POST https://auth.example.test/auth/login'] = (_) => json(200, {
+            'token': token,
+            'user': {'user_id': 'u-sync', 'email': 'ana@b.fr', 'prenom': 'Ana'},
+          });
+      routes['PUT https://auth.example.test/me/state'] = (r) {
+        expect(r.headers['Authorization'], 'Bearer $token');
+        pushed
+            .add((jsonDecode(r.body) as Map)['state'] as Map<String, dynamic>);
+        return json(200, {'updated_at': '2026-11-18T10:00:00Z'});
+      };
+    });
+
+    test('connexion : favoris, nom et préférences repris du serveur', () async {
+      routes['GET https://auth.example.test/me/state'] = (_) => json(200, {
+            'state': {
+              'favorites': ['r1', 'r2'],
+              'identity': {'prenom': 'Anna', 'nom': 'Lopez'},
+              'preferences': {
+                'regime': 'vegan',
+                'allergies': ['soy']
+              },
+            },
+          });
+      routes['GET https://auth.example.test/auth/me'] = (_) => json(200, {
+            'user': {'email': 'ana@b.fr'},
+            'preferences': {'regime': '', 'allergies': ''},
+          });
+
+      await api.login(email: 'ana@b.fr', password: 'secret123');
+
+      expect(api.currentUser!.prenom, 'Anna');
+      expect(await api.getFavoriteIds(), {'r1', 'r2'});
+      final prefs = await api.getUserPreferences();
+      expect(prefs.firstWhere((p) => p.label == 'Régime').value, 'vegan');
+      expect(pushed, isEmpty);
+    });
+
+    test('chaque modification est envoyée au serveur', () async {
+      routes['GET https://auth.example.test/me/state'] = (_) => json(200, {
+            'state': {
+              'favorites': ['r1']
+            }
+          });
+      await api.login(email: 'ana@b.fr', password: 'secret123');
+
+      await api.toggleFavorite('r2');
+      expect((pushed.last['favorites'] as List).toSet(), {'r1', 'r2'});
+
+      await api
+          .saveUserPreferences(regime: 'vegetarian', allergies: {'gluten'});
+      expect(pushed.last['preferences'], {
+        'regime': 'vegetarian',
+        'allergies': ['gluten']
+      });
+
+      await api.updateProfile(prenom: 'Anna', nom: 'L');
+      expect(pushed.last['identity'], {'nom': 'L', 'prenom': 'Anna'});
+    });
+
+    test('compte vide côté serveur : les données de l appareil y sont envoyées',
+        () async {
+      routes['GET https://auth.example.test/me/state'] =
+          (_) => json(200, {'state': {}});
+      await api.login(email: 'ana@b.fr', password: 'secret123');
+      await api.saveUserPreferences(regime: 'vegan', allergies: {});
+      await api.logout();
+      pushed.clear();
+
+      await api.login(email: 'ana@b.fr', password: 'secret123');
+
+      expect(
+          pushed.single['preferences'], {'regime': 'vegan', 'allergies': []});
+    });
+
+    test('serveur injoignable : la connexion réussit, cache local conservé',
+        () async {
+      routes['GET https://auth.example.test/me/state'] =
+          (_) => http.Response('panne', 503);
+      final result = await api.login(email: 'ana@b.fr', password: 'secret123');
+      expect(result.isSuccess, isTrue);
+    });
   });
 }
