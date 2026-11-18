@@ -16,13 +16,15 @@ EcoDiet est une application responsive (desktop et mobile) permettant aux utilis
 
 | Technologie | Version |
 |-------------|---------|
-| Flutter | SDK >= 2.19.4 |
-| Dart | >= 2.19.4 < 4.0.0 |
-| Supabase | Auth + Postgres |
-| font_awesome_flutter | ^10.7.0 |
+| Flutter | 3.44 en CI (3.38.1 minimum, cf. `pubspec.lock`) |
+| Dart | >= 3.0.0 < 4.0.0 |
+| Données | Service Cloud Run « GCP bridge » (BigQuery) |
+| Supabase | `supabase_flutter` ^2.12 (code présent, désactivé au démarrage) |
+| font_awesome_flutter | ^11.0.0 |
 | flutter_svg | ^2.0.0 |
-| email_validator | ^2.1.17 |
-| crypto | ^3.0.3 |
+| google_fonts | ^6.3.0 |
+| shared_preferences | ^2.5.5 |
+| logger | ^2.0.2 |
 
 ---
 
@@ -30,22 +32,40 @@ EcoDiet est une application responsive (desktop et mobile) permettant aux utilis
 
 ```
 lib/
-├── main.dart                    # Point d'entree, routes, navigation (sidebar desktop / bottom nav mobile)
-├── assets/
-│   └── logo/                    # Logos EcoDiet
+├── main.dart                       # Point d'entree, config, routes, navigation (sidebar desktop / bottom nav mobile)
+├── assets/logo/                    # Logos EcoDiet
+├── models/                         # Recette, Quiz, Utilisateur...
 ├── pages/
-│   ├── home_page.dart           # Cartes recettes, quiz, recherche, favoris
-│   ├── recipe_infos_page.dart   # Detail d'une recette (layout 2 colonnes desktop)
-│   ├── quiz_page.dart           # Quiz nutritionnel avec progression
-│   ├── folder_page.dart         # Vue dossier / favoris
-│   ├── profile_page.dart        # Profil utilisateur, dossiers, preferences
-│   ├── login_page.dart          # Connexion avec boutons reseaux sociaux
-│   └── create_account_page.dart # Inscription en 5 etapes (PageView)
+│   ├── home_page.dart              # Accueil : etat, chargement, mise en page
+│   ├── home/
+│   │   ├── home_models.dart        # RecipeDisplayModel, Quiz, RecipeFilters, RecipeSortMode
+│   │   ├── recipe_filtering.dart   # Recherche / filtres / tri / recommandations (fonctions pures)
+│   │   ├── filter_panel.dart       # Panneau de filtres (drawer desktop, bottom sheet mobile)
+│   │   ├── recipe_card.dart
+│   │   └── quiz_card.dart
+│   ├── recipe_infos_page.dart      # Detail d'une recette (layout 2 colonnes desktop)
+│   ├── recipe_infos/
+│   │   ├── recipe_text.dart        # Nettoyage texte, etapes, duree, difficulte (fonctions pures)
+│   │   └── recipe_info_widgets.dart
+│   ├── create_account_page.dart    # Inscription en 5 etapes (PageView)
+│   ├── create_account/
+│   │   ├── onboarding_options.dart # Objectifs, regimes, allergies proposes
+│   │   └── onboarding_widgets.dart # Puces, cartes, boutons, force du mot de passe
+│   ├── all_recipes_page.dart       # Liste complete « Voir tout »
+│   ├── quiz_page.dart              # Quiz nutritionnel avec progression
+│   ├── folder_page.dart            # Vue dossier / favoris
+│   ├── profile_page.dart           # Profil utilisateur, dossiers, preferences
+│   └── login_page.dart             # Connexion
 ├── services/
-│   └── favorites_service.dart   # Singleton ChangeNotifier pour les favoris partages
+│   ├── ecodiet_api.dart            # Acces aux donnees (bridge Cloud Run ; branche Supabase dormante)
+│   └── favorites_service.dart      # Singleton ChangeNotifier pour les favoris partages
+├── widgets/
+│   └── favorite_button.dart
 └── utils/
-    └── responsive.dart          # Helper isDesktop(context), breakpoint 768px
+    └── responsive.dart             # Helper isDesktop(context), breakpoint 768px
 ```
+
+Regle : une page garde l'etat et la mise en page ; la logique sans widget va dans un fichier de fonctions pures (teste dans `test/`), les blocs d'UI reutilisables dans des widgets dedies.
 
 ---
 
@@ -63,6 +83,12 @@ if (isDesktop(context)) {
   // Layout mobile compact
 }
 ```
+
+### Source de donnees
+
+Au demarrage, `main.dart` lit `GCP_BRIDGE_URL` (via `--dart-define`, sinon `assets/env.development` en debug / `assets/env.production` en release sur le web). **Cette variable est obligatoire** : sans elle l'application affiche une erreur de configuration. Le mode est donc toujours `gcp_bridge` ; Supabase n'est pas initialise.
+
+Les erreurs reseau recuperees (fallbacks) sont journalisees via `logger` et visibles dans la console en mode debug.
 
 ### Gestion des favoris
 
@@ -122,29 +148,15 @@ Voir [ACCESSIBILITE.md](./ACCESSIBILITE.md) pour le detail complet.
 
 ## Lancer le projet
 
-### Configuration Supabase pour demo publique
+### Configuration (obligatoire)
 
-1. Creer un nouveau projet Supabase.
-2. Dans Supabase SQL Editor, executer `database/supabase_schema.sql`.
-3. Dans Authentication > Providers > Email, desactiver temporairement la confirmation email si la demo doit accepter des inscriptions immediates.
-4. Copier `.env.example` vers `.env`.
-5. Renseigner uniquement :
-   - `SUPABASE_URL`
-   - `SUPABASE_ANON_KEY`
+Renseigner les fichiers `assets/env.development` et `assets/env.production` (ou passer les valeurs via `--dart-define`) :
 
-Ne jamais mettre `SUPABASE_SERVICE_KEY` dans Flutter, dans `.env`, dans Netlify/Firebase, ou dans un depot Git. Cette cle donne des droits serveur.
-
-### Configuration GCP Cloud Run (pont data)
-
-Pour eviter un acces direct base depuis le front, l'application peut consommer la data via un service Cloud Run.
-
-Variables a ajouter dans `.env` (ou via `--dart-define`) :
-
-- `DATA_PROVIDER=gcp_bridge`
-- `GCP_BRIDGE_URL=https://<votre-service>.a.run.app`
+- `GCP_BRIDGE_URL=https://<votre-service>.a.run.app` (obligatoire)
 - `GCP_BRIDGE_API_KEY=<cle_api_optionnelle>`
+- `DATA_PROVIDER=gcp_bridge` (informatif : le mode est determine par la presence de `GCP_BRIDGE_URL`)
 
-Le front fonctionne en mode `gcp_bridge` et passe par Cloud Run pour les lectures/inscriptions.
+Ces fichiers sont embarques dans le build web : ils ne doivent contenir **aucun secret serveur**.
 
 Endpoints attendus par le front :
 
@@ -162,66 +174,39 @@ Endpoints attendus par le front :
 - `GET /v1/references/equipements`
 - `GET /v1/references/temps-bins`
 
-Compatibilite endpoint unique :
+Compatibilite endpoint unique : si le service expose uniquement `GET /` avec un JSON contenant `donneesBigQuery`, l'app l'accepte aussi.
 
-- Si votre service expose uniquement `GET /` avec un JSON contenant `donneesBigQuery`, l'app l'accepte aussi (mode compatibilite).
+En-tete transmis par le front vers le bridge : `x-api-key` (si configure).
 
-Headers transmis par le front vers le bridge :
+### Supabase (branche dormante)
 
-- `x-api-key` (si configure)
-- `x-user-id` (si utilisateur connecte)
+Le code Supabase (`supabase_flutter`, scripts `database/`) est toujours present mais n'est pas active par `main.dart`. Pour la reactiver il faudrait initialiser Supabase au demarrage. Dans tous les cas, ne jamais mettre `SUPABASE_SERVICE_KEY` dans Flutter, dans un fichier `env`, dans l'hebergeur ou dans Git : cette cle donne des droits serveur.
 
-### Import des donnees DIM/FACT
-
-Le schema cree quelques donnees de demo. Pour importer les donnees completes fournies par l'equipe :
-
-1. Executer `database/supabase_schema.sql` dans le SQL Editor Supabase.
-2. Executer ensuite `database/supabase_seed_data.sql`.
-
-Si les fichiers CSV changent, regenerer le seed :
+Import des donnees DIM/FACT dans Supabase : executer `database/supabase_schema.sql` puis `database/supabase_seed_data.sql`. Pour regenerer le seed depuis les CSV (Windows) :
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\generate_supabase_seed.ps1 -CsvDir "C:\chemin\vers\csv" -Output database\supabase_seed_data.sql
 ```
 
-### Verifier la config Supabase
-
-Avant de lancer Flutter, verifier que le project ref existe :
-
-```powershell
-Resolve-DnsName votre-project-ref.supabase.co
-Invoke-WebRequest -Uri "https://votre-project-ref.supabase.co/auth/v1/settings" -UseBasicParsing
-```
+### Commandes
 
 ```bash
-# Installer les dependances
 flutter pub get
-
-# Lancer en mode web
-flutter run -d chrome
-
-# Build de production
-flutter build web
+flutter run -d chrome     # mode web
+flutter build web         # build de production dans build/web
 ```
 
 ### Deploy web public
 
-Le build de production genere le site statique dans `build/web`.
+Le deploiement de reference est **GitHub Pages**, automatique a chaque push sur `main` (`.github/workflows/deploy.yml` : analyse, tests, build, publication).
 
-Options simples :
-- Netlify : deployer le dossier `build/web`.
-- Firebase Hosting : configurer `public` vers `build/web`, puis deployer.
-- Vercel : deployer le dossier `build/web` ou configurer la commande `flutter build web`.
-
-Le repo contient deja :
-- `web/_redirects` pour Netlify.
-- `netlify.toml` pour deploy Netlify depuis Git.
-- `firebase.json` pour Firebase Hosting.
+Le depot contient aussi `netlify.toml`, `web/_redirects` et `firebase.json` pour Netlify / Firebase Hosting.
 
 ---
 
 ## Tests
 
 ```bash
+flutter analyze   # ou `dart analyze` si l'outil Flutter plante localement
 flutter test
 ```
