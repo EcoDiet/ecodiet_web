@@ -73,6 +73,53 @@ void main() {
         recipeDietLevel(_r('g', ingredients: 'riz, tomates')), DietLevel.vegan);
   });
 
+  group('vocabulaire du secours par mots-clés', () {
+    DietLevel infer(String ingredients) =>
+        recipeDietLevel(_r('x', ingredients: ingredients));
+
+    test('viandes et abats peu courants', () {
+      for (final i in [
+        '4 andouillettes',
+        '1 chapon',
+        '8 cailles',
+        '4 tranches de bacon',
+        '1 kg de paleron',
+        '250 g de boudin noir',
+        '2 cubes de bouillon (volaille)',
+        '1 cube de bouillon de poule',
+        "2 morceaux de selle d'agneau",
+      ]) {
+        expect(infer(i), DietLevel.carnivore, reason: i);
+      }
+    });
+
+    test('poissons et fruits de mer', () {
+      for (final i in [
+        '24 gambas',
+        '4 raies pelées',
+        '500 g de palourdes',
+        '500 g de morue salée',
+        '1 kg de calamar',
+        '1 filet de haddock',
+        '500 g de steak de thon',
+      ]) {
+        expect(infer(i), DietLevel.pescetarian, reason: i);
+      }
+    });
+
+    test('produits laitiers sous un autre nom', () {
+      expect(infer('30 g de gouda'), DietLevel.vegetarian);
+      expect(infer('1 pâte brisée'), DietLevel.vegetarian);
+    });
+
+    test('pas de faux positif', () {
+      expect(infer('lentilles, 20 cl de lait de coco'), DietLevel.vegan);
+      expect(infer('persil haché, sauce barbecue'), DietLevel.vegan);
+      expect(infer('1 bar vidé et écaillé'), DietLevel.pescetarian);
+      expect(infer('riz, au milieu du plat'), DietLevel.vegan);
+    });
+  });
+
   group('recommandations selon le régime du profil', () {
     final steak = _r('s', diets: 'carnivore');
     final fish = _r('p', diets: 'pescetarian');
