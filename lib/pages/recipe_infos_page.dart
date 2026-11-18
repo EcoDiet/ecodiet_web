@@ -5,6 +5,8 @@ import '../services/favorites_service.dart';
 import '../models/recette.dart';
 import '../models/user.dart';
 import '../utils/responsive.dart';
+import 'recipe_infos/recipe_info_widgets.dart';
+import 'recipe_infos/recipe_text.dart';
 
 class RecipeInfosPage extends StatefulWidget {
   final String? id;
@@ -280,13 +282,6 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
       ),
     );
   }
-  String _formatDuration(int minutes) {
-    if (minutes < 60) return '$minutes min';
-    final hours = minutes ~/ 60;
-    final remainingMinutes = minutes % 60;
-    return '${hours}h${remainingMinutes > 0 ? " ${remainingMinutes}min" : ""}';
-  }
-
   String get _recipeTitle =>
       recette?.recette.titre ?? widget.title ?? 'Titre de la recette';
 
@@ -296,105 +291,29 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
             widget.description)
         ?.trim();
     if (raw == null || raw.isEmpty) return raw;
-    return _formatTypeLabel(raw);
-  }
-
-  String _formatTypeLabel(String rawType) {
-    final normalized = _cleanLabel(rawType)
-        .toLowerCase()
-        .replaceAll('_', ' ')
-        .replaceAll('-', ' ')
-        .replaceAll(RegExp(r'\s+'), ' ');
-    if (normalized == 'apperitif') return 'aperitif';
-    return normalized;
-  }
-
-  String _cleanLabel(String value) {
-    return _fixMojibake(value)
-        .replaceAll('"""', '')
-        .replaceAll('"', '')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
-  }
-
-  String _fixMojibake(String input) {
-    var s = input;
-    const replacements = {
-      "Ã¢â‚¬Â¢": "-",
-      "Ã¢â‚¬â€œ": "-",
-      "Ã¢â‚¬â€": "-",
-      "Ã¢â‚¬Â": '"',
-      "Ã¢â‚¬Å“": '"',
-      "Ã¢â‚¬â„¢": "'",
-      "ÃƒÂ©": "?",
-      "ÃƒÂ¨": "?",
-      "ÃƒÂª": "?",
-      "ÃƒÂ«": "?",
-      "ÃƒÂ ": "?",
-      "ÃƒÂ¢": "?",
-      "ÃƒÂ®": "?",
-      "ÃƒÂ¯": "?",
-      "ÃƒÂ´": "?",
-      "ÃƒÂ¶": "?",
-      "ÃƒÂ¹": "?",
-      "ÃƒÂ»": "?",
-      "ÃƒÂ¼": "?",
-      "ÃƒÂ§": "?",
-      "Ã…â€œ": "?",
-      "Ã‚": "",
-    };
-    replacements.forEach((k, v) => s = s.replaceAll(k, v));
-    return s;
+    return formatTypeLabel(raw);
   }
 
   List<String> _ingredientLabels() =>
-      recette?.ingredients.map((i) => _cleanLabel(i.nomIngredient)).toList() ??
+      recette?.ingredients.map((i) => cleanLabel(i.nomIngredient)).toList() ??
       [];
 
   List<String> _equipmentLabels() =>
-      recette?.equipements.map((e) => _cleanLabel(e.nomEquipement)).toList() ??
+      recette?.equipements.map((e) => cleanLabel(e.nomEquipement)).toList() ??
       [];
 
   List<String> _occasionLabels() =>
-      recette?.occasions.map((o) => _cleanLabel(o.libelle)).toList() ?? [];
+      recette?.occasions.map((o) => cleanLabel(o.libelle)).toList() ?? [];
 
-  List<String> _instructionLabels() {
-    final raw = recette?.recette.etapes ?? '';
-    if (raw.trim().isEmpty) return [];
+  List<String> _instructionLabels() =>
+      parseInstructions(recette?.recette.etapes ?? '');
 
-    final text = _cleanEtapesText(raw);
-    return text
-        .split(RegExp(r'\n+'))
-        .map(_cleanLabel)
-        .where((value) => value.isNotEmpty)
-        .where((value) =>
-            !RegExp(r'^pr[Ã©e]paration', caseSensitive: false)
-                .hasMatch(value))
-        .map((value) => value
-            .replaceFirst(
-              RegExp(r'^(Ã©tape|etape)\s+\d+\s*', caseSensitive: false),
-              '',
-            )
-            .trim())
-        .where((value) => value.isNotEmpty)
-        .toList();
-  }
-
-  String _cleanEtapesText(String raw) {
-    var text = raw.trim();
-    if (text.startsWith('[') && text.endsWith(']')) {
-      text = text.substring(1, text.length - 1).trim();
-    }
-
-    return text
-        .replaceAll('\r\n', '\n')
-        .replaceAll(r'\n', '\n')
-        .replaceAll(RegExp(r'''['"]\s*,\s*['"]'''), '\n')
-        .replaceAll('""', '"')
-        .replaceAll(RegExp(r'''^\s*['"]+'''), '')
-        .replaceAll(RegExp(r'''['"]+\s*$'''), '')
-        .trim();
-  }
+  Widget _actionButtons(bool desktop) => RecipeActionButtons(
+        desktop: desktop,
+        isFavorite: _isFavorite,
+        onToggleFavorite: _toggleFavorite,
+        onAddToFolder: _addToFolder,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -602,7 +521,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         _buildMobileInfoRow(),
         const SizedBox(height: 16),
         // Empreinte carbone
-        _buildCarbonFootprint(),
+        const CarbonFootprintCard(),
 
         if (_hasMetaInlineData(occasions)) ...[
           const SizedBox(height: 20),
@@ -610,30 +529,30 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         ],
         if (ingredients.isNotEmpty) ...[
           const SizedBox(height: 28),
-          _buildMobileSection('Ingr\u00e9dients', ingredients),
+          MobileSection('Ingr\u00e9dients', ingredients),
         ],
 
         if (equipments.isNotEmpty) ...[
           const SizedBox(height: 24),
-          _buildMobileSection('Equipements', equipments),
+          MobileSection('Equipements', equipments),
         ],
 
         if (instructions.isNotEmpty) ...[
           const SizedBox(height: 24),
-          _buildMobileSection('Etapes', instructions, numbered: true),
+          MobileSection('Etapes', instructions, numbered: true),
         ],
 
         const SizedBox(height: 32),
         // Boutons
-        _buildActionButtons(false),
+        _actionButtons(false),
       ],
     );
   }
 
   Widget _buildMobileInfoRow() {
     final durationStr = widget.duration ??
-        _formatDuration(recette?.recette.dureeMinute ?? 0);
-    final difficultyLabel = _getDifficultyLabel();
+        formatDuration(recette?.recette.dureeMinute ?? 0);
+    final difficulty = difficultyLabel(recette?.recette.dureeMinute ?? 0);
 
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16),
@@ -650,132 +569,13 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
       ),
       child: Row(
         children: [
-          _buildInfoStat(
+          InfoStat(
               Icons.access_time_rounded, 'Temps', durationStr),
-          _buildInfoDivider(),
-          _buildInfoStat(Icons.signal_cellular_alt_rounded, 'DifficultÃ©',
-              difficultyLabel),
+          const InfoDivider(),
+          InfoStat(Icons.signal_cellular_alt_rounded, 'DifficultÃ©',
+              difficulty),
         ],
       ),
-    );
-  }
-
-  Widget _buildInfoStat(IconData icon, String label, String value) {
-    return Expanded(
-      child: Column(
-        children: [
-          Icon(icon, color: const Color(0xFF2F6B3F), size: 22),
-          const SizedBox(height: 6),
-          Text(
-            value,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
-              fontSize: 15,
-              color: Color(0xFF1F2E1F),
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInfoDivider() {
-    return Container(width: 1, height: 40, color: const Color(0xFFEEEEEE));
-  }
-
-  Widget _buildMobileSection(String title, List<String> items,
-      {bool numbered = false}) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Text(
-              title,
-              style: const TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1F2E1F),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Container(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(
-                color: const Color(0xFF2F6B3F).withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Text(
-                '${items.length}',
-                style: const TextStyle(
-                  fontSize: 12,
-                  color: Color(0xFF2F6B3F),
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 14),
-        ...items.asMap().entries.map((entry) {
-          final idx = entry.key;
-          final item = entry.value;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 12),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (numbered)
-                  Container(
-                    width: 26,
-                    height: 26,
-                    margin: const EdgeInsets.only(top: 2, right: 12),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF2F6B3F),
-                      shape: BoxShape.circle,
-                    ),
-                    child: Center(
-                      child: Text(
-                        '${idx + 1}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 12,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  )
-                else
-                  Container(
-                    width: 8,
-                    height: 8,
-                    margin: const EdgeInsets.only(top: 7, right: 12),
-                    decoration: const BoxDecoration(
-                      color: Color(0xFF2F6B3F),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                Expanded(
-                  child: Text(
-                    item,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      color: Color(0xFF1F2E1F),
-                      height: 1.45,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
     );
   }
 
@@ -790,52 +590,28 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     final chips = <Widget>[];
 
     if (recette != null && recette!.allergenes.isNotEmpty) {
-      chips.add(_metaChip(
+      chips.add(MetaChip(
         'AllergÃ¨ne',
         recette!.allergenes.first.libelle,
         const Color(0xFFD94F3D),
       ));
     }
     final typeRaw = recette?.typePlat?.libelle.trim() ?? '';
-    final type = typeRaw.isEmpty ? '' : _formatTypeLabel(typeRaw);
+    final type = typeRaw.isEmpty ? '' : formatTypeLabel(typeRaw);
     if (type.isNotEmpty) {
-      chips.add(_metaChip('Type', type, const Color(0xFF3F6FC6)));
+      chips.add(MetaChip('Type', type, const Color(0xFF3F6FC6)));
     }
     final regime = recette?.regime?.libelle.trim() ?? '';
     if (regime.isNotEmpty) {
-      chips.add(_metaChip('RÃ©gime', regime, const Color(0xFF4F8D4F)));
+      chips.add(MetaChip('RÃ©gime', regime, const Color(0xFF4F8D4F)));
     }
     if (occasions.isNotEmpty) {
-      chips.add(_metaChip('Occasion', occasions.first, const Color(0xFFCF8748)));
+      chips.add(MetaChip('Occasion', occasions.first, const Color(0xFFCF8748)));
     }
 
     return SingleChildScrollView(
       scrollDirection: Axis.horizontal,
       child: Row(children: chips),
-    );
-  }
-
-  Widget _metaChip(String label, String value, Color color) {
-    return Container(
-      margin: const EdgeInsets.only(right: 10),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
-        borderRadius: BorderRadius.circular(999),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
-      ),
-      child: RichText(
-        text: TextSpan(
-          style: const TextStyle(fontSize: 13, color: Color(0xFF1F2E1F)),
-          children: [
-            TextSpan(
-              text: '$label: ',
-              style: TextStyle(fontWeight: FontWeight.w700, color: color),
-            ),
-            TextSpan(text: value),
-          ],
-        ),
-      ),
     );
   }
 
@@ -872,7 +648,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 5, child: _buildImage(height: 260)),
+            Expanded(flex: 5, child: RecipeImage(photo: recette?.recette.photo, height: 260)),
             const SizedBox(width: 24),
             Expanded(
               flex: 4,
@@ -895,9 +671,9 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
                   const SizedBox(height: 20),
                   _buildInfoCards(),
                   const SizedBox(height: 16),
-                  _buildCarbonFootprint(),
+                  const CarbonFootprintCard(),
                   const SizedBox(height: 20),
-                  _buildActionButtons(true),
+                  _actionButtons(true),
                 ],
               ),
             ),
@@ -909,15 +685,15 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
         ],
         if (ingredients.isNotEmpty) ...[
           const SizedBox(height: 32),
-          _buildSection('Ingr\u00e9dients', 'liste des Ingr\u00e9dients', ingredients),
+          RecipeSection('Ingr\u00e9dients', 'liste des Ingr\u00e9dients', ingredients),
         ],
         if (equipments.isNotEmpty) ...[
           const SizedBox(height: 24),
-          _buildSection('\u00c9quipements', 'mat\u00e9riel conseill\u00e9', equipments),
+          RecipeSection('\u00c9quipements', 'mat\u00e9riel conseill\u00e9', equipments),
         ],
         if (instructions.isNotEmpty) ...[
           const SizedBox(height: 24),
-          _buildSection('\u00c9tapes', 'pr\u00e9paration', instructions,
+          RecipeSection('\u00c9tapes', 'pr\u00e9paration', instructions,
               numbered: true),
         ],
         const SizedBox(height: 24),
@@ -927,333 +703,28 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
 
   // Ã¢â€â‚¬Ã¢â€â‚¬ Shared helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
-  Widget _buildImage({required double height}) {
-    final photo = recette?.recette.photo;
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: SizedBox(
-        height: height,
-        width: double.infinity,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            Container(
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                ),
-              ),
-              child: Center(
-                child: Icon(Icons.eco, size: 60, color: Colors.white.withValues(alpha: 0.3)),
-              ),
-            ),
-            if (photo != null && photo.isNotEmpty)
-              CachedNetworkImage(
-                imageUrl: recetteImageUrl(photo),
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => const SizedBox.shrink(),
-                placeholder: (_, __) => const SizedBox.shrink(),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildInfoCards() {
     final durationStr = widget.duration ??
-        _formatDuration(recette?.recette.dureeMinute ?? 0);
-    final difficultyLabel = _getDifficultyLabel();
+        formatDuration(recette?.recette.dureeMinute ?? 0);
+    final difficulty = difficultyLabel(recette?.recette.dureeMinute ?? 0);
 
     return Row(
       children: [
-        _buildInfoCard(
+        InfoCard(
           icon: Icons.access_time,
           label: 'Temps',
           value: durationStr,
           color: const Color(0xFF2F6B3F),
         ),
         const SizedBox(width: 12),
-        _buildInfoCard(
+        InfoCard(
           icon: Icons.trending_up,
           label: 'DifficultÃ©s',
-          value: difficultyLabel,
+          value: difficulty,
           color: const Color(0xFF2F6B3F),
         ),
       ],
     );
   }
 
-  String _getDifficultyLabel() {
-    final duree = recette?.recette.dureeMinute ?? 0;
-    if (duree <= 15) return 'Facile';
-    if (duree <= 30) return 'Moyen';
-    return 'Difficile';
-  }
-
-  Widget _buildInfoCard({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: color.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Icon(icon, color: color, size: 24),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              label,
-              style: const TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF2F6B3F),
-              ),
-            ),
-            Text(
-              value,
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCarbonFootprint() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2F6B3F).withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child:
-                const Icon(Icons.eco, color: Color(0xFF2F6B3F), size: 24),
-          ),
-          const SizedBox(width: 12),
-          const Text(
-            'Impact carbone',
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Color(0xFF1F2E1F),
-            ),
-          ),
-          const Spacer(),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              const Text(
-                '-' ,
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF2F6B3F),
-                ),
-              ),
-              Text(
-                'par portion',
-                style: TextStyle(fontSize: 12, color: Colors.grey[700]),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildSection(
-    String title,
-    String subtitle,
-    List<String> items, {
-    bool numbered = false,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF2F6B3F),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Text(subtitle,
-            style: TextStyle(fontSize: 12, color: Colors.grey[700])),
-        const SizedBox(height: 12),
-        ...items.asMap().entries.map((entry) {
-          final index = entry.key;
-          final item = entry.value;
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (numbered)
-                  Text(
-                    '${index + 1}. ',
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1F2E1F)),
-                  )
-                else
-                  const Text(
-                    '- ',
-                    style: TextStyle(
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF2F6B3F)),
-                  ),
-                Expanded(
-                  child: Text(
-                    item,
-                    style: const TextStyle(
-                        fontSize: 14, color: Color(0xFF1F2E1F)),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildActionButtons(bool desktop) {
-    if (desktop) {
-      return Row(
-        children: [
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: _toggleFavorite,
-              icon: Icon(
-                  _isFavorite ? Icons.favorite : Icons.favorite_border,
-                  size: 18),
-              label: Text(
-                _isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
-                style: const TextStyle(
-                    fontSize: 14, fontWeight: FontWeight.w500),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2F6B3F),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25)),
-              ),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: ElevatedButton.icon(
-              onPressed: _addToFolder,
-              icon: const Icon(Icons.folder_outlined, size: 18),
-              label: const Text(
-                'Ajouter Ã  un dossier',
-                style:
-                    TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
-              ),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFFF4A259),
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(25)),
-              ),
-            ),
-          ),
-        ],
-      );
-    }
-
-    return Column(
-      children: [
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _toggleFavorite,
-            icon: Icon(
-                _isFavorite
-                    ? Icons.favorite_rounded
-                    : Icons.favorite_border_rounded,
-                size: 20),
-            label: Text(
-              _isFavorite ? 'Retirer des favoris' : 'Ajouter aux favoris',
-              style: const TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w600),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2F6B3F),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-            ),
-          ),
-        ),
-        const SizedBox(height: 12),
-        SizedBox(
-          width: double.infinity,
-          child: ElevatedButton.icon(
-            onPressed: _addToFolder,
-            icon: const Icon(Icons.folder_outlined, size: 20),
-            label: const Text(
-              'Ajouter Ã  un dossier',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFF4A259),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(14)),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
 }
-
-
-
-
-
