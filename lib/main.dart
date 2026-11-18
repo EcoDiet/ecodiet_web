@@ -92,7 +92,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
 
     if (!useGcpBridge) {
       throw StateError(
-        'Configuration manquante : GCP_BRIDGE_URL non defini.',
+        'Configuration manquante : GCP_BRIDGE_URL non défini.',
       );
     }
     logger.i('Supabase desactive: mode gcp_bridge strict');
@@ -112,7 +112,7 @@ class _BootstrapAppState extends State<BootstrapApp> {
       future: _startup,
       builder: (context, snapshot) {
         if (snapshot.hasError) {
-          return _ErrorApp('Erreur demarrage EcoDiet : ${snapshot.error}');
+          return _ErrorApp('Erreur au démarrage d\'EcoDiet : ${snapshot.error}');
         }
         if (snapshot.connectionState == ConnectionState.done) {
           return const MyApp();

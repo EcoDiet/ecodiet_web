@@ -960,7 +960,7 @@ class EcoDietApi {
           safePrenom.isEmpty ||
           safePseudo.isEmpty) {
         return ApiResult.error(
-          'Nom, prenom, pseudo, email et mot de passe sont requis.',
+          'Nom, prénom, pseudo, e-mail et mot de passe sont requis.',
         );
       }
       if (usesAuthService) {
@@ -991,7 +991,7 @@ class EcoDietApi {
 
       final emailAvailable = await isEmailAvailable(normalizedEmail);
       if (!emailAvailable) {
-        return ApiResult.error('Cet email est deja inscrit.');
+        return ApiResult.error('Cet e-mail est déjà inscrit.');
       }
 
       final hashedPassword = _hashPassword(safePassword);
@@ -1020,7 +1020,7 @@ class EcoDietApi {
         }
       } catch (e) {
         return ApiResult.error(
-          'Inscription en base impossible via Cloud Run: $e',
+          'Inscription impossible via Cloud Run : $e',
         );
       }
 
@@ -1129,7 +1129,7 @@ class EcoDietApi {
 
         if (row == null) {
           return ApiResult.error(
-            'Erreur lors de la connexion: identifiants invalides.',
+            'Erreur lors de la connexion : identifiants invalides.',
           );
         }
 
@@ -1149,7 +1149,7 @@ class EcoDietApi {
         return ApiResult.success(_currentUser!);
       } catch (e) {
         return ApiResult.error(
-          'Erreur lors de la connexion bridge: $e',
+          'Erreur lors de la connexion : $e',
         );
       }
     }
@@ -2147,7 +2147,7 @@ class EcoDietApi {
     required String label,
     int colorValue = 0xFFF4A259,
   }) async {
-    if (_currentUser == null) return ApiResult.error('Non connecte');
+    if (_currentUser == null) return ApiResult.error('Non connecté');
     if (_useGcpBridge) {
       await _ensureLocalBridgeStateLoaded();
       final localFolder = <String, dynamic>{

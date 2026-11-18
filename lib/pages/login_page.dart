@@ -90,7 +90,7 @@ class _LoginPageState extends State<LoginPage> {
                         borderRadius: BorderRadius.circular(24),
                       ),
                       child: const Text(
-                        'Des recettes saines pour la planete',
+                        'Des recettes saines pour la planète',
                         style: TextStyle(color: Color(0xFF8FBF97), fontSize: 13),
                       ),
                     ),
@@ -270,7 +270,7 @@ class _LoginPageState extends State<LoginPage> {
                   });
                 },
                 child: Text(
-                  _obscurePassword ? 'Show' : 'Hide',
+                  _obscurePassword ? 'Afficher' : 'Masquer',
                   style: const TextStyle(color: Colors.black54),
                 ),
               ),

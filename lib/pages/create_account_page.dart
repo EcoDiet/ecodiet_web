@@ -121,7 +121,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
         _isCheckingPseudo = false;
         _isPseudoAvailable = available;
         _pseudoCheckMessage =
-            available ? 'Pseudo disponible' : 'Pseudo deja utilise';
+            available ? 'Pseudo disponible' : 'Pseudo déjà utilisé';
       });
     });
   }
@@ -151,7 +151,7 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
         _isCheckingEmail = false;
         _isEmailAvailable = available;
         _emailCheckMessage =
-            available ? 'Email disponible' : 'Email deja utilise';
+            available ? 'E-mail disponible' : 'E-mail déjà utilisé';
       });
     });
   }
@@ -305,11 +305,11 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       if (!mounted) return;
       setState(() {
         _isEmailAvailable = available;
-        _emailCheckMessage = available ? 'Email disponible' : 'Email deja utilise';
+        _emailCheckMessage = available ? 'E-mail disponible' : 'E-mail déjà utilisé';
       });
     }
     if (_isEmailAvailable == false) {
-      _showError('Cet email existe deja');
+      _showError('Cet e-mail est déjà inscrit');
       return;
     }
     if (_pseudoController.text.trim().isEmpty) {
@@ -327,11 +327,11 @@ class _CreateAccountPageState extends State<CreateAccountPage> {
       setState(() {
         _isPseudoAvailable = available;
         _pseudoCheckMessage =
-            available ? 'Pseudo disponible' : 'Pseudo deja utilise';
+            available ? 'Pseudo disponible' : 'Pseudo déjà utilisé';
       });
     }
     if (_isPseudoAvailable == false) {
-      _showError('Ce pseudo existe deja');
+      _showError('Ce pseudo est déjà pris');
       return;
     }
     if (_passwordController.text.length < 8) {

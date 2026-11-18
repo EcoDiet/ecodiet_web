@@ -178,7 +178,7 @@ void main() {
     await c.load();
 
     expect(c.folders, isEmpty);
-    expect(c.profileTag, 'Aucune preference');
+    expect(c.profileTag, 'Aucune préférence');
     c.dispose();
   });
 

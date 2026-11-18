@@ -93,7 +93,7 @@ class ProfileController extends ChangeNotifier {
   String get avatar => avatarLetter(displayName);
   String get profileTag => _preferences.isNotEmpty
       ? preferenceValueLabel(_preferences.first)
-      : 'Aucune preference';
+      : 'Aucune préférence';
 
   /// Préférences avec des libellés lisibles (« Végétarien », « Gluten »).
   List<UserPreference> get displayPreferences => [

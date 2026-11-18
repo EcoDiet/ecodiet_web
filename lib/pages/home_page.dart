@@ -350,18 +350,18 @@ class _HomePageState extends State<HomePage> {
     if (desktop) {
       return Row(
         children: [
-          const Column(
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                'Bonjour 👋',
-                style: TextStyle(
+                _c.greeting,
+                style: const TextStyle(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
                   color: Color(0xFF2F6B3F),
                 ),
               ),
-              Text(
+              const Text(
                 'Mangez sainement, naturellement',
                 style: TextStyle(fontSize: 14, color: Colors.grey),
               ),
@@ -389,9 +389,9 @@ class _HomePageState extends State<HomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Bonjour 👋',
-          style: TextStyle(
+        Text(
+          _c.greeting,
+          style: const TextStyle(
             fontSize: 28,
             fontWeight: FontWeight.bold,
             color: Color(0xFF1F2E1F),

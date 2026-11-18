@@ -28,6 +28,9 @@ class _FakeApi implements EcoDietApi {
   bool get isBridgeMode => true;
   @override
   bool get isLoggedIn => loggedIn;
+  models.User? user;
+  @override
+  models.User? get currentUser => user;
 
   @override
   Future<List<RecettePreview>> getAllRecettesPreview(
@@ -345,5 +348,12 @@ void main() {
     expect(find.byTooltip('Retirer des favoris'), findsOneWidget);
     // Hors session : invitation à se connecter, comme depuis l'accueil.
     expect(find.textContaining('Connecte-toi'), findsOneWidget);
+  });
+
+  test('salutation avec le prénom une fois connecté', () {
+    final api = _FakeApi([]);
+    expect(HomeController(api: api).greeting, 'Bonjour 👋');
+    api.user = models.User(email: 'ana@b.fr', prenom: ' Ana ');
+    expect(HomeController(api: api).greeting, 'Bonjour Ana 👋');
   });
 }

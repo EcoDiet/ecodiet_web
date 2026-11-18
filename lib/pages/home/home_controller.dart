@@ -107,6 +107,12 @@ class HomeController extends ChangeNotifier {
   int get activeFiltersCount => _filters.activeCount;
   bool get isLoggedIn => _api.isLoggedIn;
 
+  /// « Bonjour Ana 👋 », ou « Bonjour 👋 » hors session.
+  String get greeting {
+    final prenom = (_api.currentUser?.prenom ?? '').trim();
+    return prenom.isEmpty ? 'Bonjour 👋' : 'Bonjour $prenom 👋';
+  }
+
   /// Vrai si l'utilisateur a déjà fait le swipe de goûts.
   bool get hasTasteProfile => _tasteProfile != null && !_tasteProfile!.isEmpty;
 
