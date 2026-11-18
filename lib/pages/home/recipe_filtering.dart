@@ -348,14 +348,32 @@ DietLevel? dietLevelFromLabel(String raw) {
   return null;
 }
 
+// Mots-clés appliqués sur un texte ASCII en minuscules. Les mots courts ou
+// ambigus sont bornés (\b) pour éviter les faux positifs (« bar » dans
+// « barbecue », « lieu » dans « milieu », « persil haché »…).
 final _meatPattern = RegExp(
-  r'(boeuf|porc|poulet|dinde|agneau|veau|jambon|lard|saucisse|steak|magret|canard|viande|charcut|hot ?dog|knack)',
+  r'(boeuf|\bveau|porc|poulet|volaille|dinde|canard|magret|agneau|dagneau|'
+  r'mouton|lapin|\bpoules?\b|chapon|\bcailles?\b|pintade|\boie\b|jambon|lard|bacon|'
+  r'pancetta|chorizo|saucisse|saucisson|merguez|chipolata|andouill|boudin|'
+  r'\bdiots?\b|crepinette|tripes?\b|pieds? (et \d+ )?paquets|\bfoie|rognon|'
+  r'viande|rosbif|rosbeef|paleron|poitrine|echine|escalope|gesier|rillette|'
+  r'charcut|cervelas|salami|hot ?dog|knack|steak(?! de thon))',
 );
 final _fishPattern = RegExp(
-  r'(poisson|saumon|thon|cabillaud|truite|sole|sardine|anchois|crevette|fruits de mer|moule|saint jacques|st jacques)',
+  r'(poisson|saumon|\bthon|cabillaud|colin|\blieu\b|merlu|morue|haddock|'
+  r'truite|\bsole\b|\bbar\b|dorade|daurade|maquereau|sardine|anchois|hareng|'
+  r'\braies?\b|lotte|rascasse|congre|grondin|saint-pierre|crevette|gambas|'
+  r'langoustine|homard|crabe|moules?\b|\bcoques\b|palourde|telline|bulot|'
+  r'huitre|saint jacques|st jacques|calamar|encornet|seiche|poulpe|surimi|'
+  r'fruits de mer|vongole|fumet de poisson|cigale de mer)',
 );
-final _animalProductPattern =
-    RegExp(r'(oeuf|lait|fromage|beurre|creme|yaourt|miel)');
+final _animalProductPattern = RegExp(
+  r'(oeuf|lait(?! de coco| vegetal| d ?amande| de soja| d ?avoine| de riz)|'
+  r'creme(?! de coco)|fromage|beurre|yaourt|miel|gruyere|emmental|parmesan|'
+  r'mozzarella|feta|chevre|roquefort|camembert|reblochon|raclette|'
+  r'mascarpone|ricotta|\bkiri\b|gouda|mont d ?or|pate brisee|pate feuilletee|'
+  r'pate sablee|brioche)',
+);
 
 /// Devine le régime par mots-clés (titre, ingrédients, catégorie,
 /// allergènes). Solution de secours, moins fiable que le régime des données.

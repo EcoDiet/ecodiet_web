@@ -238,6 +238,7 @@ class _HomePageState extends State<HomePage> {
                                   builder: (_) => AllRecipesPage(
                                     title: 'Juste pour vous',
                                     recipes: _c.recommendedRecipes,
+                                    onToggleFavorite: _toggleFavorite,
                                   ),
                                 ),
                               ),

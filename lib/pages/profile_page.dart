@@ -1,86 +1,95 @@
 import 'package:flutter/material.dart';
-import '../services/ecodiet_api.dart';
-import '../models/user.dart';
+
+import '../models/user.dart' show UserFolder;
 import '../utils/responsive.dart';
-import '../services/favorites_service.dart';
+import 'profile/folder_dialogs.dart';
+import 'profile/profile_controller.dart';
+import 'profile/profile_widgets.dart';
 import 'taste/taste_entry.dart';
 
 class ProfilePage extends StatefulWidget {
-  const ProfilePage({Key? key}) : super(key: key);
+  const ProfilePage({super.key, this.controller});
+
+  /// Injectable pour les tests ; sinon créé et libéré par la page.
+  final ProfileController? controller;
 
   @override
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  final EcoDietApi _api = EcoDietApi();
-
-  List<UserFolder> folders = [];
-  List<UserPreference> preferences = [];
-  int favoriteCount = 0;
-  bool hasTasteProfile = false;
-
-  User? get _currentUser => _api.currentUser;
-
-  String get _displayName {
-    final user = _currentUser;
-    if (user == null) return 'Utilisateur';
-    final prenom = (user.prenom ?? '').trim();
-    final nom = (user.nom ?? '').trim();
-    if (prenom.isNotEmpty || nom.isNotEmpty) {
-      return '$prenom $nom'.trim();
-    }
-    final email = (user.email).trim();
-    if (email.isNotEmpty) return email.split('@').first;
-    return 'Utilisateur';
-  }
-
-  String get _displayEmail {
-    final email = (_currentUser?.email ?? '').trim();
-    return email.isEmpty ? 'utilisateur@ecodiet.fr' : email;
-  }
-
-  String get _avatarLetter {
-    final name = _displayName.trim();
-    if (name.isEmpty) return 'U';
-    return name.substring(0, 1).toUpperCase();
-  }
+  late final ProfileController _c = widget.controller ?? ProfileController();
 
   @override
   void initState() {
     super.initState();
-    _loadProfileData();
-    FavoritesService().addListener(_onFavoritesChanged);
+    _c.addListener(_onChanged);
+    _c.load();
   }
 
   @override
   void dispose() {
-    FavoritesService().removeListener(_onFavoritesChanged);
+    _c.removeListener(_onChanged);
+    if (widget.controller == null) _c.dispose();
     super.dispose();
   }
 
-  void _onFavoritesChanged() {
-    // Seul le compteur de favoris change — rebuild minimal
+  void _onChanged() {
     if (mounted) setState(() {});
   }
 
-  Future<void> _loadProfileData() async {
-    try {
-      final loadedFolders = await _api.getFolders();
-      final loadedPreferences = await _api.getUserPreferences();
-      final favorites = await _api.getFavorites();
-      final taste = await _api.getTasteProfile();
-      if (!mounted) return;
-
-      setState(() {
-        hasTasteProfile = taste != null && !taste.isEmpty;
-        folders = loadedFolders;
-        preferences = loadedPreferences;
-        favoriteCount = favorites.length;
-      });
-    } catch (e) {
-      debugPrint('Erreur chargement profil: $e');
+  Future<void> _createFolder() async {
+    final input = await showFolderDialog(
+      context,
+      title: 'Créer un nouveau dossier',
+      confirmLabel: 'Créer',
+      hint: 'Ex: Mes recettes rapides',
+    );
+    if (input != null) {
+      await _c.createFolder(input.label, input.color.toARGB32());
     }
+  }
+
+  Future<void> _editFolder(UserFolder folder) async {
+    final input = await showFolderDialog(
+      context,
+      title: 'Modifier le dossier',
+      confirmLabel: 'Enregistrer',
+      initialLabel: folder.label,
+      initialColor: folder.color,
+    );
+    if (input != null) {
+      await _c.updateFolder(folder, input.label, input.color.toARGB32());
+    }
+  }
+
+  Future<void> _deleteFolder(UserFolder folder) async {
+    if (await confirmDeleteFolder(context, folder)) {
+      await _c.deleteFolder(folder);
+    }
+  }
+
+  /// Au retour d'un dossier, les favoris et les contenus ont pu changer
+  /// (retrait dans le dossier, favori basculé sur une recette) : on recharge.
+  Future<void> _openFolder(UserFolder folder) async {
+    await openFolder(context, folder);
+    if (mounted) await _c.load();
+  }
+
+  Widget _buildTasteTile() {
+    return TasteEntryTile(
+      hasProfile: _c.hasTasteProfile,
+      onTap: () async {
+        final saved = await openTasteSwipe(context);
+        if (saved && mounted) _c.markTasteProfileSaved();
+      },
+    );
+  }
+
+  Future<void> _logout() async {
+    await _c.logout();
+    if (!mounted) return;
+    Navigator.pushReplacementNamed(context, '/login');
   }
 
   @override
@@ -118,97 +127,29 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildMobileHero(),
+        ProfileMobileHero(avatar: _c.avatar, name: _c.displayName),
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildFoldersSection(),
+              MobileFoldersSection(
+                folders: _c.folders,
+                countOf: _c.recipeCountOf,
+                onCreate: _createFolder,
+                onEdit: _editFolder,
+                onOpen: _openFolder,
+                onDelete: _deleteFolder,
+              ),
               const SizedBox(height: 24),
-              _buildPreferencesSection(),
+              MobilePreferencesSection(
+                preferences: _c.preferences,
+                extra: _buildTasteTile(),
+              ),
             ],
           ),
         ),
       ],
-    );
-  }
-
-  Widget _buildMobileHero() {
-    final topPadding = MediaQuery.of(context).padding.top;
-    return Container(
-      width: double.infinity,
-      padding: EdgeInsets.fromLTRB(24, topPadding + 24, 24, 32),
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          colors: [Color(0xFF1F3A24), Color(0xFF2F6B3F)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.vertical(bottom: Radius.circular(32)),
-      ),
-      child: Column(
-        children: [
-          // Avatar circulaire
-          Container(
-            width: 84,
-            height: 84,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: const Color(0xFF63A96E),
-              border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.25), width: 3),
-            ),
-            child: Center(
-              child: Text(
-                _avatarLetter,
-                style: const TextStyle(
-                  fontSize: 34,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          Text(
-            _displayName,
-            style: const TextStyle(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: Colors.white,
-            ),
-          ),
-          const SizedBox(height: 10),
-          // Bouton modifier
-          Material(
-            color: Colors.white.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(20),
-            child: InkWell(
-              borderRadius: BorderRadius.circular(20),
-              onTap: () {},
-              child: const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.edit_outlined, color: Colors.white, size: 14),
-                    SizedBox(width: 6),
-                    Text(
-                      'Modifier le profil',
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -216,7 +157,14 @@ class _ProfilePageState extends State<ProfilePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildDesktopBanner(),
+        ProfileDesktopBanner(
+          avatar: _c.avatar,
+          name: _c.displayName,
+          email: _c.displayEmail,
+          favoriteCount: _c.favoriteCount,
+          folderCount: _c.folders.length,
+          profileTag: _c.profileTag,
+        ),
         const SizedBox(height: 24),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -224,962 +172,28 @@ class _ProfilePageState extends State<ProfilePage> {
             // Colonne gauche — dossiers
             Expanded(
               flex: 5,
-              child: _buildDesktopFoldersSection(),
+              child: DesktopFoldersSection(
+                folders: _c.folders,
+                countOf: _c.recipeCountOf,
+                onCreate: _createFolder,
+                onEdit: _editFolder,
+                onOpen: _openFolder,
+              ),
             ),
             const SizedBox(width: 24),
             // Colonne droite — préférences
             Expanded(
               flex: 4,
-              child: _buildDesktopPreferencesSection(),
+              child: DesktopPreferencesSection(
+                preferences: _c.preferences,
+                onLogout: _logout,
+                extra: _buildTasteTile(),
+              ),
             ),
           ],
         ),
         const SizedBox(height: 32),
       ],
-    );
-  }
-
-  // ── Banner + carte profil ─────────────────────────────────────────────────
-
-  Widget _buildDesktopBanner() {
-    final favCount = favoriteCount;
-    final profileTag = preferences.isNotEmpty ? preferences.first.value : 'Aucune preference';
-    return Column(
-      children: [
-        // Banner gradient
-        Container(
-          height: 140,
-          width: double.infinity,
-          decoration: const BoxDecoration(
-            gradient: LinearGradient(
-              colors: [Color(0xFF1F3A24), Color(0xFF2F6B3F)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            borderRadius: BorderRadius.all(Radius.circular(20)),
-          ),
-          child: Stack(
-            children: [
-              // Motif décoratif
-              Positioned(
-                right: -20,
-                top: -20,
-                child: Container(
-                  width: 180,
-                  height: 180,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.04),
-                  ),
-                ),
-              ),
-              Positioned(
-                right: 60,
-                bottom: -40,
-                child: Container(
-                  width: 120,
-                  height: 120,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: Colors.white.withValues(alpha: 0.03),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-
-        // Carte profil (chevauchement)
-        Transform.translate(
-          offset: const Offset(0, -40),
-          child: Container(
-            margin: const EdgeInsets.symmetric(horizontal: 24),
-            padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.08),
-                  blurRadius: 24,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                // Avatar
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF2F6B3F), Color(0xFF63A96E)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
-                    border:
-                        Border.all(color: const Color(0xFFF5ECD9), width: 4),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF2F6B3F).withValues(alpha: 0.3),
-                        blurRadius: 12,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
-                  ),
-                  child: Center(
-                    child: Text(
-                      _avatarLetter,
-                      style: const TextStyle(
-                        fontSize: 32,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 20),
-
-                // Nom + infos
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        _displayName,
-                        style: const TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                          color: Color(0xFF1F2E1F),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _displayEmail,
-                        style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-                      ),
-                      const SizedBox(height: 14),
-                      // Stats pills
-                      Wrap(
-                        spacing: 8,
-                        children: [
-                          _buildStatChip(
-                              Icons.favorite_rounded,
-                              '$favCount favori${favCount > 1 ? 's' : ''}',
-                              Colors.red),
-                          _buildStatChip(
-                              Icons.folder_rounded,
-                              '${folders.length} dossier${folders.length > 1 ? 's' : ''}',
-                              const Color(0xFFF4A259)),
-                          _buildStatChip(Icons.eco_rounded, profileTag,
-                              const Color(0xFF2F6B3F)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Bouton modifier
-                OutlinedButton.icon(
-                  onPressed: () {},
-                  icon: const Icon(Icons.edit_outlined, size: 16),
-                  label: const Text('Modifier'),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: const Color(0xFF2F6B3F),
-                    side:
-                        const BorderSide(color: Color(0xFF2F6B3F), width: 1.5),
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 20, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  // ── Préférences desktop ───────────────────────────────────────────────────
-
-  Widget _buildStatChip(IconData icon, String label, Color color) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color.withValues(alpha: 0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 13, color: color),
-          const SizedBox(width: 5),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: color,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  // ── Dossiers desktop ──────────────────────────────────────────────────────
-
-  Widget _buildDesktopFoldersSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const Text(
-              'Mes dossiers',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Color(0xFF1F2E1F),
-              ),
-            ),
-            FilledButton.icon(
-              onPressed: _showCreateFolderDialog,
-              icon: const Icon(Icons.add, size: 16),
-              label: const Text('Nouveau dossier'),
-              style: FilledButton.styleFrom(
-                backgroundColor: const Color(0xFFF4A259),
-                foregroundColor: Colors.white,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10)),
-                textStyle:
-                    const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: 12,
-            mainAxisSpacing: 12,
-            childAspectRatio: 1.1,
-          ),
-          itemCount: folders.length,
-          itemBuilder: (_, i) => KeyedSubtree(
-            key: ValueKey(folders[i].folderId),
-            child: _buildDesktopFolderTile(folders[i]),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDesktopFolderTile(UserFolder folder) {
-    final isFavorites = folder.label.toLowerCase() == 'favoris';
-    final count = isFavorites ? favoriteCount : folder.recipeCount;
-
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: () => Navigator.pushNamed(context, '/folder', arguments: {
-          'id': folder.folderId?.toString() ?? '',
-          'label': folder.label,
-          'color': folder.color,
-        }),
-        child: Container(
-          decoration: BoxDecoration(
-            border: Border.all(color: Colors.grey[100]!),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Container(
-                    width: 40,
-                    height: 40,
-                    decoration: BoxDecoration(
-                      color: folder.color.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(10),
-                    ),
-                    child: Icon(
-                      isFavorites
-                          ? Icons.favorite_rounded
-                          : Icons.folder_rounded,
-                      color: folder.color,
-                      size: 20,
-                    ),
-                  ),
-                  if (!isFavorites)
-                    InkWell(
-                      onTap: () => _showEditFolderDialog(folder),
-                      borderRadius: BorderRadius.circular(8),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Icon(Icons.more_horiz,
-                            color: Colors.grey[400], size: 18),
-                      ),
-                    ),
-                ],
-              ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    folder.label,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1F2E1F),
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    '$count recette${count > 1 ? 's' : ''}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey[700]),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  // ── Préférences desktop ───────────────────────────────────────────────────
-
-  Widget _buildDesktopPreferencesSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Mes préférences',
-          style: TextStyle(
-            fontSize: 18,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2E1F),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey[100]!),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Column(
-            children: preferences.asMap().entries.map((entry) {
-              final i = entry.key;
-              final pref = entry.value;
-              return Column(
-                children: [
-                  _buildDesktopPrefRow(pref),
-                  if (i < preferences.length - 1)
-                    Divider(
-                        height: 1,
-                        thickness: 1,
-                        color: Colors.grey[100],
-                        indent: 16,
-                        endIndent: 16),
-                ],
-              );
-            }).toList(),
-          ),
-        ),
-        const SizedBox(height: 16),
-        _buildTasteTile(),
-        const SizedBox(height: 16),
-        Container(
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.grey[100]!),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Material(
-            color: Colors.transparent,
-            child: InkWell(
-              onTap: () async {
-                await _api.logout();
-                if (!mounted) return;
-                Navigator.pushReplacementNamed(context, '/login');
-              },
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                          color: Colors.red[50],
-                          borderRadius: BorderRadius.circular(10)),
-                      child: Icon(Icons.logout_rounded,
-                          color: Colors.red[400], size: 18),
-                    ),
-                    const SizedBox(width: 14),
-                    Text('Déconnexion',
-                        style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                            color: Colors.red[400])),
-                    const Spacer(),
-                    Icon(Icons.chevron_right,
-                        color: Colors.grey[300], size: 22),
-                  ],
-                ),
-              ),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildDesktopPrefRow(UserPreference pref) {
-    const icons = [
-      Icons.flag_outlined,
-      Icons.restaurant_outlined,
-      Icons.warning_amber_outlined
-    ];
-    const colors = [Color(0xFF2F6B3F), Color(0xFFF4A259), Color(0xFF3A7BD5)];
-    final idx = preferences.indexOf(pref).clamp(0, 2);
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () {},
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          child: Row(
-            children: [
-              Container(
-                width: 36,
-                height: 36,
-                decoration: BoxDecoration(
-                  color: colors[idx].withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Icon(icons[idx], color: colors[idx], size: 18),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(pref.label,
-                        style: const TextStyle(
-                            fontSize: 14,
-                            fontWeight: FontWeight.w600,
-                            color: Color(0xFF1F2E1F))),
-                    Text(pref.value,
-                        style:
-                            TextStyle(fontSize: 12, color: Colors.grey[700])),
-                  ],
-                ),
-              ),
-              Icon(Icons.chevron_right, color: Colors.grey[300], size: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFoldersSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            _buildSectionHeader(Icons.folder, 'Mes dossiers'),
-            Tooltip(
-              message: 'Créer un dossier',
-              child: InkWell(
-                onTap: _showCreateFolderDialog,
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  padding: const EdgeInsets.all(6),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF4A259),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: const Icon(Icons.add, size: 20, color: Colors.white),
-                ),
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        ...folders.map((folder) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _buildFolderItem(folder),
-            )),
-      ],
-    );
-  }
-
-  Widget _buildPreferencesSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildSectionHeader(Icons.tune, 'Mes préférences'),
-        const SizedBox(height: 12),
-        ...preferences.map((pref) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: _buildPreferenceItem(pref),
-            )),
-        _buildTasteTile(),
-      ],
-    );
-  }
-
-  Widget _buildTasteTile() {
-    return TasteEntryTile(
-      hasProfile: hasTasteProfile,
-      onTap: () async {
-        final saved = await openTasteSwipe(context);
-        if (saved && mounted) setState(() => hasTasteProfile = true);
-      },
-    );
-  }
-
-  void _showCreateFolderDialog() {
-    final TextEditingController labelController = TextEditingController();
-    Color selectedColor = Colors.blue;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Créer un nouveau dossier'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: labelController,
-                decoration: const InputDecoration(
-                  labelText: 'Nom du dossier',
-                  hintText: 'Ex: Mes recettes rapides',
-                ),
-                autofocus: true,
-              ),
-              const SizedBox(height: 16),
-              const Text('Couleur du dossier', style: TextStyle(fontSize: 12)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 12,
-                children: [
-                  Colors.red,
-                  Colors.orange,
-                  Colors.amber,
-                  Colors.green,
-                  Colors.blue,
-                  const Color(0xFF87CEEB),
-                  Colors.purple,
-                  Colors.pink,
-                ].map((color) {
-                  final colorName = {
-                        Colors.red: 'Rouge',
-                        Colors.orange: 'Orange',
-                        Colors.amber: 'Ambre',
-                        Colors.green: 'Vert',
-                        Colors.blue: 'Bleu',
-                        const Color(0xFF87CEEB): 'Bleu ciel',
-                        Colors.purple: 'Violet',
-                        Colors.pink: 'Rose',
-                      }[color] ??
-                      'Couleur';
-                  return Semantics(
-                    label:
-                        '$colorName${selectedColor == color ? ', sélectionné' : ''}',
-                    button: true,
-                    child: InkWell(
-                      onTap: () {
-                        setDialogState(() {
-                          selectedColor = color;
-                        });
-                      },
-                      borderRadius: BorderRadius.circular(18),
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: color,
-                          shape: BoxShape.circle,
-                          border: selectedColor == color
-                              ? Border.all(
-                                  color: const Color(0xFF1F2E1F),
-                                  width: 3,
-                                )
-                              : null,
-                        ),
-                        child: selectedColor == color
-                            ? const Icon(Icons.check,
-                                color: Colors.white, size: 20)
-                            : null,
-                      ),
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Annuler'),
-            ),
-            TextButton(
-              onPressed: () async {
-                if (labelController.text.trim().isEmpty) {
-                  return;
-                }
-
-                final result = await _api.createFolder(
-                  label: labelController.text.trim(),
-                  colorValue: selectedColor.toARGB32(),
-                );
-
-                if (result.isSuccess) {
-                  await _loadProfileData();
-                }
-
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: const Text('Créer'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  void _showEditFolderDialog(UserFolder folder) {
-    final TextEditingController labelController =
-        TextEditingController(text: folder.label);
-    Color selectedColor = folder.color;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: const Text('Modifier le dossier'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: labelController,
-                decoration: const InputDecoration(
-                  labelText: 'Nom du dossier',
-                ),
-                autofocus: true,
-              ),
-              const SizedBox(height: 16),
-              const Text('Couleur du dossier', style: TextStyle(fontSize: 12)),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 12,
-                children: [
-                  Colors.red,
-                  Colors.orange,
-                  Colors.amber,
-                  Colors.green,
-                  Colors.blue,
-                  const Color(0xFF87CEEB),
-                  Colors.purple,
-                  Colors.pink,
-                ].map((color) {
-                  return InkWell(
-                    onTap: () => setDialogState(() => selectedColor = color),
-                    borderRadius: BorderRadius.circular(18),
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        color: color,
-                        shape: BoxShape.circle,
-                        border: selectedColor == color
-                            ? Border.all(
-                                color: const Color(0xFF1F2E1F),
-                                width: 3,
-                              )
-                            : null,
-                      ),
-                      child: selectedColor == color
-                          ? const Icon(Icons.check, color: Colors.white, size: 20)
-                          : null,
-                    ),
-                  );
-                }).toList(),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Annuler'),
-            ),
-            TextButton(
-              onPressed: () async {
-                final newLabel = labelController.text.trim();
-                if (newLabel.isEmpty || folder.folderId == null) return;
-
-                await _api.updateFolder(
-                  folder.folderId!,
-                  newLabel: newLabel,
-                  colorValue: selectedColor.toARGB32(),
-                );
-                await _loadProfileData();
-                if (context.mounted) Navigator.pop(context);
-              },
-              child: const Text('Enregistrer'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSectionHeader(IconData icon, String title) {
-    return Row(
-      children: [
-        Icon(icon, color: const Color(0xFFF4A259), size: 20),
-        const SizedBox(width: 8),
-        Text(
-          title,
-          style: const TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: Color(0xFF1F2E1F),
-          ),
-        ),
-      ],
-    );
-  }
-
-  void _showDeleteFolderDialog(UserFolder folder) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Supprimer le dossier ?'),
-        content: Text(
-            'Voulez-vous supprimer le dossier "${folder.label}" ? Cette action est irréversible.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Annuler'),
-          ),
-          TextButton(
-            onPressed: () async {
-              Navigator.pop(context);
-              if (folder.folderId != null) {
-                await _api.deleteFolder(folder.folderId!);
-              }
-              await _loadProfileData();
-            },
-            child: const Text('Supprimer', style: TextStyle(color: Colors.red)),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFolderItem(UserFolder folder) {
-    final isFavorites = folder.label.toLowerCase() == 'favoris';
-    final count = isFavorites ? favoriteCount : folder.recipeCount;
-
-    return Container(
-      margin: const EdgeInsets.only(bottom: 2),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => Navigator.pushNamed(
-            context,
-            '/folder',
-            arguments: {
-              'id': folder.folderId?.toString() ?? '',
-              'label': folder.label,
-              'color': folder.color,
-            },
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: folder.color.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    isFavorites ? Icons.favorite : Icons.folder,
-                    color: folder.color,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        folder.label,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: Color(0xFF1F2E1F),
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        '$count recette${count > 1 ? 's' : ''}',
-                        style: TextStyle(fontSize: 13, color: Colors.grey[700]),
-                      ),
-                    ],
-                  ),
-                ),
-                if (!isFavorites)
-                  PopupMenuButton<String>(
-                    icon: Icon(Icons.more_horiz,
-                        color: Colors.grey[400], size: 22),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12)),
-                    itemBuilder: (_) => [
-                      const PopupMenuItem(
-                        value: 'edit',
-                        child: Row(
-                          children: [
-                            Icon(Icons.edit_outlined, size: 18),
-                            SizedBox(width: 10),
-                            Text('Modifier'),
-                          ],
-                        ),
-                      ),
-                      PopupMenuItem(
-                        value: 'delete',
-                        child: Row(
-                          children: [
-                            Icon(Icons.delete_outline,
-                                color: Colors.red[400], size: 18),
-                            const SizedBox(width: 10),
-                            Text('Supprimer',
-                                style: TextStyle(color: Colors.red[400])),
-                          ],
-                        ),
-                      ),
-                    ],
-                    onSelected: (value) {
-                      if (value == 'edit') _showEditFolderDialog(folder);
-                      if (value == 'delete') _showDeleteFolderDialog(folder);
-                    },
-                  )
-                else
-                  Icon(Icons.chevron_right, color: Colors.grey[400], size: 22),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildPreferenceItem(UserPreference pref) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      margin: const EdgeInsets.only(bottom: 2),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () {},
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: const Color(0xFFF4A259).withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.tune,
-                      color: Color(0xFFF4A259), size: 18),
-                ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(pref.label,
-                          style: const TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.w600,
-                              color: Color(0xFF1F2E1F))),
-                      const SizedBox(height: 2),
-                      Text(pref.value,
-                          style:
-                              TextStyle(fontSize: 13, color: Colors.grey[700])),
-                    ],
-                  ),
-                ),
-                Icon(Icons.chevron_right, color: Colors.grey[400], size: 22),
-              ],
-            ),
-          ),
-        ),
-      ),
     );
   }
 }

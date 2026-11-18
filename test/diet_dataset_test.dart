@@ -92,11 +92,11 @@ void main() {
     expect(wrong, 0);
   }, skip: _available ? false : 'BDD/ absent');
 
-  test('secours par mots-clés : pas de régression sous 263/300', () {
+  test('secours par mots-clés : pas de régression sous 299/300', () {
     final data = _load(withLabel: false);
     final ok = data.where((d) => inferDietLevel(d.recipe) == d.expected).length;
-    // 263 après unification des mots-clés et correction de deux régimes.
-    expect(ok, greaterThanOrEqualTo(263), reason: 'accord : $ok/300');
+    // 299 : seul écart, Fish and Chips (pâte seule, étiqueté pescétarien).
+    expect(ok, greaterThanOrEqualTo(299), reason: 'accord : $ok/300');
     printOnFailure('accord mots-clés : $ok/300');
   }, skip: _available ? false : 'BDD/ absent');
 }
