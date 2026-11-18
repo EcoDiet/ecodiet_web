@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import '../utils/responsive.dart';
 import 'home_page.dart';
+import 'taste/taste_logic.dart' show recipeIngredientSummary;
 
 class AllRecipesPage extends StatefulWidget {
   final String title;
@@ -198,7 +199,7 @@ class _AllRecipesPageState extends State<AllRecipesPage> {
                           ),
                           const SizedBox(height: 2),
                           Text(
-                            recipe.ingredients,
+                            recipeIngredientSummary(recipe),
                             style: TextStyle(fontSize: 11, color: Colors.grey[700]),
                           ),
                         ],

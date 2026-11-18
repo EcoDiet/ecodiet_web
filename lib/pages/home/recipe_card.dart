@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../../utils/responsive.dart';
 import '../../widgets/favorite_button.dart';
+import '../taste/taste_logic.dart' show recipeIngredientSummary;
 import 'home_models.dart';
 
 /// Carte recette de l'accueil (image, durée, titre, bouton favori).
@@ -176,7 +177,7 @@ class RecipeCard extends StatelessWidget {
                             )
                           else
                             Text(
-                              recipe.ingredients,
+                              recipeIngredientSummary(recipe),
                               style: TextStyle(
                                 fontSize: 11,
                                 color: Colors.grey[700],

@@ -161,6 +161,19 @@ List<String> recipeIngredientLines(RecipeDisplayModel recipe) {
   return out;
 }
 
+/// Aperçu des ingrédients pour une carte : noms seuls, sans quantités ni
+/// doublons (« Ail, Huile d'olive, Persil »).
+String recipeIngredientSummary(RecipeDisplayModel recipe) {
+  final seen = <String>{};
+  final names = <String>[];
+  for (final raw in recipe.ingredients.split(',')) {
+    final name = ingredientDisplayName(raw);
+    if (name.isEmpty || !seen.add(name.toLowerCase())) continue;
+    names.add(name);
+  }
+  return names.join(', ');
+}
+
 /// Liste lisible d'une colonne « a, b, c » des données (ustensiles,
 /// allergènes, occasions) : `fruits_a_coque` → « Fruits a coque »,
 /// « 1 hachoir » → « Hachoir ».

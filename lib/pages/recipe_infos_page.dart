@@ -7,6 +7,7 @@ import '../models/user.dart';
 import '../utils/responsive.dart';
 import 'recipe_infos/recipe_info_widgets.dart';
 import 'recipe_infos/recipe_text.dart';
+import 'taste/taste_logic.dart' show ingredientLine;
 
 class RecipeInfosPage extends StatefulWidget {
   final String? id;
@@ -294,9 +295,17 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     return formatTypeLabel(raw);
   }
 
-  List<String> _ingredientLabels() =>
-      recette?.ingredients.map((i) => displayLabel(i.nomIngredient)).toList() ??
-      [];
+  /// Lignes avec quantités, apostrophes rétablies, fragments et doublons
+  /// retirés (« 1 gousse d'ail »).
+  List<String> _ingredientLabels() {
+    final seen = <String>{};
+    return [
+      for (final i in recette?.ingredients ?? const <Ingredient>[])
+        if (ingredientLine(fixMojibake(i.nomIngredient)) case final line
+            when line.isNotEmpty && seen.add(line.toLowerCase()))
+          line,
+    ];
+  }
 
   List<String> _equipmentLabels() =>
       recette?.equipements.map((e) => displayLabel(e.nomEquipement)).toList() ??

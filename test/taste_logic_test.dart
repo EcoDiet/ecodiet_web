@@ -270,4 +270,17 @@ void main() {
       expect(back.updatedAt, DateTime(2026, 11, 18));
     });
   });
+
+  test('recipeIngredientSummary : noms seuls, sans doublons ni fragments', () {
+    final recipe = RecipeDisplayModel(
+      id: 'x',
+      title: 'Aïoli',
+      category: '',
+      ingredients: '"1 gousse d ail finement hachées", '
+          '"2 cuillères à soupe d huile dolive", 8 kg, '
+          '2 gousses d ail, sel',
+      duration: '',
+    );
+    expect(recipeIngredientSummary(recipe), "Ail, Huile d'olive, Sel");
+  });
 }
