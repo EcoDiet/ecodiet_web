@@ -3,7 +3,6 @@ import 'package:logger/logger.dart';
 
 import '../../models/user.dart';
 import '../../services/ecodiet_api.dart';
-import '../../services/favorites_service.dart';
 
 /// Nom affiché : prénom et nom, sinon la partie locale de l'e-mail.
 String profileDisplayName(User? user) {
@@ -35,9 +34,7 @@ String countLabel(int count, String noun) =>
 
 /// État et actions de la page profil. L'API est injectable pour les tests.
 class ProfileController extends ChangeNotifier {
-  ProfileController({EcoDietApi? api}) : _api = api ?? EcoDietApi() {
-    FavoritesService().addListener(_notify);
-  }
+  ProfileController({EcoDietApi? api}) : _api = api ?? EcoDietApi();
 
   final EcoDietApi _api;
   final Logger _log = Logger();
@@ -103,7 +100,6 @@ class ProfileController extends ChangeNotifier {
   @override
   void dispose() {
     _disposed = true;
-    FavoritesService().removeListener(_notify);
     super.dispose();
   }
 }

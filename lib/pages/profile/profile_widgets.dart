@@ -3,8 +3,9 @@ import 'package:flutter/material.dart';
 import '../../models/user.dart';
 import 'profile_controller.dart' show countLabel, isFavoritesFolder;
 
-void openFolder(BuildContext context, UserFolder folder) {
-  Navigator.pushNamed(context, '/folder', arguments: {
+/// Ouvre la page du dossier ; le Future se termine au retour sur le profil.
+Future<void> openFolder(BuildContext context, UserFolder folder) {
+  return Navigator.pushNamed(context, '/folder', arguments: {
     'id': folder.folderId?.toString() ?? '',
     'label': folder.label,
     'color': folder.color,
@@ -318,12 +319,14 @@ class DesktopFoldersSection extends StatelessWidget {
       required this.folders,
       required this.countOf,
       required this.onCreate,
-      required this.onEdit});
+      required this.onEdit,
+      required this.onOpen});
 
   final List<UserFolder> folders;
   final int Function(UserFolder) countOf;
   final VoidCallback onCreate;
   final ValueChanged<UserFolder> onEdit;
+  final ValueChanged<UserFolder> onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -376,6 +379,7 @@ class DesktopFoldersSection extends StatelessWidget {
               folder: folders[i],
               count: countOf(folders[i]),
               onEdit: () => onEdit(folders[i]),
+              onOpen: () => onOpen(folders[i]),
             ),
           ),
         ),
@@ -389,11 +393,13 @@ class DesktopFolderTile extends StatelessWidget {
       {super.key,
       required this.folder,
       required this.count,
-      required this.onEdit});
+      required this.onEdit,
+      required this.onOpen});
 
   final UserFolder folder;
   final int count;
   final VoidCallback onEdit;
+  final VoidCallback onOpen;
 
   @override
   Widget build(BuildContext context) {
@@ -404,7 +410,7 @@ class DesktopFolderTile extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       clipBehavior: Clip.antiAlias,
       child: InkWell(
-        onTap: () => openFolder(context, folder),
+        onTap: onOpen,
         child: Container(
           decoration: BoxDecoration(
             border: Border.all(color: Colors.grey[100]!),
@@ -632,12 +638,14 @@ class MobileFoldersSection extends StatelessWidget {
       required this.countOf,
       required this.onCreate,
       required this.onEdit,
+      required this.onOpen,
       required this.onDelete});
 
   final List<UserFolder> folders;
   final int Function(UserFolder) countOf;
   final VoidCallback onCreate;
   final ValueChanged<UserFolder> onEdit;
+  final ValueChanged<UserFolder> onOpen;
   final ValueChanged<UserFolder> onDelete;
 
   @override
@@ -673,6 +681,7 @@ class MobileFoldersSection extends StatelessWidget {
                 folder: folder,
                 count: countOf(folder),
                 onEdit: () => onEdit(folder),
+                onOpen: () => onOpen(folder),
                 onDelete: () => onDelete(folder),
               ),
             )),
@@ -733,11 +742,13 @@ class FolderItem extends StatelessWidget {
       required this.folder,
       required this.count,
       required this.onEdit,
+      required this.onOpen,
       required this.onDelete});
 
   final UserFolder folder;
   final int count;
   final VoidCallback onEdit;
+  final VoidCallback onOpen;
   final VoidCallback onDelete;
 
   @override
@@ -761,7 +772,7 @@ class FolderItem extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          onTap: () => openFolder(context, folder),
+          onTap: onOpen,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(

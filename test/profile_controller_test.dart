@@ -23,6 +23,7 @@ class _FakeApi implements EcoDietApi {
   ];
   final List<String> calls = [];
   int loads = 0;
+  int favoriteCount = 5;
 
   @override
   User? get currentUser => user;
@@ -40,7 +41,7 @@ class _FakeApi implements EcoDietApi {
 
   @override
   Future<List<Recette>> getFavorites() async => [
-        for (var i = 0; i < 5; i++)
+        for (var i = 0; i < favoriteCount; i++)
           Recette(
               recetteId: '$i',
               titre: 'R$i',
@@ -155,7 +156,13 @@ void main() {
       final api = _FakeApi(user: User(email: 'ana@b.fr', prenom: 'Ana'));
       await tester.pumpWidget(MaterialApp(
         home: ProfilePage(controller: ProfileController(api: api)),
-        routes: {'/login': (_) => const Text('page login')},
+        routes: {
+          '/login': (_) => const Text('page login'),
+          '/folder': (context) => TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('fermer dossier'),
+              ),
+        },
       ));
       await tester.pumpAndSettle();
       return api;
@@ -204,6 +211,20 @@ void main() {
 
       expect(api.calls, ['delete 2']);
       expect(find.text('Rapides'), findsNothing);
+    });
+
+    testWidgets('retour d un dossier : compteurs rechargés', (tester) async {
+      final api = await pumpPage(tester, const Size(1400, 900));
+      expect(find.text('5 favoris'), findsOneWidget);
+
+      await tester.tap(find.text('Rapides'));
+      await tester.pumpAndSettle();
+      api.favoriteCount = 1; // favori retiré depuis le dossier ou une recette
+      await tester.tap(find.text('fermer dossier'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('1 favori'), findsOneWidget);
+      expect(find.text('1 recette'), findsOneWidget);
     });
 
     testWidgets('déconnexion puis retour à la page de connexion',

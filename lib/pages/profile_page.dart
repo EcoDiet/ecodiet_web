@@ -68,6 +68,13 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  /// Au retour d'un dossier, les favoris et les contenus ont pu changer
+  /// (retrait dans le dossier, favori basculé sur une recette) : on recharge.
+  Future<void> _openFolder(UserFolder folder) async {
+    await openFolder(context, folder);
+    if (mounted) await _c.load();
+  }
+
   Future<void> _logout() async {
     await _c.logout();
     if (!mounted) return;
@@ -120,6 +127,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 countOf: _c.recipeCountOf,
                 onCreate: _createFolder,
                 onEdit: _editFolder,
+                onOpen: _openFolder,
                 onDelete: _deleteFolder,
               ),
               const SizedBox(height: 24),
@@ -155,6 +163,7 @@ class _ProfilePageState extends State<ProfilePage> {
                 countOf: _c.recipeCountOf,
                 onCreate: _createFolder,
                 onEdit: _editFolder,
+                onOpen: _openFolder,
               ),
             ),
             const SizedBox(width: 24),
