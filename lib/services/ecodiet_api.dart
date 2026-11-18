@@ -324,6 +324,35 @@ class EcoDietApi {
     return true;
   }
 
+  /// Demande un lien de réinitialisation par e-mail. `null` si la demande
+  /// est partie (le service répond pareil que le compte existe ou non),
+  /// sinon le message d'erreur.
+  Future<String?> requestPasswordReset(String email) async {
+    if (!usesAuthService) return 'Réinitialisation indisponible pour le moment.';
+    try {
+      final (status, body) = await _authCall('/auth/password-reset/request',
+          body: {'email': email.trim().toLowerCase()});
+      if (status == 200) return null;
+      return _authErrorMessage(body, 'Demande impossible pour le moment.');
+    } catch (e) {
+      return 'Service injoignable : $e';
+    }
+  }
+
+  /// Enregistre le nouveau mot de passe choisi depuis le lien reçu par e-mail.
+  /// `null` si c'est fait, sinon le message d'erreur.
+  Future<String?> confirmPasswordReset(String token, String password) async {
+    if (!usesAuthService) return 'Réinitialisation indisponible pour le moment.';
+    try {
+      final (status, body) = await _authCall('/auth/password-reset/confirm',
+          body: {'token': token, 'password': password});
+      if (status == 200) return null;
+      return _authErrorMessage(body, 'Lien invalide ou expiré.');
+    } catch (e) {
+      return 'Service injoignable : $e';
+    }
+  }
+
   /// Ligne de préférences de l'utilisateur connecté, lue via /auth/me.
   Future<Map<String, dynamic>?> _authPreferencesRow() async {
     if (_sessionToken == null) return null;

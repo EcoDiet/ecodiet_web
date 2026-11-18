@@ -1,6 +1,9 @@
 import 'dart:convert';
 
+import 'package:eco_diet_v0/pages/login/password_reset_dialog.dart';
+import 'package:eco_diet_v0/pages/login/reset_password_page.dart';
 import 'package:eco_diet_v0/services/ecodiet_api.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -163,5 +166,73 @@ void main() {
     expect(isSessionTokenValid(_token(exp: exp - 60), now: now), isFalse);
     expect(isSessionTokenValid('pas.un.jeton', now: now), isFalse);
     expect(isSessionTokenValid('abc', now: now), isFalse);
+  });
+
+  test('réinitialisation : demande et confirmation relayées au service',
+      () async {
+    routes['POST https://auth.example.test/auth/password-reset/request'] =
+        (_) => json(200, {'ok': true});
+    routes['POST https://auth.example.test/auth/password-reset/confirm'] =
+        (r) => (jsonDecode(r.body) as Map)['token'] == 'bon'
+            ? json(200, {'ok': true})
+            : json(
+                400, {'error': 'Lien invalide ou expiré. Refais une demande.'});
+
+    expect(await api.requestPasswordReset(' Ana@B.fr '), isNull);
+    expect(jsonDecode(requests.last.body), {'email': 'ana@b.fr'});
+    expect(await api.confirmPasswordReset('bon', 'nouveau-mdp'), isNull);
+    expect(await api.confirmPasswordReset('vieux', 'nouveau-mdp'),
+        'Lien invalide ou expiré. Refais une demande.');
+  });
+
+  testWidgets('fenêtre « Mot de passe oublié » : envoi puis confirmation',
+      (tester) async {
+    routes['POST https://auth.example.test/auth/password-reset/request'] =
+        (_) => json(200, {'ok': true});
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => TextButton(
+          onPressed: () =>
+              showPasswordResetDialog(context, initialEmail: 'ana@b.fr'),
+          child: const Text('ouvrir'),
+        ),
+      ),
+    ));
+    await tester.tap(find.text('ouvrir'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Envoyer le lien'));
+    await tester.pumpAndSettle();
+
+    expect(find.textContaining('un e-mail vient de partir'), findsOneWidget);
+    expect(requests.single.url.path, '/auth/password-reset/request');
+  });
+
+  testWidgets('page du nouveau mot de passe : contrôles puis envoi',
+      (tester) async {
+    routes['POST https://auth.example.test/auth/password-reset/confirm'] =
+        (_) => json(200, {'ok': true});
+    await tester
+        .pumpWidget(const MaterialApp(home: ResetPasswordPage(token: 'jeton')));
+
+    final fields = find.byType(TextField);
+    await tester.enterText(fields.at(0), 'court');
+    await tester.tap(find.text('Enregistrer'));
+    await tester.pump();
+    expect(find.text('Au moins 8 caractères.'), findsOneWidget);
+
+    await tester.enterText(fields.at(0), 'nouveau-mdp');
+    await tester.enterText(fields.at(1), 'autre-mdp');
+    await tester.tap(find.text('Enregistrer'));
+    await tester.pump();
+    expect(
+        find.text('Les deux mots de passe sont différents.'), findsOneWidget);
+    expect(requests, isEmpty);
+
+    await tester.enterText(fields.at(1), 'nouveau-mdp');
+    await tester.tap(find.text('Enregistrer'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Mot de passe enregistré'), findsOneWidget);
+    expect(jsonDecode(requests.single.body),
+        {'token': 'jeton', 'password': 'nouveau-mdp'});
   });
 }

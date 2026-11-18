@@ -5,12 +5,15 @@ import { randomBytes } from 'node:crypto';
 import http from 'node:http';
 
 import { createAuthHandler } from './handler.js';
+import { createConsoleMailer } from './mailers.js';
 import { createMemoryStore } from './memory_store.js';
 
 const handleAuth = createAuthHandler({
   store: createMemoryStore(),
   secret: randomBytes(32).toString('hex'),
   allowedOrigins: ['*'],
+  mailer: createConsoleMailer(),
+  resetUrl: process.env.RESET_URL || 'http://127.0.0.1:8788/#/reset_password',
 });
 
 const port = Number(process.env.PORT || 8790);

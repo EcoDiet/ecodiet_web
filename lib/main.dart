@@ -4,6 +4,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:logger/logger.dart';
 import 'pages/login_page.dart';
+import 'pages/login/reset_password_page.dart';
 import 'pages/create_account_page.dart';
 import 'pages/home_page.dart';
 import 'pages/recipe_infos_page.dart';
@@ -57,8 +58,13 @@ String _environmentValue(String name) {
   return dotenv.env[name]?.trim() ?? '';
 }
 
+/// Adresse demandée au lancement (ex. `/reset_password?token=…`), lue avant
+/// que l'écran de chargement ne remette l'adresse du navigateur à `/`.
+String _launchRoute = '/';
+
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  _launchRoute = WidgetsBinding.instance.platformDispatcher.defaultRouteName;
   runApp(const BootstrapApp());
 }
 
@@ -197,7 +203,31 @@ class MyApp extends StatelessWidget {
           prefixIconColor: const Color(0xFFF4A259),
         ),
       ),
-      initialRoute: api.isLoggedIn ? '/home' : '/login',
+      initialRoute: _launchRoute != '/'
+          ? _launchRoute
+          : (api.isLoggedIn ? '/home' : '/login'),
+      // L'adresse du navigateur prime : un lien `#/reset_password?token=…`
+      // ouvre directement la page du nouveau mot de passe.
+      onGenerateInitialRoutes: (initialRoute) {
+        final uri = Uri.parse(initialRoute);
+        if (uri.path == '/reset_password') {
+          return [
+            MaterialPageRoute(
+              settings: const RouteSettings(name: '/reset_password'),
+              builder: (_) =>
+                  ResetPasswordPage(token: uri.queryParameters['token'] ?? ''),
+            ),
+          ];
+        }
+        final fallback = api.isLoggedIn ? '/home' : '/login';
+        final name = _initialRoutes.containsKey(uri.path) ? uri.path : fallback;
+        return [
+          MaterialPageRoute(
+            settings: RouteSettings(name: name),
+            builder: _initialRoutes[name]!,
+          ),
+        ];
+      },
       routes: {
         '/login': (context) => const LoginPage(),
         '/create_account': (context) => const CreateAccountPage(),
@@ -236,6 +266,16 @@ class MyApp extends StatelessWidget {
     );
   }
 }
+
+/// Pages qu'on peut ouvrir directement depuis l'adresse du navigateur (les
+/// autres attendent des arguments).
+final Map<String, WidgetBuilder> _initialRoutes = {
+  '/login': (_) => const LoginPage(),
+  '/create_account': (_) => const CreateAccountPage(),
+  '/home': (_) => const MyHomePage(),
+  '/profile': (_) => const ProfilePage(),
+  '/taste': (_) => const TasteSwipePage(),
+};
 
 class MyHomePage extends StatefulWidget {
   const MyHomePage({super.key});

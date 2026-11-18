@@ -13,6 +13,10 @@
 //   POST /auth/email-available {email}                      -> {available}
 //   POST /auth/pseudo-available {pseudo}                    -> {available}
 //   GET  /auth/me              Authorization: Bearer <jeton> -> {user, preferences}
+//   POST /auth/password-reset/request {email}               -> {ok} (toujours)
+//   POST /auth/password-reset/confirm {token, password}     -> {ok}
+
+import { createHash } from 'node:crypto';
 
 import { burnTime, hashPassword, verifyPassword } from './passwords.js';
 import { createToken, verifyToken } from './tokens.js';
@@ -126,6 +130,9 @@ function clientIp(req) {
  * @param {string} options.secret secret de signature des jetons (32 caractères minimum)
  * @param {string[]} [options.allowedOrigins] origines autorisées (CORS), `*` pour toutes
  * @param {number} [options.ttlSeconds] durée de validité du jeton
+ * @param {{send: Function}} [options.mailer] envoi des e-mails ; sans lui, la
+ *   réinitialisation du mot de passe répond 503
+ * @param {string} [options.resetUrl] page de l'app qui reçoit `?token=`
  * @returns {(req, res) => Promise<boolean>} vrai si la requête a été traitée
  */
 export function createAuthHandler({
@@ -134,6 +141,10 @@ export function createAuthHandler({
   allowedOrigins = [],
   ttlSeconds = 7 * 24 * 3600,
   limiter = createLoginLimiter(),
+  resetLimiter = createLoginLimiter({ maxFailures: 3, windowMs: 60 * 60 * 1000 }),
+  mailer,
+  resetUrl = '',
+  resetTtlSeconds = 3600,
   now = () => Date.now(),
 }) {
   if (!secret || secret.length < 32) {
@@ -147,6 +158,19 @@ export function createAuthHandler({
     ),
     user: publicUser(row),
   });
+
+  // Empreinte courte du hachage actuel : un lien de réinitialisation devient
+  // caduc dès que le mot de passe change (usage unique).
+  const passwordStamp = (row) =>
+    createHash('sha256').update(store.passwordHashOf(row)).digest('base64url').slice(0, 16);
+
+  /** Jeton de session valide (pas un jeton de réinitialisation). */
+  const sessionClaims = (req) => {
+    const header = String(req.headers.authorization ?? '');
+    const token = header.startsWith('Bearer ') ? header.slice(7) : '';
+    const claims = verifyToken(token, { secret, now: now() });
+    return claims && !claims.purpose ? claims : null;
+  };
 
   const routes = {
     'POST /auth/register': async (req) => {
@@ -228,13 +252,64 @@ export function createAuthHandler({
     },
 
     'GET /auth/me': async (req) => {
-      const header = String(req.headers.authorization ?? '');
-      const token = header.startsWith('Bearer ') ? header.slice(7) : '';
-      const claims = verifyToken(token, { secret, now: now() });
+      const claims = sessionClaims(req);
       if (!claims) throw new HttpError(401, 'Session expirée ou invalide.');
       const row = await store.findByEmail(claims.email);
       if (!row) throw new HttpError(401, 'Session expirée ou invalide.');
       return [200, { user: publicUser(row), preferences: preferencesOf(row) }];
+    },
+
+    'POST /auth/password-reset/request': async (req) => {
+      if (!mailer || !resetUrl) {
+        throw new HttpError(503, 'Réinitialisation du mot de passe indisponible.');
+      }
+      const body = await readJson(req);
+      const email = normalizeEmail(body.email);
+      if (!EMAIL_PATTERN.test(email)) throw new HttpError(400, 'E-mail invalide.');
+      // Même réponse que le compte existe ou non (pas d'énumération).
+      const key = `reset|${email}`;
+      if (resetLimiter.isBlocked(key, now())) return [200, { ok: true }];
+      resetLimiter.fail(key, now());
+      const row = await store.findByEmail(email);
+      if (row && store.passwordHashOf(row)) {
+        const token = createToken(
+          { email, purpose: 'reset', stamp: passwordStamp(row) },
+          { secret, ttlSeconds: resetTtlSeconds, now: now() },
+        );
+        const link = `${resetUrl}${resetUrl.includes('?') ? '&' : '?'}token=${token}`;
+        try {
+          await mailer.send({
+            to: email,
+            subject: 'EcoDiet : réinitialiser ton mot de passe',
+            text:
+              `Bonjour,\n\nPour choisir un nouveau mot de passe, ouvre ce lien ` +
+              `(valable ${Math.round(resetTtlSeconds / 60)} minutes) :\n${link}\n\n` +
+              `Si tu n'as rien demandé, ignore cet e-mail.`,
+          });
+        } catch (error) {
+          console.error('auth: e-mail de réinitialisation non envoyé :', error.message);
+        }
+      }
+      return [200, { ok: true }];
+    },
+
+    'POST /auth/password-reset/confirm': async (req) => {
+      const body = await readJson(req);
+      const password = typeof body.password === 'string' ? body.password : '';
+      const claims = verifyToken(body.token, { secret, now: now() });
+      const invalid = new HttpError(400, 'Lien invalide ou expiré. Refais une demande.');
+      if (!claims || claims.purpose !== 'reset') throw invalid;
+      if (password.length < MIN_PASSWORD_LENGTH) {
+        throw new HttpError(
+          400,
+          `Le mot de passe doit contenir au moins ${MIN_PASSWORD_LENGTH} caractères.`,
+        );
+      }
+      const row = await store.findByEmail(claims.email);
+      if (!row || passwordStamp(row) !== claims.stamp) throw invalid;
+      await store.updatePasswordHash(row, await hashPassword(password));
+      limiter.reset(`${clientIp(req)}|${claims.email}`);
+      return [200, { ok: true }];
     },
   };
 

@@ -6,12 +6,17 @@
 //   USER_ID_TYPE      string (UUID, défaut) ou int
 //   BQ_LOCATION       région BigQuery (ex. EU)
 //   ALLOWED_ORIGINS   origines autorisées, séparées par des virgules
+//   RESET_URL         page de l'app pour le nouveau mot de passe, ex.
+//                     https://gdemerges.github.io/ecodiet_web/#/reset_password
+//   RESEND_API_KEY    clé Resend pour envoyer les e-mails (Secret Manager)
+//   MAIL_FROM         expéditeur, ex. EcoDiet <noreply@domaine-verifie.fr>
 //   PORT              port d'écoute (défaut : 8080, fourni par Cloud Run)
 
 import http from 'node:http';
 
 import { createBigQueryStore } from './bigquery_store.js';
 import { createAuthHandler } from './handler.js';
+import { createResendMailer } from './mailers.js';
 
 const env = process.env;
 for (const name of ['AUTH_SECRET', 'USERS_TABLE']) {
@@ -38,6 +43,10 @@ const handleAuth = createAuthHandler({
     .split(',')
     .map((origin) => origin.trim())
     .filter(Boolean),
+  resetUrl: env.RESET_URL || '',
+  mailer: env.RESEND_API_KEY
+    ? createResendMailer({ apiKey: env.RESEND_API_KEY, from: env.MAIL_FROM })
+    : undefined,
 });
 
 const port = Number(env.PORT || 8080);

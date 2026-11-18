@@ -23,12 +23,19 @@ de mots de passe) dans le navigateur pour comparer les mots de passe.
 | `POST /auth/email-available` | `email` | `{available}` |
 | `POST /auth/pseudo-available` | `pseudo` | `{available}` |
 | `GET /auth/me` | en-tête `Authorization: Bearer <jeton>` | `{user, preferences}` |
+| `POST /auth/password-reset/request` | `email` | `{ok}`, que le compte existe ou non. Au plus 3 e-mails par heure. |
+| `POST /auth/password-reset/confirm` | `token, password` | `{ok}` · `400` lien invalide, expiré ou déjà utilisé |
+
+Le lien de réinitialisation est valable une heure. Il ne sert qu'une fois,
+car il devient caduc dès que le mot de passe change. Il n'ouvre pas de
+session.
 
 ## Développement
 
 ```sh
-npm test       # 14 tests, sans dépendance installée
-npm run dev    # serveur local en mémoire sur :8790, ne jamais déployer
+npm test       # tests, sans dépendance installée
+npm run dev    # serveur local en mémoire sur :8790, ne jamais déployer.
+               # Les e-mails sont affichés dans la console.
 ```
 
 Pour tester l'app contre ce serveur :
@@ -53,6 +60,8 @@ flutter run -d chrome --dart-define=AUTH_URL=http://127.0.0.1:8790
    | `AUTH_SECRET` | 32 caractères aléatoires ou plus, via Secret Manager. Jamais dans Git. |
    | `USERS_TABLE` | `projet.dataset.dim_utilisateur` |
    | `ALLOWED_ORIGINS` | `https://gdemerges.github.io,http://localhost:5000` |
+   | `RESET_URL` | `https://gdemerges.github.io/ecodiet_web/#/reset_password` |
+   | `RESEND_API_KEY`, `MAIL_FROM` | clé [Resend](https://resend.com) via Secret Manager, et expéditeur d'un domaine vérifié. Sans clé, « Mot de passe oublié » répond 503. |
    | `PASSWORD_COLUMN`, `USER_ID_COLUMN`, `USER_ID_TYPE`, `BQ_LOCATION` | à vérifier sur le schéma réel (défauts : `mdp`, `user_id`, `string`) |
 
    Le compte de service doit avoir `roles/bigquery.dataEditor` sur la table et
