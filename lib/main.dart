@@ -101,7 +101,6 @@ class _BootstrapAppState extends State<BootstrapApp> {
         'Configuration manquante : GCP_BRIDGE_URL non défini.',
       );
     }
-    logger.i('Supabase desactive: mode gcp_bridge strict');
 
   // Restaure la session utilisateur si elle existe.
   try {
