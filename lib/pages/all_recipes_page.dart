@@ -13,11 +13,11 @@ class AllRecipesPage extends StatefulWidget {
   final ValueChanged<Recipe> onToggleFavorite;
 
   const AllRecipesPage({
-    Key? key,
+    super.key,
     required this.title,
     required this.recipes,
     required this.onToggleFavorite,
-  }) : super(key: key);
+  });
 
   @override
   State<AllRecipesPage> createState() => _AllRecipesPageState();

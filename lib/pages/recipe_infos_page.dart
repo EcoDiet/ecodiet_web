@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../services/ecodiet_api.dart';
 import '../services/favorites_service.dart';
@@ -16,12 +16,12 @@ class RecipeInfosPage extends StatefulWidget {
   final String? duration;
 
   const RecipeInfosPage({
-    Key? key,
+    super.key,
     this.id,
     this.title,
     this.description,
     this.duration,
-  }) : super(key: key);
+  });
 
   @override
   State<RecipeInfosPage> createState() => _RecipeInfosPageState();

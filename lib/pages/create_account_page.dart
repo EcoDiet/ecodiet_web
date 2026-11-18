@@ -17,7 +17,7 @@ import 'taste_swipe_page.dart';
 
 
 class CreateAccountPage extends StatefulWidget {
-  const CreateAccountPage({Key? key}) : super(key: key);
+  const CreateAccountPage({super.key});
 
   @override
   State<CreateAccountPage> createState() => _CreateAccountPageState();

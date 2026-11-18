@@ -7,10 +7,10 @@ class FavoriteButton extends StatefulWidget {
   final VoidCallback onToggle;
 
   const FavoriteButton({
-    Key? key,
+    super.key,
     required this.recipeId,
     required this.onToggle,
-  }) : super(key: key);
+  });
 
   @override
   State<FavoriteButton> createState() => _FavoriteButtonState();

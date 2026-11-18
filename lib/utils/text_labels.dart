@@ -1,4 +1,4 @@
-/// Briques communes de nettoyage des libellés venant des données.
+// Briques communes de nettoyage des libellés venant des données.
 
 /// Retire les guillemets parasites et normalise les espaces.
 String stripQuotesAndSpaces(String value) {
