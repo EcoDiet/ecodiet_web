@@ -481,10 +481,16 @@ class DesktopFolderTile extends StatelessWidget {
 
 class DesktopPreferencesSection extends StatelessWidget {
   const DesktopPreferencesSection(
-      {super.key, required this.preferences, required this.onLogout});
+      {super.key,
+      required this.preferences,
+      required this.onLogout,
+      this.extra});
 
   final List<UserPreference> preferences;
   final VoidCallback onLogout;
+
+  /// Bloc affiché entre les préférences et la déconnexion (« Mes goûts »).
+  final Widget? extra;
 
   @override
   Widget build(BuildContext context) {
@@ -527,6 +533,10 @@ class DesktopPreferencesSection extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 16),
+        if (extra != null) ...[
+          extra!,
+          const SizedBox(height: 16),
+        ],
         Container(
           decoration: BoxDecoration(
             color: Colors.white,
@@ -691,9 +701,13 @@ class MobileFoldersSection extends StatelessWidget {
 }
 
 class MobilePreferencesSection extends StatelessWidget {
-  const MobilePreferencesSection({super.key, required this.preferences});
+  const MobilePreferencesSection(
+      {super.key, required this.preferences, this.extra});
 
   final List<UserPreference> preferences;
+
+  /// Bloc affiché sous les préférences (« Mes goûts »).
+  final Widget? extra;
 
   @override
   Widget build(BuildContext context) {
@@ -706,6 +720,7 @@ class MobilePreferencesSection extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: PreferenceItem(pref: pref),
             )),
+        if (extra != null) extra!,
       ],
     );
   }

@@ -7,6 +7,8 @@ import 'home/home_controller.dart';
 import 'home/home_models.dart';
 import 'home/quiz_card.dart';
 import 'home/recipe_card.dart';
+import 'taste/taste_entry.dart';
+import 'taste/taste_recommendation.dart' show topIngredients;
 
 export 'home/home_models.dart';
 export '../widgets/favorite_button.dart';
@@ -62,6 +64,11 @@ class _HomePageState extends State<HomePage> {
       return;
     }
     _openMobileFiltersSheet();
+  }
+
+  Future<void> _openTasteSwipe() async {
+    final saved = await openTasteSwipe(context);
+    if (saved && mounted) await _c.load();
   }
 
   Future<void> _toggleFavorite(RecipeDisplayModel recipe) async {
@@ -171,6 +178,14 @@ class _HomePageState extends State<HomePage> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
+                          // Invitation au swipe de goûts (tant qu'aucun profil)
+                          if (!_c.hasTasteProfile &&
+                              _c.searchQuery.isEmpty &&
+                              !_c.hasActiveFilters) ...[
+                            TastePromptCard(onStart: _openTasteSwipe),
+                            const SizedBox(height: 24),
+                          ],
+
                           // Message "aucun résultat" si recherche active
                           if ((_c.searchQuery.isNotEmpty || _c.hasActiveFilters) &&
                               _c.recommendedRecipes.isEmpty &&
@@ -199,6 +214,24 @@ class _HomePageState extends State<HomePage> {
                             _buildSectionTitle(
                               'Juste pour vous',
                               icon: Icons.star_rounded,
+                              extraAction: _c.hasTasteProfile
+                                  ? TextButton.icon(
+                                      onPressed: _openTasteSwipe,
+                                      icon: const Icon(Icons.swipe_rounded,
+                                          size: 16),
+                                      label: const Text(
+                                        'Affiner',
+                                        style: TextStyle(
+                                            fontSize: 13,
+                                            fontWeight: FontWeight.w600),
+                                      ),
+                                      style: TextButton.styleFrom(
+                                        foregroundColor:
+                                            const Color(0xFF2F6B3F),
+                                        minimumSize: const Size(44, 36),
+                                      ),
+                                    )
+                                  : null,
                               onViewAll: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
@@ -210,9 +243,12 @@ class _HomePageState extends State<HomePage> {
                                 ),
                               ),
                             ),
+                            if (_c.ingredientPreferences.isNotEmpty)
+                              _buildTasteLine(),
                             const SizedBox(height: 12),
                             if (desktop)
-                              _buildRecipeGrid(context, _c.recommendedRecipes)
+                              _buildRecipeGrid(context, _c.recommendedRecipes,
+                                  withReasons: true)
                             else
                               SizedBox(
                                 height: 220,
@@ -226,6 +262,7 @@ class _HomePageState extends State<HomePage> {
                                       padding: const EdgeInsets.only(right: 12),
                                       child: RecipeCard(
           recipe: recipe,
+          reason: _c.recommendationReasonFor(recipe.id),
           onToggleFavorite: () => _toggleFavorite(recipe),
         ),
                                     );
@@ -573,8 +610,26 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
+  /// « Selon vos goûts : Lentilles 67 % · Lait de coco 50 % ».
+  Widget _buildTasteLine() {
+    final top = topIngredients(_c.ingredientPreferences, count: 3)
+        .map((p) => '${p.label} ${p.percent} %')
+        .join(' · ');
+    if (top.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Text(
+        'Selon vos goûts : $top',
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: const TextStyle(fontSize: 13, color: Color(0xFF5C6B5C)),
+      ),
+    );
+  }
+
   Widget _buildRecipeGrid(
-      BuildContext context, List<RecipeDisplayModel> recipes) {
+      BuildContext context, List<RecipeDisplayModel> recipes,
+      {bool withReasons = false}) {
     final width = MediaQuery.of(context).size.width;
     final crossAxisCount = width >= 1100
         ? 4
@@ -597,6 +652,7 @@ class _HomePageState extends State<HomePage> {
           key: ValueKey(recipe.id),
           child: RecipeCard(
           recipe: recipe,
+          reason: withReasons ? _c.recommendationReasonFor(recipe.id) : null,
           onToggleFavorite: () => _toggleFavorite(recipe),
         ),
         );
@@ -637,7 +693,10 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildSectionTitle(String title,
-      {bool showViewAll = true, IconData? icon, VoidCallback? onViewAll}) {
+      {bool showViewAll = true,
+      IconData? icon,
+      VoidCallback? onViewAll,
+      Widget? extraAction}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -659,6 +718,8 @@ class _HomePageState extends State<HomePage> {
             ),
           ],
         ),
+        const Spacer(),
+        if (extraAction != null) extraAction,
         if (showViewAll && onViewAll != null)
           TextButton(
             onPressed: onViewAll,

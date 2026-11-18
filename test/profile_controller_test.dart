@@ -1,4 +1,5 @@
 import 'package:eco_diet_v0/models/recette.dart';
+import 'package:eco_diet_v0/models/taste_profile.dart';
 import 'package:eco_diet_v0/models/user.dart';
 import 'package:eco_diet_v0/pages/profile/profile_controller.dart';
 import 'package:eco_diet_v0/pages/profile_page.dart';
@@ -24,6 +25,8 @@ class _FakeApi implements EcoDietApi {
   final List<String> calls = [];
   int loads = 0;
   int favoriteCount = 5;
+  TasteProfile? taste;
+  bool failTaste = false;
 
   @override
   User? get currentUser => user;
@@ -78,6 +81,12 @@ class _FakeApi implements EcoDietApi {
   Future<void> logout() async => calls.add('logout');
 
   @override
+  Future<TasteProfile?> getTasteProfile() async {
+    if (failTaste) throw Exception('profil de goûts illisible');
+    return taste;
+  }
+
+  @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError('${invocation.memberName}');
 }
@@ -119,6 +128,26 @@ void main() {
     // Le dossier Favoris affiche le nombre de favoris.
     expect(c.recipeCountOf(c.folders[0]), 5);
     expect(c.recipeCountOf(c.folders[1]), 3);
+    c.dispose();
+  });
+
+  test('« Mes goûts » : profil de goûts détecté, erreur sans effet', () async {
+    final api = _FakeApi(user: User(email: 'ana@b.fr'));
+    final c = ProfileController(api: api);
+    await c.load();
+    expect(c.hasTasteProfile, isFalse);
+
+    api.taste = const TasteProfile(
+        votes: [SwipeVote('r1', SwipeVerdict.like)]);
+    await c.load();
+    expect(c.hasTasteProfile, isTrue);
+
+    // Une lecture en échec ne vide pas le reste du profil.
+    api.failTaste = true;
+    await c.load();
+    expect(c.folders, hasLength(2));
+    expect(c.hasTasteProfile, isTrue);
+
     c.dispose();
   });
 

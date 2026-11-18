@@ -10,10 +10,15 @@ class RecipeCard extends StatelessWidget {
   final RecipeDisplayModel recipe;
   final VoidCallback onToggleFavorite;
 
+  /// Raison de la recommandation (« Lentilles, Lait de coco ») : remplace la
+  /// ligne d'ingrédients dans « Juste pour vous ».
+  final String? reason;
+
   const RecipeCard({
     super.key,
     required this.recipe,
     required this.onToggleFavorite,
+    this.reason,
   });
 
   @override
@@ -147,15 +152,38 @@ class RecipeCard extends StatelessWidget {
                             overflow: TextOverflow.ellipsis,
                           ),
                           const SizedBox(height: 2),
-                          Text(
-                            recipe.ingredients,
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: Colors.grey[700],
+                          if (reason != null)
+                            Row(
+                              children: [
+                                const Icon(Icons.favorite_rounded,
+                                    size: 11, color: Color(0xFFD9692A)),
+                                const SizedBox(width: 4),
+                                Expanded(
+                                  child: Text(
+                                    reason!,
+                                    semanticsLabel:
+                                        'Recommandée pour : ${reason!}',
+                                    style: const TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w600,
+                                      color: Color(0xFF8A4A15),
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                              ],
+                            )
+                          else
+                            Text(
+                              recipe.ingredients,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.grey[700],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
                         ],
                       ),
                     ),

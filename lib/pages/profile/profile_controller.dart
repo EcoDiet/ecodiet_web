@@ -43,10 +43,14 @@ class ProfileController extends ChangeNotifier {
   List<UserFolder> _folders = [];
   List<UserPreference> _preferences = [];
   int _favoriteCount = 0;
+  bool _hasTasteProfile = false;
 
   List<UserFolder> get folders => _folders;
   List<UserPreference> get preferences => _preferences;
   int get favoriteCount => _favoriteCount;
+
+  /// L'utilisateur a déjà fait le swipe de goûts.
+  bool get hasTasteProfile => _hasTasteProfile;
 
   String get displayName => profileDisplayName(_api.currentUser);
   String get displayEmail => profileDisplayEmail(_api.currentUser);
@@ -70,6 +74,20 @@ class ProfileController extends ChangeNotifier {
     } catch (error, stack) {
       _log.w('Erreur chargement profil', error: error, stackTrace: stack);
     }
+    // À part : un profil de goûts illisible ne doit pas vider le profil.
+    try {
+      final taste = await _api.getTasteProfile();
+      _hasTasteProfile = taste != null && !taste.isEmpty;
+      _notify();
+    } catch (error, stack) {
+      _log.w('Profil de goûts illisible', error: error, stackTrace: stack);
+    }
+  }
+
+  /// Après un swipe enregistré depuis le profil.
+  void markTasteProfileSaved() {
+    _hasTasteProfile = true;
+    _notify();
   }
 
   Future<void> createFolder(String label, int colorValue) async {

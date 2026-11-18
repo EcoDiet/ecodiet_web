@@ -10,6 +10,7 @@ import 'pages/recipe_infos_page.dart';
 import 'pages/profile_page.dart';
 import 'pages/quiz_page.dart';
 import 'pages/folder_page.dart';
+import 'pages/taste_swipe_page.dart';
 import 'services/ecodiet_api.dart';
 import 'utils/responsive.dart';
 
@@ -199,6 +200,7 @@ class MyApp extends StatelessWidget {
         '/create_account': (context) => const CreateAccountPage(),
         '/home': (context) => const MyHomePage(),
         '/profile': (context) => const ProfilePage(),
+        '/taste': (context) => const TasteSwipePage(),
         '/recipe': (context) {
           final args = ModalRoute.of(context)!.settings.arguments
               as Map<String, dynamic>?;

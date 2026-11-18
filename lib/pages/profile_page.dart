@@ -5,6 +5,7 @@ import '../utils/responsive.dart';
 import 'profile/folder_dialogs.dart';
 import 'profile/profile_controller.dart';
 import 'profile/profile_widgets.dart';
+import 'taste/taste_entry.dart';
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key, this.controller});
@@ -75,6 +76,16 @@ class _ProfilePageState extends State<ProfilePage> {
     if (mounted) await _c.load();
   }
 
+  Widget _buildTasteTile() {
+    return TasteEntryTile(
+      hasProfile: _c.hasTasteProfile,
+      onTap: () async {
+        final saved = await openTasteSwipe(context);
+        if (saved && mounted) _c.markTasteProfileSaved();
+      },
+    );
+  }
+
   Future<void> _logout() async {
     await _c.logout();
     if (!mounted) return;
@@ -131,7 +142,10 @@ class _ProfilePageState extends State<ProfilePage> {
                 onDelete: _deleteFolder,
               ),
               const SizedBox(height: 24),
-              MobilePreferencesSection(preferences: _c.preferences),
+              MobilePreferencesSection(
+                preferences: _c.preferences,
+                extra: _buildTasteTile(),
+              ),
             ],
           ),
         ),
@@ -173,6 +187,7 @@ class _ProfilePageState extends State<ProfilePage> {
               child: DesktopPreferencesSection(
                 preferences: _c.preferences,
                 onLogout: _logout,
+                extra: _buildTasteTile(),
               ),
             ),
           ],
