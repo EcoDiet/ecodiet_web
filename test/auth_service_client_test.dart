@@ -279,6 +279,25 @@ void main() {
       expect(pushed, isEmpty);
     });
 
+    test('favoris : recettes lues dans le catalogue du service', () async {
+      routes['GET https://auth.example.test/me/state'] = (_) => json(200, {
+            'state': {
+              'favorites': ['r2']
+            }
+          });
+      routes['GET https://auth.example.test/catalog/previews'] = (_) =>
+          json(200, [
+            {'recette_id': 'r1', 'titre': 'Curry', 'duree_minute': 30},
+            {'recette_id': 'r2', 'titre': 'Soupe', 'photo': 's.jpg', 'duree_minute': 15},
+          ]);
+      await api.login(email: 'ana@b.fr', password: 'secret123');
+
+      final favorites = await api.getFavorites();
+      expect(favorites.single.titre, 'Soupe');
+      expect(favorites.single.photo, 's.jpg');
+      expect(favorites.single.dureeMinute, 15);
+    });
+
     test('chaque modification est envoyée au serveur', () async {
       routes['GET https://auth.example.test/me/state'] = (_) => json(200, {
             'state': {

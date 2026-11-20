@@ -1302,6 +1302,30 @@ class EcoDietApi {
     }
   }
 
+  /// Recettes (sans étapes) de [ids], dans l'ordre du catalogue : vignettes
+  /// du service si disponibles (déjà en cache), sinon table brute.
+  Future<List<Recette>> _recettesByIds(Set<String> ids) async {
+    final catalog = await _catalogPreviews();
+    if (catalog != null) {
+      return [
+        for (final p in catalog)
+          if (ids.contains(p.recetteId))
+            Recette(
+              recetteId: p.recetteId,
+              titre: p.titre,
+              photo: p.photo,
+              dureeMinute: p.dureeMinute,
+              tempsBinId: p.tempsBinId,
+            ),
+      ];
+    }
+    final base = await _bridgeGetRecettesFromRoot();
+    return base
+        .where((r) => ids.contains('${r['recette_id'] ?? ''}'))
+        .map((r) => Recette.fromMap(r))
+        .toList();
+  }
+
   Future<List<RecettePreview>> getAllRecettesPreview(
       {int pageSize = 1000}) async {
     final catalog = await _catalogPreviews();
@@ -1670,20 +1694,12 @@ class EcoDietApi {
       await _saveLocalBridgeState();
       final allIds = _localFavoriteIds;
       if (allIds.isEmpty) return [];
-      final base = await _bridgeGetRecettesFromRoot();
-      return base
-          .where((r) => allIds.contains('${r['recette_id'] ?? ''}'))
-          .map((r) => Recette.fromMap(r))
-          .toList();
+      return await _recettesByIds(allIds);
     } catch (error, stack) {
       _logIgnored('getFavorites', error, stack);
       if (_localFavoriteIds.isEmpty) return [];
       try {
-        final base = await _bridgeGetRecettesFromRoot();
-        return base
-            .where((r) => _localFavoriteIds.contains('${r['recette_id'] ?? ''}'))
-            .map((r) => Recette.fromMap(r))
-            .toList();
+        return await _recettesByIds(_localFavoriteIds);
       } catch (error, stack) {
         _logIgnored('getFavorites', error, stack);
         return [];
@@ -1824,16 +1840,7 @@ class EcoDietApi {
     }
     if (localIds.isEmpty) return [];
     try {
-      final base = await _bridgeGetRecettesFromRoot();
-      if (_debugFolders) {
-        debugPrint(
-          '[FOLDER_DEBUG][GET_RECIPES] baseCount=${base.length} for folderId=$folderId',
-        );
-      }
-      return base
-          .where((r) => localIds.contains('${r['recette_id'] ?? ''}'))
-          .map((r) => Recette.fromMap(r))
-          .toList();
+      return await _recettesByIds(localIds);
     } catch (error, stack) {
       _logIgnored('getRecipesInFolder', error, stack);
       if (_debugFolders) {
