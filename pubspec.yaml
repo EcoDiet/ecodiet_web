@@ -31,3 +31,6 @@ flutter:
     - lib/assets/logo/EcoDiet-Logo-beige.png
     - assets/env.development
     - assets/env.production
+    # Inter et Montserrat (graisses 400 à 800) servies avec l'app : google_fonts
+    # les lit ici au lieu de les télécharger depuis fonts.gstatic.com.
+    - assets/fonts/
