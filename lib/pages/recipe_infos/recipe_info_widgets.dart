@@ -1,7 +1,7 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/ecodiet_api.dart';
+import '../../widgets/cover_network_image.dart';
 
 /// Statistique (icône, valeur, libellé) de la ligne d'infos mobile.
 class InfoStat extends StatelessWidget {
@@ -213,12 +213,7 @@ class RecipeImage extends StatelessWidget {
               ),
             ),
             if (photo != null && photo.isNotEmpty)
-              CachedNetworkImage(
-                imageUrl: recetteImageUrl(photo),
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => const SizedBox.shrink(),
-                placeholder: (_, __) => const SizedBox.shrink(),
-              ),
+              CoverNetworkImage(imageUrl: recetteImageUrl(photo)),
           ],
         ),
       ),

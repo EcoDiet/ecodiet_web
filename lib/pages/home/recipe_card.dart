@@ -1,10 +1,10 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../utils/responsive.dart';
 import '../../widgets/favorite_button.dart';
 import '../taste/taste_logic.dart' show recipeIngredientSummary;
 import 'home_models.dart';
+import '../../widgets/cover_network_image.dart';
 
 /// Carte recette de l'accueil (image, durée, titre, bouton favori).
 class RecipeCard extends StatelessWidget {
@@ -83,12 +83,7 @@ class RecipeCard extends StatelessWidget {
                         ),
                       ),
                       if (recipe.imageUrl != null)
-                        CachedNetworkImage(
-                          imageUrl: recipe.imageUrl!,
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => const SizedBox.shrink(),
-                          placeholder: (_, __) => const SizedBox.shrink(),
-                        ),
+                        CoverNetworkImage(imageUrl: recipe.imageUrl!),
                       // Badge durée
                       Positioned(
                         top: 8,

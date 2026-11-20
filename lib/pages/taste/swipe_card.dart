@@ -1,9 +1,9 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../home/home_models.dart';
 import '../home/recipe_filtering.dart';
 import 'taste_logic.dart';
+import '../../widgets/cover_network_image.dart';
 
 /// Couleurs du swipe, alignées sur la DA EcoDiet.
 class SwipeColors {
@@ -90,12 +90,7 @@ class SwipeRecipeCard extends StatelessWidget {
                   ),
                 ),
                 if (recipe.imageUrl != null)
-                  CachedNetworkImage(
-                    imageUrl: recipe.imageUrl!,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => const SizedBox.shrink(),
-                    placeholder: (_, __) => const SizedBox.shrink(),
-                  ),
+                  CoverNetworkImage(imageUrl: recipe.imageUrl!),
                 if (recipe.duration.isNotEmpty)
                   Positioned(
                     top: 12,

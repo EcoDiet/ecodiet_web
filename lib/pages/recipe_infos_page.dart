@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import '../services/ecodiet_api.dart';
 import '../services/favorites_service.dart';
 import '../models/recette.dart';
@@ -8,6 +7,7 @@ import '../utils/responsive.dart';
 import 'recipe_infos/recipe_info_widgets.dart';
 import 'recipe_infos/recipe_text.dart';
 import 'taste/taste_logic.dart' show ingredientLine;
+import '../widgets/cover_network_image.dart';
 
 class RecipeInfosPage extends StatefulWidget {
   final String? id;
@@ -457,12 +457,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
               ),
             ),
             if (photo != null && photo.isNotEmpty)
-              CachedNetworkImage(
-                imageUrl: recetteImageUrl(photo),
-                fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => const SizedBox.shrink(),
-                placeholder: (_, __) => const SizedBox.shrink(),
-              ),
+              CoverNetworkImage(imageUrl: recetteImageUrl(photo)),
             // Bottom scrim
             Positioned(
               bottom: 0,

@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../services/ecodiet_api.dart';
@@ -8,6 +7,7 @@ import '../recipe_infos/recipe_info_widgets.dart' show InfoDivider, InfoStat;
 import '../recipe_infos/recipe_text.dart';
 import 'swipe_card.dart';
 import 'taste_logic.dart';
+import '../../widgets/cover_network_image.dart';
 
 /// Charge les étapes de préparation d'une recette (vide si indisponibles).
 typedef StepsLoader = Future<List<String>> Function(String recipeId);
@@ -278,12 +278,7 @@ class _Header extends StatelessWidget {
             ),
           ),
           if (recipe.imageUrl != null)
-            CachedNetworkImage(
-              imageUrl: recipe.imageUrl!,
-              fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => const SizedBox.shrink(),
-              placeholder: (_, __) => const SizedBox.shrink(),
-            ),
+            CoverNetworkImage(imageUrl: recipe.imageUrl!),
         ],
       ),
     );
