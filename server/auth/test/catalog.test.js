@@ -3,7 +3,7 @@ import http from 'node:http';
 import test from 'node:test';
 import { gunzipSync } from 'node:zlib';
 
-import { bigQueryTableLoader, buildPreviews, createCatalog } from '../src/catalog.js';
+import { bigQueryTableLoader, buildDetails, buildPreviews, createCatalog } from '../src/catalog.js';
 import { createAuthHandler } from '../src/handler.js';
 import { createMemoryStore } from '../src/memory_store.js';
 
@@ -25,6 +25,7 @@ const tables = {
   fact_recette_type_plat: [{ recette_id: 'r1', type_plat_id: 5 }],
   dim_allergene: [{ allergene_id: 7, libelle: 'gluten' }],
   fact_recette_allergene: [{ recette_id: 'r2', allergene_id: 7 }],
+  stg_recettes: [{ recette_id: 'r2', etapes: 'Chauffer.', ingredients: "['eau', 'sel']", ustensiles: 'casserole' }],
 };
 const loadTable = async (name) => {
   if (!(name in tables)) throw new Error('absente');
@@ -123,6 +124,62 @@ test('route : gzip, ETag et 304', async (t) => {
   const plain = await get({});
   assert.equal(JSON.parse(plain.body)[0].titre, 'Curry');
   assert.equal((await get({ 'If-None-Match': etag })).res.statusCode, 304);
+});
+
+test('fiches : étapes, libellés avec identifiants, repli stg_recettes', () => {
+  const details = buildDetails({
+    base: tables.fact_recette_base,
+    dimIngredient: tables.dim_ingredient,
+    factIngredient: tables.fact_ingredients_recette,
+    dimRegime: tables.dim_regime,
+    factRegime: tables.fact_recette_regime,
+    dimType: tables.dim_type_plat,
+    factType: tables.fact_recette_type_plat,
+    stg: tables.stg_recettes,
+  });
+  const r1 = details.get('r1');
+  assert.equal(r1.etapes, 'long texte');
+  assert.deepEqual(r1.ingredients, [
+    { ingredient_id: 1, nom_ingredient: 'Tomate' },
+    { ingredient_id: 2, nom_ingredient: 'Riz' },
+  ]);
+  assert.deepEqual(r1.regime, { regime_id: 3, libelle: 'vegan' });
+  assert.deepEqual(r1.type_plat, { type_plat_id: 5, libelle: 'plat principal' });
+  const r2 = details.get('r2');
+  assert.equal(r2.etapes, 'Chauffer.');
+  assert.equal(r2.ustensiles_texte, 'casserole');
+  assert.equal(r2.regime, null);
+});
+
+test('route fiche : 200 gzip, 404 inconnue, 400 identifiant invalide', async (t) => {
+  const handle = createAuthHandler({
+    store: createMemoryStore(),
+    secret: 'c'.repeat(40),
+    catalog: createCatalog({ loadTable }),
+  });
+  const server = http.createServer(async (req, res) => {
+    if (!(await handle(req, res))) res.end();
+  });
+  await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
+  t.after(() => new Promise((resolve) => {
+    server.close(resolve);
+    server.closeAllConnections();
+  }));
+  const port = server.address().port;
+  const get = (path, headers = {}) => new Promise((resolve, reject) => {
+    http.get({ host: '127.0.0.1', port, path, headers }, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve({ res, body: Buffer.concat(chunks) }));
+    }).on('error', reject);
+  });
+
+  const ok = await get('/catalog/recettes/r1', { 'Accept-Encoding': 'gzip' });
+  assert.equal(ok.res.statusCode, 200);
+  assert.equal(ok.res.headers['content-encoding'], 'gzip');
+  assert.equal(JSON.parse(gunzipSync(ok.body)).titre, 'Curry');
+  assert.equal((await get('/catalog/recettes/inconnue')).res.statusCode, 404);
+  assert.equal((await get('/catalog/recettes/%E0')).res.statusCode, 400);
 });
 
 test('sans catalogue : 501 ; table BigQuery hors liste refusée', async () => {

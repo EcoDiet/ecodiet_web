@@ -1257,6 +1257,51 @@ class EcoDietApi {
     }
   }
 
+  /// Fiche complète jointe côté serveur (/catalog/recettes/:id) : une petite
+  /// requête au lieu de 13 tables brutes. `null` si indisponible.
+  Future<RecetteComplete?> _catalogRecette(String recetteId) async {
+    if (!usesAuthService) return null;
+    try {
+      final response = await _authHttp.get(
+        Uri.parse(
+            '$_authBaseUrl/catalog/recettes/${Uri.encodeComponent(recetteId)}'),
+        headers: {'Accept': 'application/json'},
+      );
+      if (response.statusCode != 200) return null;
+      final decoded = jsonDecode(utf8.decode(response.bodyBytes));
+      if (decoded is! Map<String, dynamic>) return null;
+      final complete = _recetteCompleteFromBridgeMap(decoded);
+      // Recettes sans table de liaison : textes bruts de stg_recettes.
+      List<String> raw(String key) =>
+          _splitRawListText('${decoded[key] ?? ''}');
+      final ingredients = complete.ingredients.isNotEmpty
+          ? complete.ingredients
+          : [
+              for (final (i, nom) in raw('ingredients_texte').indexed)
+                Ingredient(ingredientId: -(i + 1), nomIngredient: nom),
+            ];
+      final equipements = complete.equipements.isNotEmpty
+          ? complete.equipements
+          : [
+              for (final (i, nom) in raw('ustensiles_texte').indexed)
+                Equipement(equipementId: -(i + 1), nomEquipement: nom),
+            ];
+      return RecetteComplete(
+        recette: complete.recette,
+        tempsBin: complete.tempsBin,
+        allergenes: complete.allergenes,
+        equipements: equipements,
+        ingredients: ingredients,
+        occasions: complete.occasions,
+        regime: complete.regime,
+        typePlat: complete.typePlat,
+      );
+    } catch (error, stack) {
+      _logIgnored('_catalogRecette', error, stack);
+      return null;
+    }
+  }
+
   Future<List<RecettePreview>> getAllRecettesPreview(
       {int pageSize = 1000}) async {
     final catalog = await _catalogPreviews();
@@ -1332,6 +1377,12 @@ class EcoDietApi {
     if (cached != null &&
         _isCacheValid(_bridgeRecetteCompleteCacheAt[recetteId])) {
       return cached;
+    }
+    final fromCatalog = await _catalogRecette(recetteId);
+    if (fromCatalog != null) {
+      _bridgeRecetteCompleteCache[recetteId] = fromCatalog;
+      _bridgeRecetteCompleteCacheAt[recetteId] = DateTime.now();
+      return fromCatalog;
     }
     try {
       final recette = await getRecetteById(recetteId);

@@ -14,12 +14,14 @@
 //   POST /auth/pseudo-available {pseudo}                    -> {available}
 //   GET  /auth/me              Authorization: Bearer <jeton> -> {user, preferences}
 //   GET  /catalog/previews     (public)                      -> vignettes de recettes
+//   GET  /catalog/recettes/:id (public)                      -> fiche complète
 //   GET  /me/state             Bearer                        -> {state, updated_at}
 //   PUT  /me/state             Bearer, {state}               -> {updated_at}
 //   POST /auth/password-reset/request {email}               -> {ok} (toujours)
 //   POST /auth/password-reset/confirm {token, password}     -> {ok}
 
 import { createHash } from 'node:crypto';
+import { gzipSync } from 'node:zlib';
 
 import { burnTime, hashPassword, verifyPassword } from './passwords.js';
 import { createToken, verifyToken } from './tokens.js';
@@ -440,6 +442,36 @@ export function createAuthHandler({
     }
   }
 
+  async function sendRecette(req, res, id) {
+    if (!catalog?.recette) {
+      send(res, 501, { error: 'Catalogue indisponible.' });
+      return;
+    }
+    let detail;
+    try {
+      detail = await catalog.recette(id);
+    } catch (error) {
+      console.error('catalogue :', error);
+      send(res, 503, { error: 'Catalogue indisponible.' });
+      return;
+    }
+    if (!detail) {
+      send(res, 404, { error: 'Recette inconnue.' });
+      return;
+    }
+    const json = Buffer.from(JSON.stringify(detail));
+    res.statusCode = 200;
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Cache-Control', 'public, max-age=600');
+    res.setHeader('Vary', 'Origin, Accept-Encoding');
+    if (/\bgzip\b/.test(String(req.headers['accept-encoding'] ?? ''))) {
+      res.setHeader('Content-Encoding', 'gzip');
+      res.end(gzipSync(json));
+    } else {
+      res.end(json);
+    }
+  }
+
   return async function handleAuth(req, res) {
     const path = new URL(req.url ?? '/', 'http://localhost').pathname.replace(/\/+$/, '');
     if (
@@ -456,6 +488,18 @@ export function createAuthHandler({
     }
     if (req.method === 'GET' && path === '/catalog/previews') {
       await sendCatalog(req, res);
+      return true;
+    }
+    const recetteMatch = /^\/catalog\/recettes\/([^/]+)$/.exec(path);
+    if (req.method === 'GET' && recetteMatch) {
+      let id;
+      try {
+        id = decodeURIComponent(recetteMatch[1]);
+      } catch {
+        send(res, 400, { error: 'Identifiant invalide.' });
+        return true;
+      }
+      await sendRecette(req, res, id);
       return true;
     }
     const route = routes[`${req.method} ${path}`];

@@ -365,4 +365,42 @@ void main() {
     expect(ingredients.map((i) => i.nomIngredient), ['Riz', 'Tomate']);
     expect(calls, 1);
   });
+
+  test('fiche : une requête au service, repli texte brut, puis cache', () async {
+    var calls = 0;
+    routes['GET https://auth.example.test/catalog/recettes/r1'] = (_) {
+      calls++;
+      return json(200, {
+        'recette_id': 'r1',
+        'titre': 'Curry',
+        'photo': 'c.jpg',
+        'etapes': 'Cuire.',
+        'duree_minute': 30,
+        'temps_bin_id': 2,
+        'ingredients': [
+          {'ingredient_id': 1, 'nom_ingredient': 'Tomate'},
+        ],
+        'equipements': [],
+        'allergenes': [],
+        'occasions': [],
+        'regime': {'regime_id': 3, 'libelle': 'vegan'},
+        'type_plat': null,
+        'ingredients_texte': '',
+        'ustensiles_texte': "['casserole', 'four']",
+      });
+    };
+
+    final fiche = await api.getRecetteComplete('r1');
+    expect(fiche!.recette.etapes, 'Cuire.');
+    expect(fiche.ingredients.single.nomIngredient, 'Tomate');
+    expect(fiche.equipements.map((e) => e.nomEquipement),
+        ['casserole', 'four']);
+    expect(fiche.regime?.libelle, 'vegan');
+    expect(fiche.typePlat, isNull);
+
+    await api.getRecetteComplete('r1');
+    expect(calls, 1, reason: 'servie depuis le cache');
+    expect(requests.every((r) => r.url.host == 'auth.example.test'), isTrue,
+        reason: 'aucune table brute téléchargée');
+  });
 }

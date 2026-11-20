@@ -1,7 +1,8 @@
 // Catalogue des vignettes de recettes : jointure des tables faite une fois
 // côté serveur (au lieu de 13 tables brutes, ~850 Ko, téléchargées et jointes
 // par chaque navigateur), sans les étapes, gardée en mémoire et servie
-// compressée avec un ETag.
+// compressée avec un ETag. Les fiches complètes (étapes, libellés avec leurs
+// identifiants) sont gardées à côté pour /catalog/recettes/:id.
 
 import { createHash } from 'node:crypto';
 import { gzipSync } from 'node:zlib';
@@ -21,6 +22,8 @@ export const CATALOG_TABLES = {
   factOccasion: ['fact_recette_occasion'],
   dimType: ['dim_type_plat'],
   factType: ['fact_recette_type_plat'],
+  // Repli des fiches : étapes, ingrédients et ustensiles en texte brut.
+  stg: ['stg_recettes'],
 };
 
 const toInt = (value) => {
@@ -29,18 +32,19 @@ const toInt = (value) => {
 };
 const text = (value) => String(value ?? '').trim();
 
-/** Même jointure que l'app (ecodiet_api.dart, _bridgeBuildPreviewsFromBase). */
-export function buildPreviews(t) {
+/** Jointure commune : pour chaque recette, les libellés avec leur identifiant. */
+function joinTables(t) {
   const index = (rows, idKey, labelKey) =>
     new Map((rows ?? []).map((r) => [toInt(r[idKey]), text(r[labelKey])]));
   const many = (facts, dim, idKey) => {
     const out = new Map();
     for (const r of facts ?? []) {
       const rid = text(r.recette_id);
-      const label = dim.get(toInt(r[idKey])) ?? '';
+      const id = toInt(r[idKey]);
+      const label = dim.get(id) ?? '';
       if (!rid || !label) continue;
       if (!out.has(rid)) out.set(rid, []);
-      if (!out.get(rid).includes(label)) out.get(rid).push(label);
+      if (!out.get(rid).some((e) => e.id === id)) out.get(rid).push({ id, label });
     }
     return out;
   };
@@ -48,19 +52,29 @@ export function buildPreviews(t) {
     const out = new Map();
     for (const r of facts ?? []) {
       const rid = text(r.recette_id);
-      const label = dim.get(toInt(r[idKey])) ?? '';
-      if (rid && label) out.set(rid, label);
+      const id = toInt(r[idKey]);
+      const label = dim.get(id) ?? '';
+      if (rid && label) out.set(rid, { id, label });
     }
     return out;
   };
 
-  const ingredients = many(t.factIngredient, index(t.dimIngredient, 'ingredient_id', 'nom_ingredient'), 'ingredient_id');
-  const equipements = many(t.factEquipement, index(t.dimEquipement, 'equipement_id', 'nom_equipement'), 'equipement_id');
-  const allergenes = many(t.factAllergene, index(t.dimAllergene, 'allergene_id', 'libelle'), 'allergene_id');
-  const occasions = many(t.factOccasion, index(t.dimOccasion, 'occasion_id', 'libelle'), 'occasion_id');
-  const regimes = one(t.factRegime, index(t.dimRegime, 'regime_id', 'libelle'), 'regime_id');
-  const types = one(t.factType, index(t.dimType, 'type_plat_id', 'libelle'), 'type_plat_id');
+  return {
+    ingredients: many(t.factIngredient, index(t.dimIngredient, 'ingredient_id', 'nom_ingredient'), 'ingredient_id'),
+    equipements: many(t.factEquipement, index(t.dimEquipement, 'equipement_id', 'nom_equipement'), 'equipement_id'),
+    allergenes: many(t.factAllergene, index(t.dimAllergene, 'allergene_id', 'libelle'), 'allergene_id'),
+    occasions: many(t.factOccasion, index(t.dimOccasion, 'occasion_id', 'libelle'), 'occasion_id'),
+    regimes: one(t.factRegime, index(t.dimRegime, 'regime_id', 'libelle'), 'regime_id'),
+    types: one(t.factType, index(t.dimType, 'type_plat_id', 'libelle'), 'type_plat_id'),
+  };
+}
 
+const labels = (entries) => [...new Set((entries ?? []).map((e) => e.label))];
+
+/** Même jointure que l'app (ecodiet_api.dart, _bridgeBuildPreviewsFromBase). */
+export function buildPreviews(t, joined = joinTables(t)) {
+  const j = joined;
+  // Doublons de libellés (identifiants différents) retirés, comme avant.
   return (t.base ?? []).map((r) => {
     const rid = text(r.recette_id);
     return {
@@ -69,14 +83,51 @@ export function buildPreviews(t) {
       photo: text(r.photo),
       duree_minute: toInt(r.duree_minute),
       temps_bin_id: toInt(r.temps_bin_id),
-      type_plat: types.get(rid) ?? null,
-      regime: regimes.get(rid) ?? null,
-      ingredients: ingredients.get(rid) ?? [],
-      equipements: equipements.get(rid) ?? [],
-      allergenes: allergenes.get(rid) ?? [],
-      occasions: occasions.get(rid) ?? [],
+      type_plat: j.types.get(rid)?.label ?? null,
+      regime: j.regimes.get(rid)?.label ?? null,
+      ingredients: labels(j.ingredients.get(rid)),
+      equipements: labels(j.equipements.get(rid)),
+      allergenes: labels(j.allergenes.get(rid)),
+      occasions: labels(j.occasions.get(rid)),
     };
   });
+}
+
+/**
+ * Fiches complètes par recette_id, au format de l'app (getRecetteComplete) :
+ * étapes de la base ou, à défaut, de stg_recettes ; textes bruts de
+ * stg_recettes pour les ingrédients et ustensiles sans table de liaison.
+ */
+export function buildDetails(t, joined = joinTables(t)) {
+  const j = joined;
+  const stg = new Map((t.stg ?? []).map((r) => [text(r.recette_id), r]));
+  const named = (entries, idKey, labelKey) =>
+    (entries ?? []).map((e) => ({ [idKey]: e.id, [labelKey]: e.label }));
+  const details = new Map();
+  for (const r of t.base ?? []) {
+    const rid = text(r.recette_id);
+    if (!rid) continue;
+    const raw = stg.get(rid);
+    const regime = j.regimes.get(rid);
+    const type = j.types.get(rid);
+    details.set(rid, {
+      recette_id: rid,
+      titre: text(r.titre),
+      photo: text(r.photo),
+      etapes: text(r.etapes) || text(raw?.etapes),
+      duree_minute: toInt(r.duree_minute),
+      temps_bin_id: toInt(r.temps_bin_id),
+      ingredients: named(j.ingredients.get(rid), 'ingredient_id', 'nom_ingredient'),
+      equipements: named(j.equipements.get(rid), 'equipement_id', 'nom_equipement'),
+      allergenes: named(j.allergenes.get(rid), 'allergene_id', 'libelle'),
+      occasions: named(j.occasions.get(rid), 'occasion_id', 'libelle'),
+      regime: regime ? { regime_id: regime.id, libelle: regime.label } : null,
+      type_plat: type ? { type_plat_id: type.id, libelle: type.label } : null,
+      ingredients_texte: text(raw?.ingredients),
+      ustensiles_texte: text(raw?.ustensiles),
+    });
+  }
+  return details;
 }
 
 /**
@@ -104,7 +155,9 @@ export function createCatalog({ loadTable, ttlMs = 10 * 60 * 1000, now = () => D
     const entries = await Promise.all(
       Object.entries(CATALOG_TABLES).map(async ([key, names]) => [key, await loadAny(names)]),
     );
-    const previews = buildPreviews(Object.fromEntries(entries));
+    const tables = Object.fromEntries(entries);
+    const joined = joinTables(tables);
+    const previews = buildPreviews(tables, joined);
     if (!previews.length) throw new Error('Catalogue vide.');
     const json = Buffer.from(JSON.stringify(previews));
     return {
@@ -112,11 +165,12 @@ export function createCatalog({ loadTable, ttlMs = 10 * 60 * 1000, now = () => D
       gzip: gzipSync(json),
       etag: `"${createHash('sha1').update(json).digest('base64url')}"`,
       count: previews.length,
+      details: buildDetails(tables, joined),
       at: now(),
     };
   }
 
-  return {
+  const catalog = {
     /** Catalogue en cache, reconstruit après expiration (un seul calcul à la fois). */
     async get() {
       if (cached && now() - cached.at < ttlMs) return cached;
@@ -132,7 +186,14 @@ export function createCatalog({ loadTable, ttlMs = 10 * 60 * 1000, now = () => D
         throw error;
       }
     },
+
+    /** Fiche complète d'une recette, `null` si inconnue. */
+    async recette(id) {
+      const data = await catalog.get();
+      return data.details?.get(String(id)) ?? null;
+    },
   };
+  return catalog;
 }
 
 /** Lecture BigQuery d'une table du catalogue (dataset `projet.dataset`). */
@@ -143,10 +204,10 @@ export function bigQueryTableLoader({ bigquery, dataset, location }) {
   const allowed = new Set(Object.values(CATALOG_TABLES).flat());
   return async (name) => {
     if (!allowed.has(name)) throw new Error(`Table non autorisée : ${name}`);
-    const columns =
-      name === 'fact_recette_base'
-        ? 'recette_id, titre, photo, duree_minute, temps_bin_id'
-        : '*';
+    const columns = {
+      fact_recette_base: 'recette_id, titre, photo, etapes, duree_minute, temps_bin_id',
+      stg_recettes: 'recette_id, etapes, ingredients, ustensiles',
+    }[name] ?? '*';
     const [rows] = await bigquery.query({
       query: `SELECT ${columns} FROM \`${dataset}.${name}\``,
       location,
