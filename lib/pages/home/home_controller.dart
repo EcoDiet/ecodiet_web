@@ -226,7 +226,7 @@ class HomeController extends ChangeNotifier {
     }
     _notify();
 
-    final success = await _api.toggleFavorite(recipe.id);
+    final success = await _api.toggleFavorite(recipe.id, favorite: nowFavorite);
     return nowFavorite && !success && !_api.isLoggedIn;
   }
 

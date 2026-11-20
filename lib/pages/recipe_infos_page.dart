@@ -104,7 +104,7 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     }
 
     // Synchronisation backend au mieux (nécessite une session active).
-    final success = await _api.toggleFavorite(r.recetteId);
+    final success = await _api.toggleFavorite(r.recetteId, favorite: isFavorite);
     if (!mounted) return;
     if (isFavorite && !success && !_api.isLoggedIn) {
       ScaffoldMessenger.of(context).showSnackBar(

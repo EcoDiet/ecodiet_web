@@ -75,7 +75,7 @@ class _FakeApi implements EcoDietApi {
   }
 
   @override
-  Future<bool> toggleFavorite(String recetteId) async {
+  Future<bool> toggleFavorite(String recetteId, {bool? favorite}) async {
     toggled.add(recetteId);
     return syncSucceeds;
   }

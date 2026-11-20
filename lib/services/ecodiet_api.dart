@@ -1672,8 +1672,10 @@ class EcoDietApi {
     }
   }
 
-  Future<bool> toggleFavorite(String recetteId) async {
-    final isFav = await isFavorite(recetteId);
+  /// Bascule le favori. [favorite] : état voulu, quand l'appelant le connaît
+  /// déjà (évite de relire les favoris sur le serveur).
+  Future<bool> toggleFavorite(String recetteId, {bool? favorite}) async {
+    final isFav = favorite != null ? !favorite : await isFavorite(recetteId);
     if (isFav) {
       return await removeFromFavorites(recetteId);
     } else {
