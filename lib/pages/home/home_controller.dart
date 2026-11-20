@@ -233,13 +233,17 @@ class HomeController extends ChangeNotifier {
   Future<void> load({bool forceRefresh = false}) async {
     // Lecture locale peu coûteuse : relue à chaque affichage pour prendre en
     // compte un swipe fait entre-temps, même quand les recettes sont en cache.
-    _tasteProfile = await _loadTasteProfile();
+    // Lancée en parallèle du reste : elle synchronise aussi les swipes avec
+    // le serveur et ne doit pas retarder le chargement des recettes.
+    final tasteFuture = _loadTasteProfile();
 
     final cache = _memoryCache;
     if (!forceRefresh &&
         cache != null &&
         DateTime.now().difference(cache.fetchedAt) < _memoryCacheTtl) {
-      final favoriteIds = await _api.getFavoriteIds();
+      final (favoriteIds, taste) =
+          await (_api.getFavoriteIds(), tasteFuture).wait;
+      _tasteProfile = taste;
       _memoryCache = cache.touched();
       _apply(cache, favoriteIds);
       await _applyPendingFavorites();
@@ -262,6 +266,7 @@ class HomeController extends ChangeNotifier {
         _api.getAllAllergenes(),
         _api.getUserPreferences(),
       ]);
+      _tasteProfile = await tasteFuture;
 
       final fresh = _HomeDataCache(
         fetchedAt: DateTime.now(),
@@ -278,6 +283,7 @@ class HomeController extends ChangeNotifier {
       _apply(fresh, results[1] as Set<String>);
       await _applyPendingFavorites();
     } catch (e) {
+      _tasteProfile = await tasteFuture;
       _isLoading = false;
       _loadWarning = 'Erreur chargement data bridge: $e';
       debugPrint('Erreur chargement données: $e');

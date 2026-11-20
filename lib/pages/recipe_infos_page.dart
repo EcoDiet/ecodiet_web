@@ -66,12 +66,15 @@ class _RecipeInfosPageState extends State<RecipeInfosPage> {
     }
 
     final recetteId = widget.id!;
-    final result = await _api.getRecetteComplete(recetteId);
+    // Fiche, favori et dossiers en parallèle plutôt qu'en série.
+    final (result, favResult, foldersResult) = await (
+      _api.getRecetteComplete(recetteId),
+      _api.isFavorite(recetteId),
+      _api.getFolders(),
+    ).wait;
+    if (!mounted) return;
 
     if (result != null) {
-      final favResult = await _api.isFavorite(recetteId);
-      final foldersResult = await _api.getFolders();
-
       setState(() {
         recette = result;
         isFavorite = favResult || FavoritesService().isFavorite(recetteId);
