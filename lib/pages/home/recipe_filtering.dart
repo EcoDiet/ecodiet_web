@@ -269,29 +269,54 @@ String ingredientFilterLabel(String raw) {
 }
 
 /// `query` doit déjà être en minuscules et sans espaces de bord.
+/// Textes normalisés d'une recette, calculés une fois (les champs de
+/// [RecipeDisplayModel] sont immuables) au lieu d'à chaque frappe ou filtre.
+class _RecipeIndex {
+  _RecipeIndex(RecipeDisplayModel r)
+      : searchFields = [
+          r.title,
+          r.category,
+          r.ingredients,
+          r.utensils,
+          r.diets,
+          r.allergens,
+          r.occasions,
+        ].map((v) => v.toLowerCase()).toList(growable: false),
+        ingredientTags = r.ingredients
+            .split(',')
+            .map(ingredientFilterLabel)
+            .where((v) => v.isNotEmpty)
+            .map((v) => v.toLowerCase())
+            .toSet(),
+        utensilText = normalizeAscii(r.utensils).toLowerCase(),
+        dietText = normalizeAscii('${r.category} ${r.diets}').toLowerCase(),
+        allergenText = normalizeAscii(r.allergens).toLowerCase(),
+        durationMinutes = parseDurationMinutes(r.duration);
+
+  final List<String> searchFields;
+  final Set<String> ingredientTags;
+  final String utensilText;
+  final String dietText;
+  final String allergenText;
+  final int? durationMinutes;
+}
+
+final _recipeIndex = Expando<_RecipeIndex>('recipeIndex');
+
+_RecipeIndex _indexOf(RecipeDisplayModel recipe) =>
+    _recipeIndex[recipe] ??= _RecipeIndex(recipe);
+
 bool matchesSearch(RecipeDisplayModel recipe, String query) {
   if (query.isEmpty) return true;
-  final q = query;
-  return recipe.title.toLowerCase().contains(q) ||
-      recipe.category.toLowerCase().contains(q) ||
-      recipe.ingredients.toLowerCase().contains(q) ||
-      recipe.utensils.toLowerCase().contains(q) ||
-      recipe.diets.toLowerCase().contains(q) ||
-      recipe.allergens.toLowerCase().contains(q) ||
-      recipe.occasions.toLowerCase().contains(q);
+  return _indexOf(recipe).searchFields.any((field) => field.contains(query));
 }
 
 bool matchesFilters(RecipeDisplayModel recipe, RecipeFilters filters) {
-  final ingredientTags = recipe.ingredients
-      .split(',')
-      .map(ingredientFilterLabel)
-      .where((v) => v.isNotEmpty)
-      .map((v) => v.toLowerCase())
-      .toSet();
-  final utensilText = normalizeAscii(recipe.utensils).toLowerCase();
-  final dietText =
-      normalizeAscii('${recipe.category} ${recipe.diets}').toLowerCase();
-  final allergenText = normalizeAscii(recipe.allergens).toLowerCase();
+  final index = _indexOf(recipe);
+  final ingredientTags = index.ingredientTags;
+  final utensilText = index.utensilText;
+  final dietText = index.dietText;
+  final allergenText = index.allergenText;
 
   if (filters.ingredients.isNotEmpty &&
       !filters.ingredients.any((v) =>
@@ -305,7 +330,7 @@ bool matchesFilters(RecipeDisplayModel recipe, RecipeFilters filters) {
     return false;
   }
 
-  final duration = parseDurationMinutes(recipe.duration);
+  final duration = index.durationMinutes;
   if (filters.minTimeMinutes != null &&
       duration != null &&
       duration < filters.minTimeMinutes!) {
